@@ -238,6 +238,7 @@ Este projeto está licenciado sob a **MIT License** — veja o arquivo [LICENSE]
 
 ## 👤 Autor
 
+<strong>Matheus Macário Gonçalves Monteiro Guimarães dos Santos</strong>
 Desenvolvido como ferramenta de apoio à gestão pública.
 
 **LicitaReq** — simplificando a triagem de contratações públicas com base na Lei nº 14.133/2021.
