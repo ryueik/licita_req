@@ -1,66 +1,101 @@
 /* ============================================================
    LicitaReq — app.js
    Motor de triagem baseado na Lei nº 14.133/2021
-   Refatoração: motivação jurídica explícita da modalidade.
+   Correções desta versão:
+     - Emergência (Art. 75, VIII) com PRIORIDADE sobre Concorrência
+     - Exceção de Inexigibilidade (Art. 74, §2º) no checklist de preços
+     - Natureza "Bens e Serviços Comuns / Consumo" (lâmpadas, papel, ferramentas)
    ============================================================ */
 'use strict';
 
 /* -------------------- LIMITES LEGAIS -------------------- */
-/* ⚠️ Valores de referência — atualize anualmente conforme
-   os decretos de atualização monetária (art. 182 da Lei 14.133/2021). */
+/* ⚠️ Valores de referência — atualize anualmente conforme decretos. */
 const LIMITE_DISPENSA_BENS_SERVICOS =  50000.00;   // Art. 75, II
 const LIMITE_DISPENSA_OBRAS         = 100000.00;   // Art. 75, I
-/* Compatibilidade com checagens anteriores */
-const LIMITE_OBRA_ENG      = LIMITE_DISPENSA_OBRAS;
-const LIMITE_BENS_SERVICOS = LIMITE_DISPENSA_BENS_SERVICOS;
+const LIMITE_OBRA_ENG               = LIMITE_DISPENSA_OBRAS;
+const LIMITE_BENS_SERVICOS          = LIMITE_DISPENSA_BENS_SERVICOS;
 
 /* -------------------- PALAVRAS-CHAVE -------------------- */
 const KEYWORDS = {
   obra: [
     'obra', 'obras', 'engenharia', 'reforma', 'construção', 'construcao',
-    'edifica', 'pavimenta', 'saneamento', 'drenagem', 'elétrica', 'eletrica',
-    'hidráulica', 'hidraulica', 'estrutural', 'alvenaria', 'fundação', 'fundacao',
+    'edifica', 'pavimenta', 'saneamento', 'drenagem', 'hidráulica', 'hidraulica',
+    'estrutural', 'alvenaria', 'fundação', 'fundacao',
     'projeto executivo', 'projeto básico', 'memorial descritivo', 'orçamento de obra'
   ],
   tic: [
-    'software', 'sistema', 'licença', 'licenca', 'tecnologia da informação',
-    'tecnologia da informacao', 'computador', 'notebook', 'servidor', 'cloud',
-    'nuvem', 'datacenter', 'firewall', 'switch', 'roteador', 'cabeamento estruturado',
-    'suporte técnico de ti', 'desenvolvimento de sistema', 'aplicativo', 'erp',
-    'arquitetura de nuvem', 'consultoria em ti'
+    'software', 'licença de software', 'licenca de software',
+    'tecnologia da informação', 'tecnologia da informacao',
+    'computador', 'notebook', 'servidor de rede', 'cloud computing',
+    'datacenter', 'firewall', 'switch gerenciável', 'roteador',
+    'cabeamento estruturado de rede', 'desenvolvimento de sistema',
+    'aplicativo móvel', 'erp', 'arquitetura de nuvem', 'consultoria em ti',
+    'link de internet', 'provedor de internet'
   ],
   tecnicos: [
     'serviço técnico especializado', 'servico tecnico especializado',
     'consultoria', 'consultoria especializada', 'assessoria técnica',
     'parecer técnico', 'auditoria', 'perícia', 'pericia', 'laudo',
     'estudo técnico', 'projeto de engenharia', 'capacitação',
-    'treinamento especializado', 'arquitetura', 'engenharia consultiva',
-    'projeto', 'intelectual'
+    'treinamento especializado', 'engenharia consultiva',
+    'parecerista', 'notória especialização'
   ],
   comuns: [
-    'material de escritório', 'material de escritorio', 'papel', 'caneta',
-    'toner', 'cartucho', 'limpeza', 'higiene', 'copa', 'cozinha', 'gêneros',
-    'generos', 'alimentício', 'alimenticio', 'uniforme', 'vestuário', 'vestuario',
+    'material de escritório', 'material de escritorio',
+    'material de expediente', 'papel a4', 'papel sulfite',
+    'caneta', 'lápis', 'lapis', 'toner', 'cartucho', 'grampeador',
+    'limpeza', 'higiene', 'copa', 'cozinha', 'gêneros', 'generos',
+    'alimentício', 'alimenticio', 'uniforme', 'vestuário', 'vestuario',
     'mobiliário', 'mobiliario', 'cadeira', 'mesa', 'armário', 'armario',
     'manutenção predial', 'manutencao predial', 'vigilância', 'vigilancia',
-    'transporte', 'locação de veículo', 'locacao de veiculo', 'combustível'
+    'transporte', 'locação de veículo', 'locacao de veiculo', 'combustível',
+    'lâmpada', 'lampada', 'lâmpadas', 'lampadas', 'led',
+    'ferramenta', 'ferramentas', 'parafuso', 'prego', 'martelo',
+    'chave de fenda', 'alicate', 'furadeira', 'material elétrico', 'material eletrico'
+  ],
+  /* 🔧 NOVO: palavras que FORÇAM a natureza "Comuns / Consumo" */
+  consumo: [
+    'lâmpada', 'lampada', 'lâmpadas', 'lampadas',
+    'papel a4', 'papel sulfite', 'material de escritório', 'material de escritorio',
+    'material de expediente', 'expediente',
+    'caneta', 'lápis', 'lapis', 'borracha', 'grampeador', 'clips', 'clipes',
+    'toner', 'cartucho', 'ferramenta', 'ferramentas', 'parafuso', 'prego',
+    'martelo', 'chave de fenda', 'alicate', 'furadeira', 'serra',
+    'cabo elétrico', 'cabo eletrico', 'fio elétrico', 'fio eletrico',
+    'tomada', 'interruptor', 'disjuntor', 'quadro de distribuição'
   ],
   emergencia: [
-    'emergência', 'emergencia', 'calamidade', 'urgência', 'urgencia',
-    'risco iminente', 'desabastecimento', 'paralisação', 'paralisacao',
-    'socorro', 'desastre', 'defesa civil', 'situação crítica', 'situacao critica'
+    'emergência', 'emergencia', 'emergencial', 'emergenciais',
+    'calamidade', 'calamidade pública', 'calamidade publica',
+    'desastre', 'desastres', 'defesa civil',
+    'risco iminente', 'risco iminente à vida', 'risco a vida',
+    'paralisação de serviço', 'paralisacao de servico',
+    'paralisação de serviços essenciais', 'desabastecimento',
+    'socorro', 'situação crítica', 'situacao critica',
+    'estado de emergência', 'estado de emergencia'
   ],
   inexigibilidade: [
     'inexigibilidade', 'notória especialização', 'notoria especializacao',
     'fornecedor exclusivo', 'exclusividade', 'inviabilidade de competição',
     'inviabilidade de competicao', 'artista', 'consagrado', 'serviço singular',
-    'servico singular', 'representante exclusivo', 'único fornecedor', 'unico fornecedor'
+    'servico singular', 'representante exclusivo', 'único fornecedor', 'unico fornecedor',
+    'parecerista', 'treinamento especializado'
   ],
   justificativaExclusividade: [
     'notória especialização', 'notoria especializacao', 'exclusividade',
     'fornecedor exclusivo', 'inviabilidade de competição', 'inviabilidade de competicao',
     'representante exclusivo', 'único fornecedor', 'unico fornecedor',
     'art. 74', 'artigo 74', 'inciso iii'
+  ],
+  /* 🔧 NOVO: palavras que indicam justificativa de preço em inexigibilidade */
+  justificativaPrecoInexigivel: [
+    'nota fiscal', 'notas fiscais', 'nota fiscal anterior',
+    'contrato anterior', 'contratos anteriores', 'contratação anterior',
+    'contratacao anterior', 'histórico de contratações', 'historico de contratacoes',
+    'preços praticados', 'precos praticados', 'preço praticado', 'preco praticado',
+    'art. 74, § 2', 'art. 74, §2', 'artigo 74, § 2', 'artigo 74, §2',
+    'art. 74, § 2º', 'art. 74, §2º',
+    'justificativa de preço', 'justificativa de preco'
   ],
   alienacao: [
     'alienação', 'alienacao', 'venda de bens', 'venda de bem',
@@ -101,12 +136,26 @@ const REQUISITOS = [
     test: (t) => /(\d+\s*(unid|unidade|un|pç|pc|caixa|cx|kg|litro|l|m²|m2|m³|m3|metro|pacote|resma|frasco|licen[çc]a))|quantidade\s*:?\s*\d+|\b\d{1,5}\s+(unidades?|itens?)/i.test(t)
   },
   {
+    /* 🔧 ATUALIZADO: Aceita justificativa por notas fiscais/contratos anteriores
+       quando a modalidade é Inexigibilidade (Art. 74, §2º). */
     id: 'valor',
     titulo: 'Estimativa preliminar de preço / pesquisa de mercado',
-    desc: 'A solicitação deve vir acompanhada de estimativa de valor ou indicação de pesquisa de preços.',
+    desc: 'A solicitação deve vir acompanhada de estimativa de valor ou indicação de pesquisa de preços. Em contratações diretas por Inexigibilidade, admite-se justificativa de preço baseada em notas fiscais ou contratos anteriores do contratado (Art. 74, §2º).',
     law: 'Art. 18, §1º, IV e Art. 23 — Lei 14.133/2021',
     severidade: 'media',
-    test: (t, extra) => /(R\$\s*[\d.,]+)|(pesquisa de (preço|preco|mercado))|(estimativa de valor)|(valor estimado)/i.test(t) || (extra.valor && extra.valor > 0)
+    test: (t, extra) => {
+      /* --- Exceção de Inexigibilidade (Art. 74, §2º) --- */
+      if (extra && extra.eInexigivel) {
+        const temJustificativaPreco = KEYWORDS.justificativaPrecoInexigivel
+          .some(k => t.toLowerCase().includes(k));
+        if (temJustificativaPreco) return true;
+      }
+      /* --- Regra geral --- */
+      return (
+        /(R\$\s*[\d.,]+)|(pesquisa de (preço|preco|mercado))|(estimativa de valor)|(valor estimado)/i.test(t) ||
+        (extra && extra.valor && extra.valor > 0)
+      );
+    }
   },
   {
     id: 'dotacao',
@@ -146,9 +195,11 @@ const REQUISITOS = [
     desc: 'É vedada a indicação de marca/modelo sem justificativa técnica que demonstre padronização ou exclusividade.',
     law: 'Art. 41, I — Lei 14.133/2021',
     severidade: 'alta',
-    test: (t) => {
+    test: (t, extra) => {
       const temMarca = KEYWORDS.marca.some(k => t.toLowerCase().includes(k));
-      const temJust  = /(padroniza|justificativa técnica|justificativa tecnica|parecer técnico|parecer tecnico|similaridade|compatibilidade|exclusividade)/i.test(t);
+      const temJust  = /(padroniza|justificativa técnica|justificativa tecnica|parecer técnico|parecer tecnico|similaridade|compatibilidade|exclusividade|notória especialização|notoria especializacao)/i.test(t);
+      /* Exceção: em inexigibilidade, a marca é intrínseca ao fornecedor exclusivo */
+      if (extra && extra.eInexigivel) return true;
       return !temMarca || temJust;
     }
   },
@@ -171,7 +222,11 @@ const REQUISITOS = [
     desc: 'A descrição não pode direcionar a contratação para fornecedor específico.',
     law: 'Art. 5º e Art. 41 — Lei 14.133/2021',
     severidade: 'alta',
-    test: (t) => !/(direcionad[oa]\s+(?:para|à|a)\s+(?:empresa|fornecedor)|exclusivamente\s+(?:a|para)\s+(?:empresa|fornecedor))/i.test(t)
+    test: (t, extra) => {
+      /* Exceção: em inexigibilidade, a exclusividade é lícita */
+      if (extra && extra.eInexigivel) return true;
+      return !/(direcionad[oa]\s+(?:para|à|a)\s+(?:empresa|fornecedor)|exclusivamente\s+(?:a|para)\s+(?:empresa|fornecedor))/i.test(t);
+    }
   }
 ];
 
@@ -263,7 +318,6 @@ function limparMetadados(dados) {
   let unidade = dados.unidadeRequisitante || '';
   let objeto  = dados.objeto             || '';
 
-  /* --- Unidade --- */
   unidade = unidade
     .split(/\b(?:De|Para|Ao|À|Assunto|Ref|Refer[êe]ncia|Objeto|Processo|Expediente)\s*:/i)[0]
     .replace(/[—–\-]{1,}|[:#]/g, '')
@@ -285,7 +339,6 @@ function limparMetadados(dados) {
     .replace(/[.,;:]+$/, '')
     .trim();
 
-  /* --- Objeto --- */
   objeto = objeto
     .split(/---|—{2,}|\s\d+\.\s|\s#/)[0]
     .replace(/^(?:solicita[çc][ãa]o\s+de|assunto|objeto|ref(?:er[êe]ncia)?)\s*[:\-–—]?\s*/i, '')
@@ -305,7 +358,7 @@ function limparMetadados(dados) {
 }
 
 /* ============================================================
-   TEMA — DARK COMO PADRÃO
+   TEMA
    ============================================================ */
 
 function aplicarTema(tema) {
@@ -341,7 +394,7 @@ els.themeToggle.addEventListener('click', () => {
 });
 
 /* ============================================================
-   ARIA EXPANDED em <details>
+   ARIA EXPANDED
    ============================================================ */
 function initAccordions() {
   document.querySelectorAll('details.accordion').forEach(det => {
@@ -538,21 +591,14 @@ function detectarEmpresaDirecionada(texto) {
 }
 
 /* ============================================================
-   DETECÇÃO DE SINAIS ESPECÍFICOS (para árvore de decisão)
+   SINAIS ESPECÍFICOS
    ============================================================ */
 
-/**
- * Detecta se o processo envolve alienação de bens (leilão).
- */
 function detectarAlienacao(texto, objeto) {
   const base = `${texto || ''} ${objeto || ''}`.toLowerCase();
   return KEYWORDS.alienacao.some(k => base.includes(k));
 }
 
-/**
- * Detecta se há fundamentação mínima de inexigibilidade
- * (exclusividade, notória especialização, etc.).
- */
 function detectarInexigibilidade(texto) {
   const t = (texto || '').toLowerCase();
   const temKeyword = KEYWORDS.inexigibilidade.some(k => t.includes(k));
@@ -560,25 +606,26 @@ function detectarInexigibilidade(texto) {
   return temKeyword || temJustificativa;
 }
 
-/**
- * Detecta se o objeto é obra/engenharia.
- */
+/* 🔧 NOVO: detector dedicado de emergência/calamidade */
+function detectarEmergencia(texto) {
+  const t = (texto || '').toLowerCase();
+  return /emerg[êe]ncial?|calamidade|desastre|defesa\s+civil|risco\s+iminente|paralisa[çc][ãa]o\s+de\s+servi[çc]o|desabastecimento/i.test(t);
+}
+
 function detectarObraEngenharia(objeto) {
   const t = (objeto || '').toLowerCase();
   return /obra|obras|engenharia|reforma|constru[çc][ãa]o|pavimenta|saneamento|drenagem|edifica|estrutural/i.test(t);
 }
 
-/**
- * Detecta se o objeto é serviço técnico especializado / intelectual.
- */
 function detectarServicoIntelectual(objeto) {
   const t = (objeto || '').toLowerCase();
-  return /consultoria|arquitetura|projeto|estudo\s+t[ée]cnico|intelectual|parecer|auditoria|per[íi]cia|laudo|assessoria\s+t[ée]cnica/i.test(t);
+  return /consultoria|arquitetura|projeto|estudo\s+t[ée]cnico|intelectual|parecer|auditoria|per[íi]cia|laudo|assessoria\s+t[ée]cnica|parecerista/i.test(t);
 }
 
 /* ============================================================
    🎯 ÁRVORE DE DECISÃO JURÍDICA — Lei 14.133/2021
-   Determina modalidade + base legal + MOTIVAÇÃO textual
+   ORDEM: Leilão → Emergência → Inexigibilidade →
+          Dispensa Valor → Concorrência → Pregão
    ============================================================ */
 function determinarModalidadeEJustificativa(metadados) {
   const {
@@ -586,6 +633,7 @@ function determinarModalidadeEJustificativa(metadados) {
     valor = 0,
     eInexigivel = false,
     eAlienacao = false,
+    eEmergencial = false,
     empresaDirecionada = '',
     natureza = 'comuns'
   } = metadados;
@@ -619,7 +667,36 @@ function determinarModalidadeEJustificativa(metadados) {
   }
 
   /* ------------------------------------------------------------
-     2) INEXIGIBILIDADE (Art. 74)
+     2) DISPENSA EMERGENCIAL (Art. 75, VIII) — PRIORIDADE
+        Deve prevalecer sobre Concorrência/Engenharia.
+     ------------------------------------------------------------ */
+  if (eEmergencial) {
+    return {
+      modalidade: 'Dispensa de Licitação Emergencial',
+      baseLegal: 'Art. 75, VIII — Lei 14.133/2021',
+      cor: 'danger',
+      motivo:
+        'A situação de emergência ou calamidade pública autoriza a contratação direta ' +
+        'para atendimento de risco iminente à vida, à segurança pública ou à paralisação ' +
+        'de serviços essenciais. Nos termos do Art. 75, VIII da Lei nº 14.133/2021, a ' +
+        'licitação é dispensável quando caracterizada urgência que possa causar prejuízo ' +
+        'à continuidade da prestação do serviço público. A contratação deve ser instruída ' +
+        'com a caracterização da situação emergencial e o prazo máximo de 1 (um) ano, ' +
+        'sendo vedada a prorrogação (Art. 75, §1º).' +
+        (valor > 0
+          ? ` Valor estimado informado: ${valorFmt}.`
+          : ''),
+      descricao:
+        'Contratação direta em razão de emergência ou calamidade pública, com risco à ' +
+        'continuidade de serviços essenciais ou à incolumidade pública.',
+      observacao:
+        'A emergência NÃO pode decorrer de falta de planejamento ou desídia do ' +
+        'administrador. Prazo máximo de 1 ano, vedada prorrogação (Art. 75, §1º).'
+    };
+  }
+
+  /* ------------------------------------------------------------
+     3) INEXIGIBILIDADE (Art. 74)
      ------------------------------------------------------------ */
   if (eInexigivel) {
     return {
@@ -631,21 +708,23 @@ function determinarModalidadeEJustificativa(metadados) {
         'por exclusividade de fornecedor (Art. 74, I), notória especialização técnica ' +
         'ou acadêmica (Art. 74, III), ou ainda por consagração de artista (Art. 74, II). ' +
         'A contratação direta é a única via apta a satisfazer a necessidade pública, ' +
-        'afastando-se o dever geral de licitar.',
+        'afastando-se o dever geral de licitar. Nos termos do Art. 74, §2º, o preço ' +
+        'pode ser justificado com base em notas fiscais ou contratos anteriores do ' +
+        'contratado, quando a natureza do objeto inviabilizar a pesquisa de mercado.' +
+        (empresaDirecionada
+          ? ` ⚠ Empresa mencionada: ${empresaDirecionada}.`
+          : ''),
       descricao:
         'Contratação direta por inviabilidade de competição (fornecedor exclusivo, ' +
         'notória especialização ou artista consagrado).',
       observacao:
         'Deve ser instruída com parecer técnico circunstanciado demonstrando a ' +
-        'exclusividade ou a notória especialização (Art. 74, §1º e §2º).' +
-        (empresaDirecionada
-          ? ` ⚠ Empresa mencionada: ${empresaDirecionada}.`
-          : '')
+        'exclusividade ou a notória especialização (Art. 74, §1º e §2º).'
     };
   }
 
   /* ------------------------------------------------------------
-     3) DISPENSA POR VALOR (Art. 75, I e II)
+     4) DISPENSA POR VALOR (Art. 75, I e II)
      ------------------------------------------------------------ */
   const eObraEng = detectarObraEngenharia(objeto) || natureza === 'obra';
 
@@ -691,7 +770,7 @@ function determinarModalidadeEJustificativa(metadados) {
   }
 
   /* ------------------------------------------------------------
-     4) CONCORRÊNCIA (Art. 6º, XXXVIII e Art. 36)
+     5) CONCORRÊNCIA (Art. 6º, XXXVIII e Art. 36)
      ------------------------------------------------------------ */
   if (detectarServicoIntelectual(objeto) || eObraEng || natureza === 'tecnicos' || natureza === 'obra') {
     const tipo = detectarServicoIntelectual(objeto)
@@ -715,7 +794,7 @@ function determinarModalidadeEJustificativa(metadados) {
   }
 
   /* ------------------------------------------------------------
-     5) PREGÃO ELETRÔNICO (Regra geral — Art. 6º, XLI e Art. 29)
+     6) PREGÃO ELETRÔNICO (Regra geral — Art. 6º, XLI e Art. 29)
      ------------------------------------------------------------ */
   const comRessalva = !!empresaDirecionada;
   return {
@@ -756,14 +835,12 @@ function extrairMetadados(texto) {
     objeto: ''
   };
 
-  /* --- Valor --- */
   const mValor = t.match(/R\$\s*([\d]{1,3}(?:\.\d{3})*(?:,\d{1,2})?)/i);
   if (mValor) {
     raw.valorTexto = `R$ ${mValor[1]}`;
     raw.valor = parseValorBR(mValor[1]);
   }
 
-  /* --- Processo --- */
   const mProc = t.match(
     /\b(memorando|of[íi]cio|processo|requerimento|expediente|dfd|documento\s+de\s+formaliza[çc][ãa]o)\s*(?:n[º°.]?|n[úu]mero)?\s*([\d][\d.\/\-\w]*)/i
   );
@@ -778,7 +855,6 @@ function extrairMetadados(texto) {
     if (mProc2) raw.processo = `Expediente nº ${mProc2[1]}`;
   }
 
-  /* --- Unidade --- */
   const mUnidadeRotulo = t.match(
     /(?:[àa]\s+unidade\s+requisitante|unidade\s+requisitante|setor\s+requisitante|remetente|origem|de)\s*[:\-–—]\s*([^\n]{3,90})/i
   );
@@ -791,16 +867,13 @@ function extrairMetadados(texto) {
     if (mUnidadeNomes) raw.unidadeRequisitante = mUnidadeNomes[1];
   }
 
-  /* --- Órgão --- */
   const mOrgao = t.match(
     /\b(Minist[ée]rio[^\n,.;]{0,60}|Prefeitura[^\n,.;]{0,60}|Tribunal[^\n,.;]{0,60}|Universidade[^\n,.;]{0,60}|Instituto[^\n,.;]{0,60}|C[âa]mara\s+Municipal[^\n,.;]{0,60}|Assembleia[^\n,.;]{0,60})/i
   );
   if (mOrgao) raw.orgao = mOrgao[1].replace(/\s+/g, ' ').trim();
 
-  /* --- Empresa --- */
   raw.empresa = detectarEmpresaDirecionada(t) || '';
 
-  /* --- Objeto --- */
   const mObjeto = t.match(
     /(?:objeto|assunto|refer[êe]ncia)\s*[:\-–—]\s*([^\n]{6,180})/i
   );
@@ -815,7 +888,6 @@ function extrairMetadados(texto) {
     if (candidata) raw.objeto = candidata.slice(0, 160);
   }
 
-  /* --- Limpeza --- */
   const limpos = limparMetadados(raw);
 
   return {
@@ -839,10 +911,34 @@ function contemScore(texto, palavras) {
   return s;
 }
 
+/* ============================================================
+   🔧 DETECÇÃO DE NATUREZA — com OVERRIDE de materiais de consumo
+   ============================================================ */
 function detectarNatureza(texto, naturezaSelecionada) {
   if (naturezaSelecionada && naturezaSelecionada !== 'auto') return naturezaSelecionada;
   const t = texto.toLowerCase();
 
+  /* ------------------------------------------------------------
+     🔧 PRIORIDADE 1: Materiais de consumo/expediente SEMPRE comuns
+     Evita falsos-positivos que classificavam lâmpadas elétricas
+     ou papel A4 como "TIC" por conter "sistema" ou "elétrico".
+     ------------------------------------------------------------ */
+  const scoreConsumo = contemScore(t, KEYWORDS.consumo);
+  if (scoreConsumo >= 1) {
+    // Só força "comuns" se não houver sinais MUITO fortes de TIC/obra
+    const scoreTicForte = contemScore(t, ['software', 'licença de software', 'datacenter',
+      'firewall', 'servidor de rede', 'desenvolvimento de sistema', 'erp',
+      'aplicativo', 'cloud computing']);
+    const scoreObraForte = contemScore(t, ['obra', 'reforma', 'pavimenta', 'saneamento',
+      'edificação', 'fundação', 'estrutural']);
+    if (scoreTicForte === 0 && scoreObraForte === 0) {
+      return 'comuns';
+    }
+  }
+
+  /* ------------------------------------------------------------
+     PRIORIDADE 2: Pontuação normal entre categorias
+     ------------------------------------------------------------ */
   const scores = {
     obra:     contemScore(t, KEYWORDS.obra),
     tic:      contemScore(t, KEYWORDS.tic),
@@ -858,16 +954,13 @@ function detectarNatureza(texto, naturezaSelecionada) {
   return max === 0 ? 'comuns' : melhor;
 }
 
-/**
- * Wrapper compatível com a assinatura anterior.
- * Delega a decisão jurídica para `determinarModalidadeEJustificativa`.
- */
 function detectarModalidade(texto, natureza, valor, empresaDirecionada) {
   const meta = {
-    objeto: '',                    // será preenchido pelo chamador quando disponível
+    objeto: '',
     valor: valor,
     eInexigivel: detectarInexigibilidade(texto),
     eAlienacao: detectarAlienacao(texto, ''),
+    eEmergencial: detectarEmergencia(texto),
     empresaDirecionada: empresaDirecionada || '',
     natureza: natureza
   };
@@ -952,10 +1045,13 @@ function analisar() {
     return;
   }
 
-  /* --- Metadados extraídos --- */
   const meta = extrairMetadados(textoCompleto);
 
-  /* --- Merge: formulário tem prioridade --- */
+  /* 🔧 SINAIS são calculados ANTES para alimentar os requisitos */
+  const eInexigivel = detectarInexigibilidade(textoCompleto);
+  const eAlienacao  = detectarAlienacao(textoCompleto, meta.objeto);
+  const eEmergencial = detectarEmergencia(textoCompleto);
+
   const extra = {
     unidade:          els.unidade.value.trim()      || meta.unidade,
     processo:         els.processo.value.trim()     || meta.processo,
@@ -966,17 +1062,21 @@ function analisar() {
     responsavel:      els.responsavel.value.trim(),
     cargo:            els.cargo.value.trim(),
     empresaDetectada: meta.empresa,
-    objeto:           meta.objeto
+    objeto:           meta.objeto,
+    /* 🔧 Flags que alimentam exceções do checklist */
+    eInexigivel:      eInexigivel,
+    eAlienacao:       eAlienacao,
+    eEmergencial:     eEmergencial
   };
 
   const natureza = detectarNatureza(textoCompleto, extra.natureza);
 
-  /* --- 🎯 ENQUADRAMENTO JURÍDICO COM MOTIVAÇÃO --- */
   const enquadramento = determinarModalidadeEJustificativa({
     objeto:            extra.objeto,
     valor:             extra.valor,
-    eInexigivel:       detectarInexigibilidade(textoCompleto),
-    eAlienacao:        detectarAlienacao(textoCompleto, extra.objeto),
+    eInexigivel:       eInexigivel,
+    eAlienacao:        eAlienacao,
+    eEmergencial:      eEmergencial,
     empresaDirecionada: extra.empresaDetectada,
     natureza:          natureza
   });
@@ -989,14 +1089,13 @@ function analisar() {
     texto: textoCompleto,
     extra,
     natureza,
-    modalidade: enquadramento,   // objeto agora traz .motivo
+    modalidade: enquadramento,
     requisitos,
     score,
     parecer,
     dataAnalise: new Date()
   };
 
-  /* --- Ocultação tripla do empty state --- */
   els.emptyState.hidden = true;
   els.emptyState.setAttribute('aria-hidden', 'true');
   els.emptyState.style.display = 'none';
@@ -1024,7 +1123,8 @@ const LABELS_NATUREZA = {
   obra:     'Obras e serviços de engenharia',
   tecnicos: 'Serviços técnicos especializados',
   tic:      'Tecnologia da Informação e Comunicação (TIC)',
-  comuns:   'Bens e serviços comuns'
+  /* 🔧 Atualizado para refletir o pedido do usuário */
+  comuns:   'Bens e Serviços Comuns / Consumo'
 };
 
 function renderResultado() {
@@ -1117,7 +1217,7 @@ function renderResultado() {
     </div>
   `;
 
-  /* ---------- 🎯 BLOCO DE MOTIVAÇÃO JURÍDICA ---------- */
+  /* ---------- Bloco de motivação jurídica ---------- */
   const motivacaoHtml = `
     <div class="section motivacao" style="border-left:5px solid var(--brand-400);background:linear-gradient(180deg, rgba(56,189,248,0.08), rgba(15,23,42,0.05));">
       <h3 class="section__title" style="color:var(--brand-400);">
