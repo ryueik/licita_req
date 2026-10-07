@@ -1,16 +1,16 @@
 /* ============================================================
    LicitaReq — app.js
    Motor de triagem baseado na Lei nº 14.133/2021
+   Correções: ocultação do empty state, dark theme default, ARIA.
    ============================================================ */
 'use strict';
 
-/* -------------------- LIMITES LEGAIS (valores de referência) -------------------- */
-/* Atualize anualmente conforme decretos de atualização monetária.               */
-const LIMITE_OBRA_ENG        = 119812.02;   // Art. 75, I  — obras e engenharia
-const LIMITE_BENS_SERVICOS   =  59906.02;   // Art. 75, II — bens e serviços comuns
-const LIMITE_DISPENSA_EMER   = Infinity;    // Emergência não tem teto legal
+/* -------------------- LIMITES LEGAIS -------------------- */
+/* Atualize anualmente conforme decretos de atualização monetária. */
+const LIMITE_OBRA_ENG      = 119812.02;   // Art. 75, I
+const LIMITE_BENS_SERVICOS =  59906.02;   // Art. 75, II
 
-/* -------------------- DICIONÁRIOS DE PALAVRAS-CHAVE -------------------- */
+/* -------------------- PALAVRAS-CHAVE -------------------- */
 const KEYWORDS = {
   obra: [
     'obra', 'obras', 'engenharia', 'reforma', 'construção', 'construcao',
@@ -19,7 +19,7 @@ const KEYWORDS = {
     'projeto executivo', 'projeto básico', 'memorial descritivo', 'orçamento de obra'
   ],
   tic: [
-    'software', 'sistema', 'licença', 'licenca', 'ti ', 'tecnologia da informação',
+    'software', 'sistema', 'licença', 'licenca', 'tecnologia da informação',
     'tecnologia da informacao', 'computador', 'notebook', 'servidor', 'cloud',
     'nuvem', 'datacenter', 'firewall', 'switch', 'roteador', 'cabeamento estruturado',
     'suporte técnico de ti', 'desenvolvimento de sistema', 'aplicativo', 'erp'
@@ -52,13 +52,10 @@ const KEYWORDS = {
   marca: [
     'marca ', 'marca:', 'da marca', 'modelo ', 'modelo:', 'fabricante',
     'referência', 'referencia', 'similar', 'ou similar', 'equivalente'
-  ],
-  urgencia: [
-    'urgente', 'prazo curto', 'o quanto antes', 'imediat', 'sem demora'
   ]
 };
 
-/* -------------------- REQUISITOS OBRIGATÓRIOS (checklist) -------------------- */
+/* -------------------- CHECKLIST DE REQUISITOS -------------------- */
 const REQUISITOS = [
   {
     id: 'justificativa',
@@ -82,7 +79,7 @@ const REQUISITOS = [
     desc: 'Deve haver estimativa das quantidades a serem contratadas, com base em séries históricas ou projeções.',
     law: 'Art. 18, §1º, III — Lei 14.133/2021',
     severidade: 'media',
-    test: (t) => /(\d+\s*(unid|unidade|un|pç|pc|caixa|cx|kg|litro|l|m²|m2|m³|m3|metro|caixa|pacote|resma|frasco))|quantidade\s*:?\s*\d+|\b\d{1,5}\s+(unidades?|itens?)/i.test(t)
+    test: (t) => /(\d+\s*(unid|unidade|un|pç|pc|caixa|cx|kg|litro|l|m²|m2|m³|m3|metro|pacote|resma|frasco))|quantidade\s*:?\s*\d+|\b\d{1,5}\s+(unidades?|itens?)/i.test(t)
   },
   {
     id: 'valor',
@@ -127,7 +124,7 @@ const REQUISITOS = [
   {
     id: 'marca',
     titulo: 'Ausência de indicação de marca sem justificativa',
-    desc: 'É vedada a indicação de marca/modelo sem justificativa técnica que demonstre a padronização ou exclusividade.',
+    desc: 'É vedada a indicação de marca/modelo sem justificativa técnica que demonstre padronização ou exclusividade.',
     law: 'Art. 41, I — Lei 14.133/2021',
     severidade: 'alta',
     test: (t) => {
@@ -148,13 +145,12 @@ const REQUISITOS = [
 
 /* -------------------- ESTADO -------------------- */
 const state = {
-  arquivos: [],   // { id, file, name, size, status, text }
+  arquivos: [],
   resultado: null
 };
 
-/* -------------------- REFERÊNCIAS DOM -------------------- */
+/* -------------------- DOM HELPERS -------------------- */
 const $  = (sel) => document.querySelector(sel);
-const $$ = (sel) => document.querySelectorAll(sel);
 
 const els = {
   themeToggle: $('#themeToggle'),
@@ -208,36 +204,48 @@ function escapeHtml(str = '') {
 
 function parseValorBR(str) {
   if (!str) return 0;
-  const limpo = String(str).replace(/[^\d,.-]/g, '').replace(/\.(?=\d{3})/g, '').replace(',', '.');
+  const limpo = String(str)
+    .replace(/[^\d,.-]/g, '')
+    .replace(/\.(?=\d{3})/g, '')
+    .replace(',', '.');
   const n = parseFloat(limpo);
   return isNaN(n) ? 0 : n;
 }
 
-function truncarNome(nome, ext, max = 40) {
+function truncarNome(nome, ext, max = 34) {
   const base = nome.slice(0, nome.length - ext.length);
   if (base.length <= max) return { base, ext };
   return { base: base.slice(0, max) + '…', ext };
 }
 
 /* ============================================================
-   TEMA CLARO / ESCURO
+   TEMA — DARK COMO PADRÃO
    ============================================================ */
 
 function aplicarTema(tema) {
   document.documentElement.setAttribute('data-theme', tema);
   const isDark = tema === 'dark';
+
   els.themeToggle.setAttribute('aria-pressed', String(isDark));
+  els.themeToggle.setAttribute(
+    'aria-label',
+    isDark ? 'Alternar para o tema claro' : 'Alternar para o tema escuro'
+  );
   els.themeToggle.querySelector('.theme-icon').textContent = isDark ? '☀️' : '🌙';
   els.themeToggle.querySelector('.theme-label').textContent = isDark ? 'Modo claro' : 'Modo escuro';
+
+  // Sincroniza theme-color (mobile)
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute('content', isDark ? '#0a0f1a' : '#f1f5f9');
+
   try { localStorage.setItem('licitareq-tema', tema); } catch (e) {}
 }
 
 function initTema() {
-  let tema = 'light';
+  let tema = 'dark'; // padrão
   try {
     const salvo = localStorage.getItem('licitareq-tema');
-    if (salvo) tema = salvo;
-    else if (window.matchMedia('(prefers-color-scheme: dark)').matches) tema = 'dark';
+    if (salvo === 'light' || salvo === 'dark') tema = salvo;
   } catch (e) {}
   aplicarTema(tema);
 }
@@ -248,13 +256,30 @@ els.themeToggle.addEventListener('click', () => {
 });
 
 /* ============================================================
-   UPLOAD E PARSING DE ARQUIVOS
+   ARIA EXPANDED em <details>
+   ============================================================ */
+function initAccordions() {
+  document.querySelectorAll('details.accordion').forEach(det => {
+    const summary = det.querySelector('summary');
+    if (!summary) return;
+    summary.setAttribute('aria-expanded', String(det.open));
+    det.addEventListener('toggle', () => {
+      summary.setAttribute('aria-expanded', String(det.open));
+    });
+  });
+}
+
+/* ============================================================
+   UPLOAD / PARSING
    ============================================================ */
 
 function initDropzone() {
   els.dropzone.addEventListener('click', () => els.fileInput.click());
   els.dropzone.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); els.fileInput.click(); }
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      els.fileInput.click();
+    }
   });
 
   ['dragenter', 'dragover'].forEach(ev =>
@@ -296,10 +321,12 @@ async function processarArquivos(files) {
     try {
       item.text = await extrairTexto(file);
       item.status = 'ok';
-      // Concatena automaticamente no textarea se estiver vazio ou quase
+
       if (item.text && item.text.trim().length > 20) {
         const atual = els.texto.value.trim();
-        els.texto.value = atual ? `${atual}\n\n--- ${file.name} ---\n${item.text}` : item.text;
+        els.texto.value = atual
+          ? `${atual}\n\n--- ${file.name} ---\n${item.text}`
+          : item.text;
         atualizarContador();
       }
       showToast(`"${file.name}" processado com sucesso.`, 'success');
@@ -320,21 +347,15 @@ async function extrairTexto(file) {
   if (ext === '.txt' || ext === '.md' || file.type === 'text/plain') {
     return await file.text();
   }
-
   if (ext === '.pdf' || file.type === 'application/pdf') {
     return await extrairPdf(file);
   }
-
   if (ext === '.docx') {
     return await extrairDocx(file);
   }
-
   if (ext === '.doc') {
-    // DOC legado: navegadores não parseiam nativamente. Avisa o usuário.
-    throw new Error('Formato .doc legado não suportado para parsing. Converta para .docx ou .pdf.');
+    throw new Error('Formato .doc legado não suportado. Converta para .docx ou .pdf.');
   }
-
-  // Fallback: tenta ler como texto
   try { return await file.text(); } catch (e) { return ''; }
 }
 
@@ -403,19 +424,25 @@ function renderFileList() {
 }
 
 /* ============================================================
-   MOTOR DE TRIAGEM — Lei 14.133/2021
+   MOTOR DE TRIAGEM
    ============================================================ */
+
+function contemScore(texto, palavras) {
+  let s = 0;
+  palavras.forEach(p => { if (texto.includes(p)) s++; });
+  return s;
+}
 
 function detectarNatureza(texto, naturezaSelecionada) {
   if (naturezaSelecionada && naturezaSelecionada !== 'auto') return naturezaSelecionada;
   const t = texto.toLowerCase();
 
   const scores = {
-    obra:      contemScore(t, KEYWORDS.obra),
-    tic:       contemScore(t, KEYWORDS.tic),
-    tecnicos:  contemScore(t, KEYWORDS.tecnicos),
-    comuns:    contemScore(t, KEYWORDS.comuns),
-    servicos:  contemScore(t, ['serviço', 'servico', 'prestação', 'prestacao'])
+    obra:     contemScore(t, KEYWORDS.obra),
+    tic:      contemScore(t, KEYWORDS.tic),
+    tecnicos: contemScore(t, KEYWORDS.tecnicos),
+    comuns:   contemScore(t, KEYWORDS.comuns),
+    servicos: contemScore(t, ['serviço', 'servico', 'prestação', 'prestacao'])
   };
 
   let melhor = 'comuns', max = 0;
@@ -425,18 +452,12 @@ function detectarNatureza(texto, naturezaSelecionada) {
   return max === 0 ? 'comuns' : melhor;
 }
 
-function contemScore(texto, palavras) {
-  let s = 0;
-  palavras.forEach(p => { if (texto.includes(p)) s++; });
-  return s;
-}
-
-function detectarModalidade(texto, natureza, valor, naturezaSelecionada) {
+function detectarModalidade(texto, natureza, valor) {
   const t = texto.toLowerCase();
 
   // 1) Inexigibilidade (Art. 74)
-  const scoreInex = contemScore(t, KEYWORDS.inexigibilidade);
-  if (scoreInex >= 1 || /notória especialização|notoria especializacao|fornecedor exclusivo|inviabilidade de competição/i.test(t)) {
+  if (contemScore(t, KEYWORDS.inexigibilidade) >= 1 ||
+      /notória especialização|notoria especializacao|fornecedor exclusivo|inviabilidade de competição/i.test(t)) {
     return {
       modalidade: 'Inexigibilidade de Licitação',
       baseLegal: 'Art. 74 — Lei 14.133/2021',
@@ -447,8 +468,8 @@ function detectarModalidade(texto, natureza, valor, naturezaSelecionada) {
   }
 
   // 2) Dispensa emergencial (Art. 75, VIII)
-  const scoreEmer = contemScore(t, KEYWORDS.emergencia);
-  if (scoreEmer >= 1 && /(emergência|emergencia|calamidade|desastre|risco iminente|situação crítica)/i.test(t)) {
+  if (contemScore(t, KEYWORDS.emergencia) >= 1 &&
+      /(emergência|emergencia|calamidade|desastre|risco iminente|situação crítica)/i.test(t)) {
     return {
       modalidade: 'Dispensa Emergencial',
       baseLegal: 'Art. 75, VIII — Lei 14.133/2021',
@@ -481,7 +502,7 @@ function detectarModalidade(texto, natureza, valor, naturezaSelecionada) {
     }
   }
 
-  // 4) Concorrência (Art. 6º, XXXVIII) — obras, engenharia e serviços técnicos especializados
+  // 4) Concorrência (Art. 6º, XXXVIII)
   const scoreObra = contemScore(t, KEYWORDS.obra);
   const scoreTec  = contemScore(t, KEYWORDS.tecnicos);
   if (natureza === 'obra' || scoreObra >= 2) {
@@ -503,7 +524,7 @@ function detectarModalidade(texto, natureza, valor, naturezaSelecionada) {
     };
   }
 
-  // 5) Pregão (Art. 6º, XLI) — bens e serviços comuns
+  // 5) Pregão (padrão para bens e serviços comuns)
   return {
     modalidade: 'Pregão Eletrônico',
     baseLegal: 'Art. 6º, XLI e Art. 29 — Lei 14.133/2021',
@@ -514,23 +535,19 @@ function detectarModalidade(texto, natureza, valor, naturezaSelecionada) {
 }
 
 function analisarRequisitos(texto, extra) {
-  const resultados = [];
   const t = texto || '';
-
-  REQUISITOS.forEach(req => {
+  return REQUISITOS.map(req => {
     let ok = false;
     try { ok = !!req.test(t, extra); } catch (e) { ok = false; }
-    resultados.push({
+    return {
       id: req.id,
       titulo: req.titulo,
       desc: req.desc,
       law: req.law,
       severidade: req.severidade,
       conforme: ok
-    });
+    };
   });
-
-  return resultados;
 }
 
 function calcularScore(requisitos) {
@@ -545,7 +562,7 @@ function calcularScore(requisitos) {
   return Math.round((obtido / total) * 100);
 }
 
-function gerarParecer(requisitos, modalidade) {
+function gerarParecer(requisitos) {
   const criticos = requisitos.filter(r => !r.conforme && r.severidade === 'alta');
   const medios   = requisitos.filter(r => !r.conforme && r.severidade === 'media');
   const todos    = requisitos.filter(r => !r.conforme);
@@ -582,6 +599,9 @@ function gerarParecer(requisitos, modalidade) {
   };
 }
 
+/* ============================================================
+   ANÁLISE PRINCIPAL
+   ============================================================ */
 function analisar() {
   const textoArquivos = state.arquivos.map(a => a.text).filter(Boolean).join('\n\n');
   const textoManual   = els.texto.value || '';
@@ -602,11 +622,11 @@ function analisar() {
     cargo:      els.cargo.value.trim()
   };
 
-  const natureza = detectarNatureza(textoCompleto, extra.natureza);
-  const modalidade = detectarModalidade(textoCompleto, natureza, extra.valor, extra.natureza);
+  const natureza   = detectarNatureza(textoCompleto, extra.natureza);
+  const modalidade = detectarModalidade(textoCompleto, natureza, extra.valor);
   const requisitos = analisarRequisitos(textoCompleto, extra);
-  const score = calcularScore(requisitos);
-  const parecer = gerarParecer(requisitos, modalidade);
+  const score      = calcularScore(requisitos);
+  const parecer    = gerarParecer(requisitos);
 
   state.resultado = {
     texto: textoCompleto,
@@ -619,23 +639,43 @@ function analisar() {
     dataAnalise: new Date()
   };
 
-  renderResultado();
+  /* ------------------------------------------------------------
+     🔧 CORREÇÃO CRÍTICA DO BUG
+     Oculta o empty state ANTES de renderizar o resultado.
+     Usamos três camadas de garantia:
+       1. atributo [hidden] (CSS garante display:none !important)
+       2. aria-hidden para leitores de tela
+       3. display inline-style como fallback
+     ------------------------------------------------------------ */
   els.emptyState.hidden = true;
+  els.emptyState.setAttribute('aria-hidden', 'true');
+  els.emptyState.style.display = 'none';
+
+  // Renderiza o dashboard
+  renderResultado();
+
+  // Exibe o container de resultados
   els.resultado.hidden = false;
+  els.resultado.removeAttribute('aria-hidden');
+  els.resultado.style.display = '';
+
+  // Move o foco para o resultado (para leitores de tela)
+  els.resultado.setAttribute('tabindex', '-1');
+  try { els.resultado.focus({ preventScroll: false }); } catch (e) {}
+
   showToast('Análise concluída.', 'success');
 }
 
 /* ============================================================
    RENDERIZAÇÃO DO RESULTADO
    ============================================================ */
-
 const LABELS_NATUREZA = {
-  bens: 'Aquisição de bens',
+  bens:     'Aquisição de bens',
   servicos: 'Serviços comuns',
-  obra: 'Obras e serviços de engenharia',
+  obra:     'Obras e serviços de engenharia',
   tecnicos: 'Serviços técnicos especializados',
-  tic: 'Tecnologia da Informação e Comunicação (TIC)',
-  comuns: 'Bens e serviços comuns'
+  tic:      'Tecnologia da Informação e Comunicação (TIC)',
+  comuns:   'Bens e serviços comuns'
 };
 
 function renderResultado() {
@@ -687,14 +727,16 @@ function renderResultado() {
       </div>
 
       <div class="score">
-        <span style="font-size:.8rem;color:var(--text-soft);font-weight:600;">Conformidade</span>
-        <div class="score__bar"><div class="score__fill" style="width:${r.score}%"></div></div>
+        <span style="font-size:.8rem;color:var(--text-soft);font-weight:700;">Conformidade</span>
+        <div class="score__bar" role="progressbar" aria-valuenow="${r.score}" aria-valuemin="0" aria-valuemax="100" aria-label="Índice de conformidade">
+          <div class="score__fill" style="width:${r.score}%"></div>
+        </div>
         <span class="score__value">${r.score}%</span>
       </div>
     </div>
   `;
 
-  // B) Tabela de requisitos
+  // B) Checklist
   const requisitosHtml = r.requisitos.map(req => {
     let cls = 'req-row--ok', icone = '✓', sevCls = 'sev--ok', sevLabel = 'Conforme';
     if (!req.conforme) {
@@ -716,7 +758,7 @@ function renderResultado() {
     `;
   }).join('');
 
-  // C) Alertas e recomendações
+  // C) Alertas
   const naoConformes = r.requisitos.filter(x => !x.conforme);
   const alertasHtml = naoConformes.length === 0
     ? `<div class="alert alert--success">
@@ -726,7 +768,8 @@ function renderResultado() {
          </div>
        </div>`
     : naoConformes.map(item => {
-        const tipo = item.severidade === 'alta' ? 'danger' : item.severidade === 'media' ? 'warning' : '';
+        const tipo = item.severidade === 'alta' ? 'danger'
+                   : item.severidade === 'media' ? 'warning' : '';
         const titulo = item.severidade === 'alta' ? 'Inconformidade crítica'
                      : item.severidade === 'media' ? 'Pendência relevante'
                      : 'Recomendação';
@@ -743,7 +786,7 @@ function renderResultado() {
         `;
       }).join('');
 
-  // D) Minuta de resposta oficial
+  // D) Minuta
   const minuta = gerarMinuta(r);
 
   els.resultado.innerHTML = `
@@ -751,7 +794,7 @@ function renderResultado() {
 
     <div class="section">
       <h3 class="section__title">Enquadramento legal e observações</h3>
-      <p style="font-size:.86rem;color:var(--text-muted);margin-bottom:10px;">
+      <p style="font-size:.86rem;color:var(--text-muted);margin-bottom:12px;">
         ${escapeHtml(r.modalidade.descricao)}
       </p>
       <div class="alert">
@@ -774,7 +817,7 @@ function renderResultado() {
 
     <div class="section">
       <h3 class="section__title">Minuta de resposta oficial (devolutiva)</h3>
-      <pre id="minutaTexto" class="minuta">${escapeHtml(minuta)}</pre>
+      <pre id="minutaTexto" class="minuta" aria-label="Minuta de despacho oficial">${escapeHtml(minuta)}</pre>
       <div class="minuta__actions">
         <button id="btnCopiar" class="btn btn--primary btn--sm" type="button">📋 Copiar despacho</button>
         <button id="btnBaixar" class="btn btn--ghost btn--sm" type="button">⬇ Baixar .txt</button>
@@ -783,16 +826,14 @@ function renderResultado() {
     </div>
   `;
 
-  // Handlers dos botões da minuta
   $('#btnCopiar')?.addEventListener('click', () => copiarTexto(minuta));
   $('#btnBaixar')?.addEventListener('click', () => baixarTxt(minuta));
   $('#btnImprimir')?.addEventListener('click', () => imprimirMinuta(minuta));
 }
 
 /* ============================================================
-   GERADOR DA MINUTA OFICIAL
+   MINUTA OFICIAL
    ============================================================ */
-
 function gerarMinuta(r) {
   const d = r.dataAnalise;
   const dataFmt = d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
@@ -800,17 +841,18 @@ function gerarMinuta(r) {
     ? r.extra.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
     : 'a ser indicado pelo requisitante';
 
-  const unidade = r.extra.unidade || 'Unidade Requisitante';
-  const orgao   = r.extra.orgao || 'Órgão/Entidade';
-  const processo = r.extra.processo || '_______________';
+  const unidade     = r.extra.unidade || 'Unidade Requisitante';
+  const orgao       = r.extra.orgao || 'Órgão/Entidade';
+  const processo    = r.extra.processo || '_______________';
   const responsavel = r.extra.responsavel || '____________________';
-  const cargo = r.extra.cargo || 'Autoridade Competente';
+  const cargo       = r.extra.cargo || 'Autoridade Competente';
 
   const pend = r.requisitos.filter(x => !x.conforme);
   const pendenciasTxt = pend.length === 0
     ? '  (Não foram identificadas pendências formais.)'
     : pend.map((p, i) => {
-        const sev = p.severidade === 'alta' ? 'ALTA' : p.severidade === 'media' ? 'MÉDIA' : 'BAIXA';
+        const sev = p.severidade === 'alta' ? 'ALTA'
+                  : p.severidade === 'media' ? 'MÉDIA' : 'BAIXA';
         return `  ${i + 1}. [Severidade ${sev}] ${p.titulo}\n     Fundamentação: ${p.law}\n     Providência: ${p.desc}`;
       }).join('\n\n');
 
@@ -821,7 +863,7 @@ ${unidade.toUpperCase()}
 Processo nº: ${processo}
 Assunto: Triagem de solicitação de contratação pública — Devolutiva ao setor requisitante
 Data: ${dataFmt}
-    `.trim();
+  `.trim();
 
   const corpo = `
 DESPACHO DE TRIAGEM E ENQUADRAMENTO LEGAL
@@ -871,7 +913,7 @@ _______________________________________________
 ${responsavel}
 ${cargo}
 ${orgao}
-    `.trim();
+  `.trim();
 
   return `${cabecalho}\n\n${corpo}`;
 }
@@ -879,7 +921,6 @@ ${orgao}
 /* ============================================================
    AÇÕES DA MINUTA
    ============================================================ */
-
 async function copiarTexto(texto) {
   try {
     if (navigator.clipboard && window.isSecureContext) {
@@ -938,7 +979,6 @@ function imprimirMinuta(texto) {
 /* ============================================================
    EXEMPLO E LIMPEZA
    ============================================================ */
-
 function carregarExemplo() {
   els.unidade.value = 'Coordenação-Geral de Tecnologia da Informação';
   els.processo.value = '00000.000123/2025-10';
@@ -985,11 +1025,20 @@ function limparTudo() {
   els.cargo.value = '';
   state.arquivos = [];
   state.resultado = null;
+
   renderFileList();
   atualizarContador();
+
+  /* Repõe o estado inicial: empty state visível, resultado oculto */
   els.emptyState.hidden = false;
+  els.emptyState.removeAttribute('aria-hidden');
+  els.emptyState.style.display = '';
+
   els.resultado.hidden = true;
+  els.resultado.setAttribute('aria-hidden', 'true');
+  els.resultado.style.display = 'none';
   els.resultado.innerHTML = '';
+
   showToast('Formulário limpo.', 'success');
 }
 
@@ -1000,11 +1049,17 @@ function atualizarContador() {
 /* ============================================================
    INICIALIZAÇÃO
    ============================================================ */
-
 function init() {
   initTema();
+  initAccordions();
   initDropzone();
   renderFileList();
+
+  // Estado inicial explícito (garantia extra contra o bug)
+  els.emptyState.hidden = false;
+  els.emptyState.style.display = '';
+  els.resultado.hidden = true;
+  els.resultado.style.display = 'none';
 
   els.texto.addEventListener('input', atualizarContador);
   els.btnAnalisar.addEventListener('click', analisar);
