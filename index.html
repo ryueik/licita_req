@@ -1,24 +1,25 @@
 <!DOCTYPE html>
-<html lang="pt-BR" data-theme="light">
+<html lang="pt-BR" data-theme="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>LicitaReq — Analisador e Triador de Requisitantes de Contratação Pública</title>
-  <meta name="description" content="Ferramenta para triagem de solicitações de contratação pública com base na Lei nº 14.133/2021: enquadramento legal, apontamento de inconformidades e geração de minuta de devolutiva." />
+  <meta name="description" content="Ferramenta de triagem de solicitações de contratação pública com base na Lei nº 14.133/2021: enquadramento legal, apontamento de inconformidades e minuta de devolutiva." />
   <meta name="author" content="LicitaReq" />
-  <meta name="theme-color" content="#1d4ed8" />
+  <meta name="color-scheme" content="dark light" />
+  <meta name="theme-color" content="#0a0f1a" />
 
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%231d4ed8'/%3E%3Ctext x='32' y='43' font-family='Arial' font-size='30' font-weight='bold' fill='white' text-anchor='middle'%3ELR%3C/text%3E%3C/svg%3E" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%236366f1'/%3E%3Ctext x='32' y='43' font-family='Arial' font-size='30' font-weight='bold' fill='white' text-anchor='middle'%3ELR%3C/text%3E%3C/svg%3E" />
 
-  <link rel="stylesheet" href="style.css" />
   <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin />
+  <link rel="stylesheet" href="style.css" />
 </head>
 
 <body>
   <a class="skip-link" href="#conteudo">Pular para o conteúdo principal</a>
 
   <!-- ============================= HEADER ============================= -->
-  <header class="app-header">
+  <header class="app-header" role="banner">
     <div class="brand">
       <div class="brand__mark" aria-hidden="true">LR</div>
       <div class="brand__text">
@@ -28,36 +29,54 @@
     </div>
 
     <div class="header-actions">
-      <span class="chip chip--law" title="Base legal utilizada pelo motor de triagem">
-        Lei nº 14.133/2021
+      <span class="chip chip--law" title="Base legal do motor de triagem">
+        <span aria-hidden="true">⚖</span> Lei nº 14.133/2021
       </span>
-      <button id="themeToggle" class="btn btn--ghost btn--icon" type="button"
-              aria-pressed="false" aria-label="Alternar tema claro e escuro">
-        <span class="theme-icon" aria-hidden="true">🌙</span>
-        <span class="theme-label">Modo escuro</span>
+      <button
+        id="themeToggle"
+        class="btn btn--ghost btn--icon"
+        type="button"
+        aria-pressed="true"
+        aria-label="Alternar para o tema claro"
+      >
+        <span class="theme-icon" aria-hidden="true">☀️</span>
+        <span class="theme-label">Modo claro</span>
       </button>
     </div>
   </header>
 
   <!-- ============================= MAIN ============================= -->
-  <main id="conteudo" class="workspace">
+  <main id="conteudo" class="workspace" role="main">
 
     <!-- ------------------------- COLUNA DE ENTRADA ------------------------- -->
     <section class="panel panel--input" aria-labelledby="titulo-entrada">
-      <div class="panel__head">
+      <header class="panel__head">
         <h2 id="titulo-entrada" class="panel__title">
-          <span class="step">1</span> Entrada da solicitação
+          <span class="step" aria-hidden="true">1</span>
+          Entrada da solicitação
         </h2>
         <p class="panel__hint">
           Envie o Ofício/e-mail do setor requisitante ou cole o texto diretamente no campo abaixo.
         </p>
-      </div>
+      </header>
 
       <!-- Dropzone -->
-      <div id="dropzone" class="dropzone" tabindex="0" role="button"
-           aria-describedby="dropzone-hint" aria-label="Área de envio de arquivos. Pressione Enter para selecionar arquivos.">
-        <input type="file" id="fileInput" class="sr-only"
-               accept=".pdf,.doc,.docx,.txt,.md,text/plain" multiple />
+      <div
+        id="dropzone"
+        class="dropzone"
+        tabindex="0"
+        role="button"
+        aria-describedby="dropzone-hint"
+        aria-label="Área de envio de arquivos. Pressione Enter ou Espaço para selecionar arquivos do computador."
+      >
+        <input
+          type="file"
+          id="fileInput"
+          class="sr-only"
+          accept=".pdf,.doc,.docx,.txt,.md,text/plain"
+          multiple
+          aria-hidden="true"
+        />
         <div class="dropzone__icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor"
                stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -76,20 +95,27 @@
 
       <ul id="fileList" class="filelist" aria-live="polite" aria-label="Arquivos anexados"></ul>
 
-      <div class="divider"><span>ou cole o texto</span></div>
+      <div class="divider" role="separator"><span>ou cole o texto</span></div>
 
       <div class="field">
         <label class="field__label" for="texto">Texto da solicitação</label>
-        <textarea id="texto" class="textarea" rows="10"
-                  placeholder="Cole aqui o e-mail, ofício, DFD ou documento de formalização da demanda enviado pela unidade requisitante…"
-                  aria-describedby="charCount"></textarea>
-        <div class="counter"><span id="charCount">0</span> caracteres</div>
+        <textarea
+          id="texto"
+          class="textarea"
+          rows="10"
+          placeholder="Cole aqui o e-mail, ofício, DFD ou documento de formalização da demanda enviado pela unidade requisitante…"
+          aria-describedby="charCount"
+        ></textarea>
+        <div class="counter" aria-live="off">
+          <span id="charCount">0</span> caracteres
+        </div>
       </div>
 
       <!-- Dados complementares -->
       <details class="accordion" open>
-        <summary class="accordion__summary">
-          <span class="step step--sm">2</span> Dados complementares
+        <summary class="accordion__summary" aria-expanded="true">
+          <span class="step step--sm" aria-hidden="true">2</span>
+          <span>Dados complementares</span>
           <span class="accordion__hint">(opcional — melhora a precisão)</span>
         </summary>
 
@@ -155,15 +181,16 @@
 
     <!-- ------------------------- COLUNA DE RESULTADOS ------------------------- -->
     <section class="panel panel--result" aria-labelledby="titulo-resultado">
-      <div class="panel__head">
+      <header class="panel__head">
         <h2 id="titulo-resultado" class="panel__title">
-          <span class="step">3</span> Dashboard de triagem
+          <span class="step" aria-hidden="true">3</span>
+          Dashboard de triagem
         </h2>
         <p class="panel__hint">Resultado do enquadramento legal, inconformidades e minuta de devolutiva.</p>
-      </div>
+      </header>
 
-      <!-- Estado vazio -->
-      <div id="emptyState" class="empty-state">
+      <!-- Estado vazio — ocultado via JS após análise -->
+      <div id="emptyState" class="empty-state" role="status">
         <div class="empty-state__icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" width="42" height="42" fill="none" stroke="currentColor"
                stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
@@ -175,24 +202,34 @@
         </div>
         <p class="empty-state__title">Nenhuma análise realizada</p>
         <p class="empty-state__text">
-          Insira o texto ou os arquivos da solicitação e clique em <strong>Analisar solicitação</strong>
-          para gerar o enquadramento, as pendências e a minuta de resposta oficial.
+          Insira o texto ou os arquivos da solicitação e clique em
+          <strong>Analisar solicitação</strong> para gerar o enquadramento, as pendências e a
+          minuta de resposta oficial.
         </p>
       </div>
 
-      <!-- Conteúdo do resultado -->
-      <div id="resultado" class="result" hidden aria-live="polite"></div>
+      <!-- Área de resultados dinâmicos -->
+      <article
+        id="resultado"
+        class="result"
+        hidden
+        aria-live="polite"
+        aria-atomic="false"
+        aria-labelledby="titulo-resultado"
+      ></article>
     </section>
   </main>
 
   <!-- ============================= FOOTER ============================= -->
-  <footer class="app-footer">
+  <footer class="app-footer" role="contentinfo">
     <p>
       <strong>LicitaReq</strong> — ferramenta de apoio à triagem de demandas de contratação pública.
-      Motor de regras baseado na <strong>Lei nº 14.133/2021</strong> e no <strong>Decreto nº 11.317/2022</strong>.
+      Motor de regras baseado na <strong>Lei nº 14.133/2021</strong> e no
+      <strong>Decreto nº 11.317/2022</strong>.
     </p>
     <p class="app-footer__warn">
-      ⚠️ O resultado é um subsídio técnico automatizado e <strong>não substitui</strong> o parecer da
+      <span aria-hidden="true">⚠️</span>
+      O resultado é um subsídio técnico automatizado e <strong>não substitui</strong> o parecer da
       assessoria jurídica, do controle interno ou da autoridade competente.
     </p>
   </footer>
