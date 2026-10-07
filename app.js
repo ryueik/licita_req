@@ -1,13 +1,12 @@
 /* ============================================================
    LicitaReq — app.js
    Motor de triagem baseado na Lei nº 14.133/2021
-   Correções: extração de metadados, minuta oficial SEI,
-   detecção de direcionamento empresarial (Art. 41, I / 74, III).
+   Correções: limpeza de metadados (De:/Para:/---/numeração),
+   normalização de unidade requisitante e objeto.
    ============================================================ */
 'use strict';
 
 /* -------------------- LIMITES LEGAIS -------------------- */
-/* Atualize anualmente conforme decretos de atualização monetária. */
 const LIMITE_OBRA_ENG      = 119812.02;   // Art. 75, I
 const LIMITE_BENS_SERVICOS =  59906.02;   // Art. 75, II
 
@@ -149,9 +148,7 @@ const REQUISITOS = [
     law: 'Art. 41, I e Art. 74, III — Lei 14.133/2021',
     severidade: 'alta',
     test: (t, extra) => {
-      // Sem empresa detectada → conforme
       if (!extra || !extra.empresaDetectada) return true;
-      // Com empresa detectada, exige fundamentação de exclusividade/notória especialização
       const temJustificativa = KEYWORDS.justificativaExclusividade
         .some(k => t.toLowerCase().includes(k));
       return temJustificativa;
@@ -199,7 +196,7 @@ const els = {
 };
 
 /* ============================================================
-   UTILITÁRIOS
+   UTILITÁRIOS GERAIS
    ============================================================ */
 
 function showToast(msg, tipo = '') {
@@ -245,6 +242,81 @@ function truncarNome(nome, ext, max = 34) {
   const base = nome.slice(0, nome.length - ext.length);
   if (base.length <= max) return { base, ext };
   return { base: base.slice(0, max) + '…', ext };
+}
+
+/* ============================================================
+   ✨ FUNÇÕES DE LIMPEZA DE METADADOS  (NOVAS)
+   ============================================================ */
+
+/**
+ * Remove prefixos típicos de cabeçalho/rodapé de e-mail ou ofício:
+ *   "De:", "Para:", "Ao:", "À:", "Assunto:", "Ref:", "Referência:",
+ *   "Unidade Requisitante:", "Setor Requisitante:", além de bullets
+ *   e marcadores (-, –, —, •, *, #, >) no início da string.
+ */
+function limparPrefixoCabecalho(str) {
+  if (!str) return '';
+  return String(str)
+    // bullets/traços/cerquilhas no início
+    .replace(/^[\s\-–—•*#>|]+/, '')
+    // prefixos de cabeçalho conhecidos
+    .replace(
+      /^(?:de|para|ao|à|aos|às|assunto|ref|referência|referencia|unidade\s+requisitante|setor\s+requisitante|requisitante|destinat[áa]rio|remetente|origem|objeto|processo|expediente)\s*[:\-–—]\s*/i,
+      ''
+    )
+    // normaliza espaços
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Remove marcadores estruturais, numeração e artefatos de seção:
+ *   "---", "###", "1.", "1. ", "**", "__", numeração romana, etc.
+ * Aplica também o `.split('---')[0]` solicitado.
+ */
+function limparMarcadores(str) {
+  if (!str) return '';
+  return String(str)
+    .split('---')[0]                                    // corta a partir do primeiro "---"
+    .replace(/(---|#{1,6}|\*\*|__)/g, '')               // remove marcadores Markdown
+    .replace(/\b\d{1,3}\.\s+/g, '')                     // remove numeração "1. ", "12. "
+    .replace(/^[\s\-–—•*#>|]+/, '')                     // remove bullets iniciais
+    .replace(/\s+/g, ' ')                               // normaliza espaços
+    .trim();
+}
+
+/* Dicionário de normalização de unidades conhecidas */
+const UNIDADES_CONHECIDAS = [
+  {
+    // "Setor Requisitante / TI", "Setor Requisitante - TI",
+    // "Diretoria de TI", "Diretoria de Tecnologia da Informação"
+    match: /(setor\s+requisitante\s*[\/\-]\s*ti|diretoria\s+de\s+(?:tecnologia\s+da\s+informa[çc][ãa]o|ti))/i,
+    canonico: 'Diretoria de Tecnologia da Informação (TI)'
+  },
+  {
+    match: /(coordena[çc][ãa]o[\-\s]*geral\s+de\s+tecnologia\s+da\s+informa[çc][ãa]o|cgti)/i,
+    canonico: 'Coordenação-Geral de Tecnologia da Informação (CGTI)'
+  },
+  {
+    match: /(setor\s+de\s+compras|divis[ãa]o\s+de\s+compras|coordena[çc][ãa]o\s+de\s+compras)/i,
+    canonico: 'Divisão de Compras'
+  }
+];
+
+/**
+ * Aplica limpeza de prefixo + normalização de nome canônico.
+ */
+function normalizarUnidade(str) {
+  if (!str) return '';
+  const limpa = limparPrefixoCabecalho(str);
+  for (const u of UNIDADES_CONHECIDAS) {
+    if (u.match.test(limpa)) return u.canonico;
+  }
+  // Remove rodapés comuns que possam ter vazado (ex.: "atenciosamente, fulano")
+  return limpa
+    .replace(/\s*(atenciosamente|att\.?|cordiais\s+sauda[çc][õo]es)[\s\S]*$/i, '')
+    .replace(/[.,;:]+$/, '')
+    .trim();
 }
 
 /* ============================================================
@@ -452,19 +524,15 @@ function renderFileList() {
 }
 
 /* ============================================================
-   EXTRAÇÃO AUTOMÁTICA DE METADADOS DO TEXTO
+   DETECÇÃO DE EMPRESA DIRECIONADA
    ============================================================ */
 
-/**
- * Detecta a razão social de uma empresa mencionada diretamente no texto.
- * Prioriza padrões com sufixos societários (Ltda, S.A., ME, EIRELI, EPP).
- */
 function detectarEmpresaDirecionada(texto) {
   if (!texto) return null;
 
   // Padrão 1 — Razão social com sufixo societário
   const padraoRazaoSocial =
-    /\b([A-ZÀ-Ú][\wÀ-ú&.'-]*(?:\s+(?:[A-ZÀ-Ú][\wÀ-ú&.'-]*|de|da|do|das|dos|e)){0,7}\s+(?:Ltda\.?|LTDA\.?|S\.A\.?|S\/A|S\.A|ME|EIRELI|EPP|S\.A\.))\b/g;
+    /\b([A-ZÀ-Ú][\wÀ-ú&.'-]*(?:\s+(?:[A-ZÀ-Ú][\wÀ-ú&.'-]*|de|da|do|das|dos|e)){0,7}\s+(?:Ltda\.?|LTDA\.?|S\.A\.?|S\/A|S\.A|ME|EIRELI|EPP))\b/g;
 
   const encontradas = [];
   let m;
@@ -486,15 +554,9 @@ function detectarEmpresaDirecionada(texto) {
   return encontradas.length ? encontradas[0] : null;
 }
 
-/**
- * Extrai metadados estruturados do texto da solicitação:
- *   - valor estimado (R$)
- *   - número do processo/expediente
- *   - unidade requisitante
- *   - órgão/entidade
- *   - empresa eventualmente direcionada
- *   - objeto resumido
- */
+/* ============================================================
+   ✨ EXTRAÇÃO DE METADADOS — COM LIMPEZA APLICADA
+   ============================================================ */
 function extrairMetadados(texto) {
   const t = texto || '';
   const out = {
@@ -507,7 +569,7 @@ function extrairMetadados(texto) {
     objeto: ''
   };
 
-  /* --- Valor: R$ 85.000,00 / R$85.000,00 --- */
+  /* --- Valor: R$ 85.000,00 --- */
   const mValor = t.match(/R\$\s*([\d]{1,3}(?:\.\d{3})*(?:,\d{1,2})?)/i);
   if (mValor) {
     out.valorTexto = `R$ ${mValor[1]}`;
@@ -516,51 +578,78 @@ function extrairMetadados(texto) {
 
   /* --- Processo / Expediente --- */
   const mProc = t.match(
-    /\b(memorando|of[ií]cio|processo|requerimento|expediente|dfd|documento\s+de\s+formaliza[çc][aã]o)\s*(?:n[º°.]?|n[úu]mero)?\s*([\d][\d.\/\-\w]*)/i
+    /\b(memorando|of[íi]cio|processo|requerimento|expediente|dfd|documento\s+de\s+formaliza[çc][ãa]o)\s*(?:n[º°.]?|n[úu]mero)?\s*([\d][\d.\/\-\w]*)/i
   );
   if (mProc) {
-    const rotulo = mProc[1]
+    const rotuloBase = mProc[1]
       .replace(/^dfd$/i, 'DFD')
-      .replace(/^documento de formaliza[çc][aã]o$/i, 'Documento de Formalização')
-      .charAt(0).toUpperCase() + mProc[1].slice(1).toLowerCase();
+      .replace(/^documento de formaliza[çc][ãa]o$/i, 'Documento de Formalização');
+    const rotulo = rotuloBase.charAt(0).toUpperCase() + rotuloBase.slice(1).toLowerCase();
     out.processo = `${rotulo} nº ${mProc[2]}`;
   } else {
-    // Padrão genérico "nº 042/2026"
     const mProc2 = t.match(/\bn[º°.]?\s*(\d{1,6}[\/\-]\d{2,4})/i);
     if (mProc2) out.processo = `Expediente nº ${mProc2[1]}`;
   }
 
-  /* --- Unidade requisitante --- */
-  const mUnidade = t.match(
-    /\b(Setor\s+Requisitante[^\n,.;]{0,60}|Coordena[çc][aã]o[^\n,.;]{0,60}|Diretoria[^\n,.;]{0,60}|Secretaria[^\n,.;]{0,60}|Departamento[^\n,.;]{0,60}|Ger[êe]ncia[^\n,.;]{0,60}|Superintend[êe]ncia[^\n,.;]{0,60})/i
-  );
-  if (mUnidade) out.unidade = mUnidade[1].replace(/\s+/g, ' ').trim();
+  /* ============================================================
+     UNIDADE REQUISITANTE — extração em cascata + normalização
+     ============================================================ */
 
-  // Fallback: campo "À Unidade Requisitante:" ou "De:"
-  if (!out.unidade) {
-    const mUnidade2 = t.match(/(?:unidade\s+requisitante|requisitante|de\s*:)\s*[:\-]?\s*([^\n,.;]{4,80})/i);
-    if (mUnidade2) out.unidade = mUnidade2[1].replace(/\s+/g, ' ').trim();
+  // Tenta 1: rótulo explícito "À Unidade Requisitante:", "Setor Requisitante:", "De:"
+  const mUnidadeRotulo = t.match(
+    /(?:[àa]\s+unidade\s+requisitante|unidade\s+requisitante|setor\s+requisitante|remetente|origem|de)\s*[:\-–—]\s*([^\n]{3,90})/i
+  );
+  if (mUnidadeRotulo) {
+    out.unidade = normalizarUnidade(mUnidadeRotulo[1]);
   }
 
-  /* --- Órgão/Entidade --- */
+  // Tenta 2: nomes compostos conhecidos diretamente no corpo do texto
+  if (!out.unidade) {
+    const mUnidadeNomes = t.match(
+      /\b(Diretoria\s+de\s+Tecnologia\s+da\s+Informa[çc][ãa]o|Coordena[çc][ãa]o[\-\s]*Geral\s+de\s+Tecnologia\s+da\s+Informa[çc][ãa]o|Setor\s+Requisitante\s*[\/\-]\s*TI|Departamento\s+de\s+[A-ZÀ-Ú][\wÀ-ú\s]{2,50}|Secretaria\s+de\s+[A-ZÀ-Ú][\wÀ-ú\s]{2,50}|Ger[êe]ncia\s+de\s+[A-ZÀ-Ú][\wÀ-ú\s]{2,50})\b/i
+    );
+    if (mUnidadeNomes) out.unidade = normalizarUnidade(mUnidadeNomes[1]);
+  }
+
+  // Tenta 3: linha "Setor Requisitante / TI" isolada
+  if (!out.unidade) {
+    const mLinhaSetor = t.match(/^\s*(Setor\s+Requisitante\s*[\/\-]\s*TI)\s*$/im);
+    if (mLinhaSetor) out.unidade = normalizarUnidade(mLinhaSetor[1]);
+  }
+
+  /* ============================================================
+     ÓRGÃO / ENTIDADE — com limpeza
+     ============================================================ */
   const mOrgao = t.match(
     /\b(Minist[ée]rio[^\n,.;]{0,60}|Prefeitura[^\n,.;]{0,60}|Tribunal[^\n,.;]{0,60}|Universidade[^\n,.;]{0,60}|Instituto[^\n,.;]{0,60}|C[âa]mara\s+Municipal[^\n,.;]{0,60}|Assembleia[^\n,.;]{0,60})/i
   );
-  if (mOrgao) out.orgao = mOrgao[1].replace(/\s+/g, ' ').trim();
+  if (mOrgao) out.orgao = limparPrefixoCabecalho(mOrgao[1]);
 
   /* --- Empresa direcionada --- */
   out.empresa = detectarEmpresaDirecionada(t) || '';
 
-  /* --- Objeto resumido --- */
+  /* ============================================================
+     OBJETO — split('---')[0] + limpeza agressiva
+     ============================================================ */
+
   const mObjeto = t.match(
-    /(?:objeto|assunto|refer[êe]ncia)\s*[:\-]?\s*([^\n.]{10,140})/i
+    /(?:objeto|assunto|refer[êe]ncia)\s*[:\-–—]\s*([^\n]{6,180})/i
   );
   if (mObjeto) {
-    out.objeto = mObjeto[1].replace(/\s+/g, ' ').trim();
+    out.objeto = limparMarcadores(mObjeto[1]);
   } else {
-    // Fallback: primeira linha significativa
-    const primeira = t.split('\n').map(s => s.trim()).find(s => s.length > 20);
-    if (primeira) out.objeto = primeira.slice(0, 140);
+    // Fallback: primeira linha "significativa" (ignora cabeçalhos)
+    const linhas = t.split('\n').map(s => s.trim()).filter(Boolean);
+    const candidata = linhas.find(s =>
+      s.length > 20 &&
+      !/^(de|para|ao|à|assunto|ref|referência|referencia|memorando|of[íi]cio|processo|dfd)\s*[:\-–—]?/i.test(s)
+    );
+    if (candidata) out.objeto = limparMarcadores(candidata).slice(0, 160);
+  }
+
+  // Limita tamanho final do objeto
+  if (out.objeto.length > 160) {
+    out.objeto = out.objeto.slice(0, 160).trim() + '…';
   }
 
   return out;
@@ -598,7 +687,6 @@ function detectarNatureza(texto, naturezaSelecionada) {
 function detectarModalidade(texto, natureza, valor, empresaDirecionada) {
   const t = texto.toLowerCase();
 
-  /* --- 1) INEXIGIBILIDADE (Art. 74) --- */
   const temJustificativaExclusividade = KEYWORDS.justificativaExclusividade
     .some(k => t.includes(k));
 
@@ -613,7 +701,6 @@ function detectarModalidade(texto, natureza, valor, empresaDirecionada) {
     };
   }
 
-  /* --- 2) DISPENSA EMERGENCIAL (Art. 75, VIII) --- */
   if (contemScore(t, KEYWORDS.emergencia) >= 1 &&
       /(emergência|emergencia|calamidade|desastre|risco iminente|situação crítica)/i.test(t)) {
     return {
@@ -625,7 +712,6 @@ function detectarModalidade(texto, natureza, valor, empresaDirecionada) {
     };
   }
 
-  /* --- 3) DISPENSA POR VALOR (Art. 75, I e II) --- */
   if (natureza === 'obra' || natureza === 'engenharia') {
     if (valor > 0 && valor <= LIMITE_OBRA_ENG) {
       return {
@@ -648,7 +734,6 @@ function detectarModalidade(texto, natureza, valor, empresaDirecionada) {
     }
   }
 
-  /* --- 4) CONCORRÊNCIA (Art. 6º, XXXVIII) --- */
   const scoreObra = contemScore(t, KEYWORDS.obra);
   const scoreTec  = contemScore(t, KEYWORDS.tecnicos);
 
@@ -671,8 +756,6 @@ function detectarModalidade(texto, natureza, valor, empresaDirecionada) {
     };
   }
 
-  /* --- 5) PREGÃO ELETRÔNICO (padrão para bens/serviços comuns) --- */
-  // Se houver empresa direcionada sem fundamentação, alerta
   if (empresaDirecionada) {
     return {
       modalidade: 'Pregão Eletrônico (com ressalva)',
@@ -769,10 +852,10 @@ function analisar() {
     return;
   }
 
-  /* --- Extração automática de metadados do texto --- */
+  /* --- Extração automática de metadados (já com limpeza) --- */
   const meta = extrairMetadados(textoCompleto);
 
-  /* --- Merge: formulário tem prioridade, senão usa o extraído --- */
+  /* --- Merge: formulário tem prioridade; senão usa o extraído --- */
   const extra = {
     unidade:          els.unidade.value.trim()      || meta.unidade,
     processo:         els.processo.value.trim()     || meta.processo,
@@ -803,7 +886,6 @@ function analisar() {
     dataAnalise: new Date()
   };
 
-  /* --- Ocultação tripla do empty state (correção do bug) --- */
   els.emptyState.hidden = true;
   els.emptyState.setAttribute('aria-hidden', 'true');
   els.emptyState.style.display = 'none';
@@ -841,7 +923,7 @@ function renderResultado() {
 
   const naturezaLabel = LABELS_NATUREZA[r.natureza] || r.natureza;
 
-  /* ---------- A) ALERTA CRÍTICO DE DIRECIONAMENTO (se aplicável) ---------- */
+  /* ---------- Alerta crítico de direcionamento ---------- */
   const requisitoDirecionamento = r.requisitos.find(x => x.id === 'direcionamento');
   const temAlertaDirecionamento =
     r.extra.empresaDetectada && requisitoDirecionamento && !requisitoDirecionamento.conforme;
@@ -868,7 +950,7 @@ function renderResultado() {
       </div>
     ` : '';
 
-  /* ---------- B) VEREDICTO ---------- */
+  /* ---------- Veredicto ---------- */
   const veredictoHtml = `
     <div class="verdict verdict--${r.parecer.classe}">
       <div class="verdict__head">
@@ -921,7 +1003,7 @@ function renderResultado() {
     </div>
   `;
 
-  /* ---------- C) CHECKLIST ---------- */
+  /* ---------- Checklist ---------- */
   const requisitosHtml = r.requisitos.map(req => {
     let cls = 'req-row--ok', icone = '✓', sevCls = 'sev--ok', sevLabel = 'Conforme';
     if (!req.conforme) {
@@ -943,7 +1025,7 @@ function renderResultado() {
     `;
   }).join('');
 
-  /* ---------- D) ALERTAS DE PENDÊNCIAS ---------- */
+  /* ---------- Alertas de pendências ---------- */
   const naoConformes = r.requisitos.filter(x => !x.conforme);
   const alertasHtml = naoConformes.length === 0
     ? `<div class="alert alert--success">
@@ -971,7 +1053,7 @@ function renderResultado() {
         `;
       }).join('');
 
-  /* ---------- E) MINUTA ---------- */
+  /* ---------- Minuta ---------- */
   const minuta = gerarMinuta(r);
 
   els.resultado.innerHTML = `
@@ -1020,11 +1102,6 @@ function renderResultado() {
 /* ============================================================
    GERADOR DA MINUTA OFICIAL — Devolutiva SEI
    ============================================================ */
-
-/**
- * Gera a minuta oficial de devolutiva com interpolação dinâmica
- * dos metadados extraídos (valor, processo, unidade, órgão).
- */
 function gerarMinuta(r) {
   const d = r.dataAnalise;
   const dataFmt = d.toLocaleDateString('pt-BR', {
@@ -1033,7 +1110,7 @@ function gerarMinuta(r) {
   const numDespacho = String(Math.floor(Math.random() * 900) + 100);
   const anoAtual = d.getFullYear();
 
-  /* --- Dados interpolados --- */
+  /* --- Dados interpolados (já limpos por extrairMetadados) --- */
   const orgao       = (r.extra.orgao     || 'ÓRGÃO / ENTIDADE PÚBLICA').toUpperCase();
   const unidade     = r.extra.unidade    || 'Unidade Requisitante';
   const processo    = r.extra.processo   || 'Expediente não identificado';
@@ -1045,7 +1122,6 @@ function gerarMinuta(r) {
   const cargo       = r.extra.cargo       || 'Autoridade Competente';
   const empresa     = r.extra.empresaDetectada || '';
 
-  /* --- Montagem das pendências numeradas --- */
   const pendentes = r.requisitos.filter(x => !x.conforme);
   const pendenciasTxt = pendentes.length === 0
     ? '    Não foram identificadas pendências formais. Prossegue-se com a instrução processual.'
@@ -1057,7 +1133,6 @@ function gerarMinuta(r) {
        Providência: ${p.desc}`;
       }).join('\n\n');
 
-  /* --- Bloco especial de direcionamento (se aplicável) --- */
   const blocoDirecionamento = empresa && pendentes.some(p => p.id === 'direcionamento')
     ? `
 
@@ -1076,9 +1151,6 @@ function gerarMinuta(r) {
 `
     : '';
 
-  /* ============================================================
-     TEMPLATE COMPLETO DA MINUTA OFICIAL
-     ============================================================ */
   const minuta = `DESPACHO DE TRIAGEM E ENQUADRAMENTO LEGAL Nº ${numDespacho}/${anoAtual}
 
 ${orgao}
@@ -1219,7 +1291,6 @@ function imprimirMinuta(texto) {
    EXEMPLO E LIMPEZA
    ============================================================ */
 function carregarExemplo() {
-  /* Exemplo alinhado ao caso do usuário: direcionamento de empresa */
   els.unidade.value = '';
   els.processo.value = '';
   els.orgao.value = '';
@@ -1232,9 +1303,9 @@ function carregarExemplo() {
 `DIRETORIA DE TECNOLOGIA DA INFORMAÇÃO
 Memorando nº 042/2026
 
-À Unidade Requisitante: Setor Requisitante / TI
-
-Objeto: Consultoria Especializada em Arquitetura de Nuvem
+De: Setor Requisitante / TI
+Para: Divisão de Licitações
+Assunto: Consultoria Especializada em Arquitetura de Nuvem --- 1
 
 1. Solicitamos a contratação da empresa TechCloud Soluções Avançadas Ltda.
 para prestação de serviços de consultoria especializada em arquitetura de
