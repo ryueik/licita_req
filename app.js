@@ -1,7 +1,8 @@
 /* ============================================================
    LicitaReq — app.js
    Motor de triagem baseado na Lei nº 14.133/2021
-   Correções: ocultação do empty state, dark theme default, ARIA.
+   Correções: extração de metadados, minuta oficial SEI,
+   detecção de direcionamento empresarial (Art. 41, I / 74, III).
    ============================================================ */
 'use strict';
 
@@ -22,13 +23,15 @@ const KEYWORDS = {
     'software', 'sistema', 'licença', 'licenca', 'tecnologia da informação',
     'tecnologia da informacao', 'computador', 'notebook', 'servidor', 'cloud',
     'nuvem', 'datacenter', 'firewall', 'switch', 'roteador', 'cabeamento estruturado',
-    'suporte técnico de ti', 'desenvolvimento de sistema', 'aplicativo', 'erp'
+    'suporte técnico de ti', 'desenvolvimento de sistema', 'aplicativo', 'erp',
+    'arquitetura de nuvem', 'consultoria em ti'
   ],
   tecnicos: [
     'serviço técnico especializado', 'servico tecnico especializado',
-    'consultoria', 'assessoria técnica', 'parecer técnico', 'auditoria',
-    'perícia', 'pericia', 'laudo', 'estudo técnico', 'projeto de engenharia',
-    'capacitação', 'treinamento especializado', 'arquitetura', 'engenharia consultiva'
+    'consultoria', 'consultoria especializada', 'assessoria técnica',
+    'parecer técnico', 'auditoria', 'perícia', 'pericia', 'laudo',
+    'estudo técnico', 'projeto de engenharia', 'capacitação',
+    'treinamento especializado', 'arquitetura', 'engenharia consultiva'
   ],
   comuns: [
     'material de escritório', 'material de escritorio', 'papel', 'caneta',
@@ -48,6 +51,12 @@ const KEYWORDS = {
     'fornecedor exclusivo', 'exclusividade', 'inviabilidade de competição',
     'inviabilidade de competicao', 'artista', 'consagrado', 'serviço singular',
     'servico singular', 'representante exclusivo', 'único fornecedor', 'unico fornecedor'
+  ],
+  justificativaExclusividade: [
+    'notória especialização', 'notoria especializacao', 'exclusividade',
+    'fornecedor exclusivo', 'inviabilidade de competição', 'inviabilidade de competicao',
+    'representante exclusivo', 'único fornecedor', 'unico fornecedor',
+    'art. 74', 'artigo 74', 'inciso iii'
   ],
   marca: [
     'marca ', 'marca:', 'da marca', 'modelo ', 'modelo:', 'fabricante',
@@ -79,7 +88,7 @@ const REQUISITOS = [
     desc: 'Deve haver estimativa das quantidades a serem contratadas, com base em séries históricas ou projeções.',
     law: 'Art. 18, §1º, III — Lei 14.133/2021',
     severidade: 'media',
-    test: (t) => /(\d+\s*(unid|unidade|un|pç|pc|caixa|cx|kg|litro|l|m²|m2|m³|m3|metro|pacote|resma|frasco))|quantidade\s*:?\s*\d+|\b\d{1,5}\s+(unidades?|itens?)/i.test(t)
+    test: (t) => /(\d+\s*(unid|unidade|un|pç|pc|caixa|cx|kg|litro|l|m²|m2|m³|m3|metro|pacote|resma|frasco|licen[çc]a))|quantidade\s*:?\s*\d+|\b\d{1,5}\s+(unidades?|itens?)/i.test(t)
   },
   {
     id: 'valor',
@@ -134,12 +143,27 @@ const REQUISITOS = [
     }
   },
   {
+    id: 'direcionamento',
+    titulo: 'Vedação ao direcionamento de fornecedor',
+    desc: 'A indicação direta de empresa específica exige justificativa técnica de exclusividade ou notória especialização, sob pena de violação ao princípio da competitividade.',
+    law: 'Art. 41, I e Art. 74, III — Lei 14.133/2021',
+    severidade: 'alta',
+    test: (t, extra) => {
+      // Sem empresa detectada → conforme
+      if (!extra || !extra.empresaDetectada) return true;
+      // Com empresa detectada, exige fundamentação de exclusividade/notória especialização
+      const temJustificativa = KEYWORDS.justificativaExclusividade
+        .some(k => t.toLowerCase().includes(k));
+      return temJustificativa;
+    }
+  },
+  {
     id: 'competicao',
     titulo: 'Preservação da competitividade',
     desc: 'A descrição não pode direcionar a contratação para fornecedor específico.',
     law: 'Art. 5º e Art. 41 — Lei 14.133/2021',
     severidade: 'alta',
-    test: (t) => !/(exclusiv|único fornecedor|unico fornecedor|direcionad|exclusivo para)/i.test(t)
+    test: (t) => !/(direcionad[oa]\s+(?:para|à|a)\s+(?:empresa|fornecedor)|exclusivamente\s+(?:a|para)\s+(?:empresa|fornecedor))/i.test(t)
   }
 ];
 
@@ -212,6 +236,11 @@ function parseValorBR(str) {
   return isNaN(n) ? 0 : n;
 }
 
+function formatarValorBR(n) {
+  if (!n || n <= 0) return '';
+  return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
 function truncarNome(nome, ext, max = 34) {
   const base = nome.slice(0, nome.length - ext.length);
   if (base.length <= max) return { base, ext };
@@ -234,7 +263,6 @@ function aplicarTema(tema) {
   els.themeToggle.querySelector('.theme-icon').textContent = isDark ? '☀️' : '🌙';
   els.themeToggle.querySelector('.theme-label').textContent = isDark ? 'Modo claro' : 'Modo escuro';
 
-  // Sincroniza theme-color (mobile)
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta) meta.setAttribute('content', isDark ? '#0a0f1a' : '#f1f5f9');
 
@@ -242,7 +270,7 @@ function aplicarTema(tema) {
 }
 
 function initTema() {
-  let tema = 'dark'; // padrão
+  let tema = 'dark';
   try {
     const salvo = localStorage.getItem('licitareq-tema');
     if (salvo === 'light' || salvo === 'dark') tema = salvo;
@@ -394,7 +422,7 @@ function renderFileList() {
     const statusMap = {
       lendo:  { cls: 'fileitem__status--load', label: 'Lendo…' },
       ok:     { cls: 'fileitem__status--ok',   label: 'Pronto' },
-      erro:   { cls: 'fileitem__status--err',  label: 'Erro' }
+      erro:   { cls: 'fileitem__status--erro', label: 'Erro' }
     };
     const st = statusMap[item.status] || statusMap.lendo;
 
@@ -403,7 +431,7 @@ function renderFileList() {
     li.innerHTML = `
       <div class="fileitem__icon" aria-hidden="true">${escapeHtml(ext.replace('.', '').toUpperCase() || 'ARQ')}</div>
       <div class="fileitem__meta">
-        <span class="fileitem__name" title="${escapeHtml(item.name)}">
+        <span class="fileitem__title" title="${escapeHtml(item.name)}">
           <bdi>${escapeHtml(base)}</bdi><bdi>${escapeHtml(ext)}</bdi>
         </span>
         <span class="fileitem__size">${formatBytes(item.size)}</span>
@@ -421,6 +449,121 @@ function renderFileList() {
       renderFileList();
     });
   });
+}
+
+/* ============================================================
+   EXTRAÇÃO AUTOMÁTICA DE METADADOS DO TEXTO
+   ============================================================ */
+
+/**
+ * Detecta a razão social de uma empresa mencionada diretamente no texto.
+ * Prioriza padrões com sufixos societários (Ltda, S.A., ME, EIRELI, EPP).
+ */
+function detectarEmpresaDirecionada(texto) {
+  if (!texto) return null;
+
+  // Padrão 1 — Razão social com sufixo societário
+  const padraoRazaoSocial =
+    /\b([A-ZÀ-Ú][\wÀ-ú&.'-]*(?:\s+(?:[A-ZÀ-Ú][\wÀ-ú&.'-]*|de|da|do|das|dos|e)){0,7}\s+(?:Ltda\.?|LTDA\.?|S\.A\.?|S\/A|S\.A|ME|EIRELI|EPP|S\.A\.))\b/g;
+
+  const encontradas = [];
+  let m;
+  while ((m = padraoRazaoSocial.exec(texto)) !== null) {
+    const nome = m[1].replace(/\s+/g, ' ').trim();
+    if (nome.length > 4 && !encontradas.includes(nome)) encontradas.push(nome);
+  }
+
+  // Padrão 2 — "empresa X", "fornecedor X", "contratação da X"
+  if (encontradas.length === 0) {
+    const padraoContexto =
+      /(?:empresa|fornecedor|contrata[çc][aã]o\s+d[aeo]|aquisi[çc][aã]o\s+d[aeo]|junto\s+[àa])\s+([A-ZÀ-Ú][\wÀ-ú&.'-]*(?:\s+(?:[A-ZÀ-Ú][\wÀ-ú&.'-]*|de|da|do|e)){0,6})/g;
+    while ((m = padraoContexto.exec(texto)) !== null) {
+      const nome = m[1].replace(/\s+/g, ' ').trim();
+      if (nome.length > 4 && !encontradas.includes(nome)) encontradas.push(nome);
+    }
+  }
+
+  return encontradas.length ? encontradas[0] : null;
+}
+
+/**
+ * Extrai metadados estruturados do texto da solicitação:
+ *   - valor estimado (R$)
+ *   - número do processo/expediente
+ *   - unidade requisitante
+ *   - órgão/entidade
+ *   - empresa eventualmente direcionada
+ *   - objeto resumido
+ */
+function extrairMetadados(texto) {
+  const t = texto || '';
+  const out = {
+    valor: 0,
+    valorTexto: '',
+    processo: '',
+    unidade: '',
+    orgao: '',
+    empresa: '',
+    objeto: ''
+  };
+
+  /* --- Valor: R$ 85.000,00 / R$85.000,00 --- */
+  const mValor = t.match(/R\$\s*([\d]{1,3}(?:\.\d{3})*(?:,\d{1,2})?)/i);
+  if (mValor) {
+    out.valorTexto = `R$ ${mValor[1]}`;
+    out.valor = parseValorBR(mValor[1]);
+  }
+
+  /* --- Processo / Expediente --- */
+  const mProc = t.match(
+    /\b(memorando|of[ií]cio|processo|requerimento|expediente|dfd|documento\s+de\s+formaliza[çc][aã]o)\s*(?:n[º°.]?|n[úu]mero)?\s*([\d][\d.\/\-\w]*)/i
+  );
+  if (mProc) {
+    const rotulo = mProc[1]
+      .replace(/^dfd$/i, 'DFD')
+      .replace(/^documento de formaliza[çc][aã]o$/i, 'Documento de Formalização')
+      .charAt(0).toUpperCase() + mProc[1].slice(1).toLowerCase();
+    out.processo = `${rotulo} nº ${mProc[2]}`;
+  } else {
+    // Padrão genérico "nº 042/2026"
+    const mProc2 = t.match(/\bn[º°.]?\s*(\d{1,6}[\/\-]\d{2,4})/i);
+    if (mProc2) out.processo = `Expediente nº ${mProc2[1]}`;
+  }
+
+  /* --- Unidade requisitante --- */
+  const mUnidade = t.match(
+    /\b(Setor\s+Requisitante[^\n,.;]{0,60}|Coordena[çc][aã]o[^\n,.;]{0,60}|Diretoria[^\n,.;]{0,60}|Secretaria[^\n,.;]{0,60}|Departamento[^\n,.;]{0,60}|Ger[êe]ncia[^\n,.;]{0,60}|Superintend[êe]ncia[^\n,.;]{0,60})/i
+  );
+  if (mUnidade) out.unidade = mUnidade[1].replace(/\s+/g, ' ').trim();
+
+  // Fallback: campo "À Unidade Requisitante:" ou "De:"
+  if (!out.unidade) {
+    const mUnidade2 = t.match(/(?:unidade\s+requisitante|requisitante|de\s*:)\s*[:\-]?\s*([^\n,.;]{4,80})/i);
+    if (mUnidade2) out.unidade = mUnidade2[1].replace(/\s+/g, ' ').trim();
+  }
+
+  /* --- Órgão/Entidade --- */
+  const mOrgao = t.match(
+    /\b(Minist[ée]rio[^\n,.;]{0,60}|Prefeitura[^\n,.;]{0,60}|Tribunal[^\n,.;]{0,60}|Universidade[^\n,.;]{0,60}|Instituto[^\n,.;]{0,60}|C[âa]mara\s+Municipal[^\n,.;]{0,60}|Assembleia[^\n,.;]{0,60})/i
+  );
+  if (mOrgao) out.orgao = mOrgao[1].replace(/\s+/g, ' ').trim();
+
+  /* --- Empresa direcionada --- */
+  out.empresa = detectarEmpresaDirecionada(t) || '';
+
+  /* --- Objeto resumido --- */
+  const mObjeto = t.match(
+    /(?:objeto|assunto|refer[êe]ncia)\s*[:\-]?\s*([^\n.]{10,140})/i
+  );
+  if (mObjeto) {
+    out.objeto = mObjeto[1].replace(/\s+/g, ' ').trim();
+  } else {
+    // Fallback: primeira linha significativa
+    const primeira = t.split('\n').map(s => s.trim()).find(s => s.length > 20);
+    if (primeira) out.objeto = primeira.slice(0, 140);
+  }
+
+  return out;
 }
 
 /* ============================================================
@@ -452,22 +595,25 @@ function detectarNatureza(texto, naturezaSelecionada) {
   return max === 0 ? 'comuns' : melhor;
 }
 
-function detectarModalidade(texto, natureza, valor) {
+function detectarModalidade(texto, natureza, valor, empresaDirecionada) {
   const t = texto.toLowerCase();
 
-  // 1) Inexigibilidade (Art. 74)
+  /* --- 1) INEXIGIBILIDADE (Art. 74) --- */
+  const temJustificativaExclusividade = KEYWORDS.justificativaExclusividade
+    .some(k => t.includes(k));
+
   if (contemScore(t, KEYWORDS.inexigibilidade) >= 1 ||
-      /notória especialização|notoria especializacao|fornecedor exclusivo|inviabilidade de competição/i.test(t)) {
+      temJustificativaExclusividade) {
     return {
       modalidade: 'Inexigibilidade de Licitação',
       baseLegal: 'Art. 74 — Lei 14.133/2021',
       cor: 'danger',
       descricao: 'Contratação direta por inviabilidade de competição (notória especialização, fornecedor exclusivo, artista consagrado etc.).',
-      observacao: 'Verifique se há comprovação documental da exclusividade ou notória especialização, com parecer técnico circunstanciado.'
+      observacao: 'Verifique se há comprovação documental da exclusividade ou notória especialização, com parecer técnico circunstanciado (Art. 74, III).'
     };
   }
 
-  // 2) Dispensa emergencial (Art. 75, VIII)
+  /* --- 2) DISPENSA EMERGENCIAL (Art. 75, VIII) --- */
   if (contemScore(t, KEYWORDS.emergencia) >= 1 &&
       /(emergência|emergencia|calamidade|desastre|risco iminente|situação crítica)/i.test(t)) {
     return {
@@ -479,7 +625,7 @@ function detectarModalidade(texto, natureza, valor) {
     };
   }
 
-  // 3) Dispensa por valor (Art. 75, I e II)
+  /* --- 3) DISPENSA POR VALOR (Art. 75, I e II) --- */
   if (natureza === 'obra' || natureza === 'engenharia') {
     if (valor > 0 && valor <= LIMITE_OBRA_ENG) {
       return {
@@ -502,9 +648,10 @@ function detectarModalidade(texto, natureza, valor) {
     }
   }
 
-  // 4) Concorrência (Art. 6º, XXXVIII)
+  /* --- 4) CONCORRÊNCIA (Art. 6º, XXXVIII) --- */
   const scoreObra = contemScore(t, KEYWORDS.obra);
   const scoreTec  = contemScore(t, KEYWORDS.tecnicos);
+
   if (natureza === 'obra' || scoreObra >= 2) {
     return {
       modalidade: 'Concorrência',
@@ -524,7 +671,17 @@ function detectarModalidade(texto, natureza, valor) {
     };
   }
 
-  // 5) Pregão (padrão para bens e serviços comuns)
+  /* --- 5) PREGÃO ELETRÔNICO (padrão para bens/serviços comuns) --- */
+  // Se houver empresa direcionada sem fundamentação, alerta
+  if (empresaDirecionada) {
+    return {
+      modalidade: 'Pregão Eletrônico (com ressalva)',
+      baseLegal: 'Art. 6º, XLI e Art. 29 — Lei 14.133/2021',
+      cor: 'warning',
+      descricao: 'Modalidade obrigatória para aquisição de bens e contratação de serviços comuns.',
+      observacao: 'Atenção: foi identificada menção direta a fornecedor específico. Caso não se trate de inexigibilidade (Art. 74), a indicação deve ser afastada por violação ao Art. 41, I.'
+    };
+  }
   return {
     modalidade: 'Pregão Eletrônico',
     baseLegal: 'Art. 6º, XLI e Art. 29 — Lei 14.133/2021',
@@ -569,7 +726,7 @@ function gerarParecer(requisitos) {
 
   if (criticos.length > 0) {
     return {
-      status: 'Devolvido para Adequação',
+      status: 'DEVOLVIDO PARA ADEQUAÇÃO',
       classe: 'devolvido',
       badge: 'warning',
       justificativa: `Existem ${criticos.length} inconformidade(s) de severidade ALTA que impedem o prosseguimento da instrução processual.`
@@ -577,7 +734,7 @@ function gerarParecer(requisitos) {
   }
   if (medios.length > 0) {
     return {
-      status: 'Devolvido para Adequação',
+      status: 'DEVOLVIDO PARA ADEQUAÇÃO',
       classe: 'devolvido',
       badge: 'warning',
       justificativa: `Foram identificadas ${medios.length} pendência(s) de severidade MÉDIA. Recomenda-se a complementação antes do prosseguimento.`
@@ -585,14 +742,14 @@ function gerarParecer(requisitos) {
   }
   if (todos.length > 0) {
     return {
-      status: 'Deferido com Recomendações',
+      status: 'DEFERIDO COM RECOMENDAÇÕES',
       classe: 'deferido',
       badge: 'info',
       justificativa: `A solicitação atende aos requisitos essenciais, restando ${todos.length} recomendação(ões) de baixa severidade.`
     };
   }
   return {
-    status: 'Deferido',
+    status: 'DEFERIDO',
     classe: 'deferido',
     badge: 'success',
     justificativa: 'A solicitação atende integralmente aos requisitos formais de instrução processual.'
@@ -612,18 +769,25 @@ function analisar() {
     return;
   }
 
+  /* --- Extração automática de metadados do texto --- */
+  const meta = extrairMetadados(textoCompleto);
+
+  /* --- Merge: formulário tem prioridade, senão usa o extraído --- */
   const extra = {
-    unidade:    els.unidade.value.trim(),
-    processo:   els.processo.value.trim(),
-    natureza:   els.natureza.value,
-    valor:      parseValorBR(els.valor.value),
-    orgao:      els.orgao.value.trim(),
-    responsavel: els.responsavel.value.trim(),
-    cargo:      els.cargo.value.trim()
+    unidade:          els.unidade.value.trim()      || meta.unidade,
+    processo:         els.processo.value.trim()     || meta.processo,
+    natureza:         els.natureza.value,
+    valor:            parseValorBR(els.valor.value) || meta.valor,
+    valorTexto:       els.valor.value.trim()        || meta.valorTexto,
+    orgao:            els.orgao.value.trim()        || meta.orgao,
+    responsavel:      els.responsavel.value.trim(),
+    cargo:            els.cargo.value.trim(),
+    empresaDetectada: meta.empresa,
+    objeto:           meta.objeto
   };
 
   const natureza   = detectarNatureza(textoCompleto, extra.natureza);
-  const modalidade = detectarModalidade(textoCompleto, natureza, extra.valor);
+  const modalidade = detectarModalidade(textoCompleto, natureza, extra.valor, extra.empresaDetectada);
   const requisitos = analisarRequisitos(textoCompleto, extra);
   const score      = calcularScore(requisitos);
   const parecer    = gerarParecer(requisitos);
@@ -639,27 +803,16 @@ function analisar() {
     dataAnalise: new Date()
   };
 
-  /* ------------------------------------------------------------
-     🔧 CORREÇÃO CRÍTICA DO BUG
-     Oculta o empty state ANTES de renderizar o resultado.
-     Usamos três camadas de garantia:
-       1. atributo [hidden] (CSS garante display:none !important)
-       2. aria-hidden para leitores de tela
-       3. display inline-style como fallback
-     ------------------------------------------------------------ */
+  /* --- Ocultação tripla do empty state (correção do bug) --- */
   els.emptyState.hidden = true;
   els.emptyState.setAttribute('aria-hidden', 'true');
   els.emptyState.style.display = 'none';
 
-  // Renderiza o dashboard
   renderResultado();
 
-  // Exibe o container de resultados
   els.resultado.hidden = false;
   els.resultado.removeAttribute('aria-hidden');
   els.resultado.style.display = '';
-
-  // Move o foco para o resultado (para leitores de tela)
   els.resultado.setAttribute('tabindex', '-1');
   try { els.resultado.focus({ preventScroll: false }); } catch (e) {}
 
@@ -683,12 +836,39 @@ function renderResultado() {
   if (!r) return;
 
   const valorFmt = r.extra.valor > 0
-    ? r.extra.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+    ? formatarValorBR(r.extra.valor)
     : 'Não informado';
 
   const naturezaLabel = LABELS_NATUREZA[r.natureza] || r.natureza;
 
-  // A) Veredicto
+  /* ---------- A) ALERTA CRÍTICO DE DIRECIONAMENTO (se aplicável) ---------- */
+  const requisitoDirecionamento = r.requisitos.find(x => x.id === 'direcionamento');
+  const temAlertaDirecionamento =
+    r.extra.empresaDetectada && requisitoDirecionamento && !requisitoDirecionamento.conforme;
+
+  const alertaDirecionamentoHtml = temAlertaDirecionamento
+    ? `
+      <div class="section" style="border-left:5px solid var(--danger);background:var(--danger-bg);">
+        <h3 class="section__title" style="color:var(--danger);">
+          🚨 Alerta Crítico — Vedação ao Direcionamento
+        </h3>
+        <div class="alert alert--danger" style="background:transparent;border-left:0;padding:0;">
+          <div>
+            <div class="alert__title" style="color:var(--danger);font-size:.95rem;">
+              Violação ao Art. 41, I e ausência de fundamentação do Art. 74, III
+            </div>
+            <div class="alert__text" style="font-size:.9rem;line-height:1.7;">
+              A indicação direta da empresa <strong>${escapeHtml(r.extra.empresaDetectada)}</strong>
+              exige justificativa técnica de exclusividade ou notória especialização nos termos do
+              <strong>Art. 74, III da Lei 14.133/2021</strong>, sob pena de violação ao princípio
+              da competitividade (<strong>Art. 5º</strong>).
+            </div>
+          </div>
+        </div>
+      </div>
+    ` : '';
+
+  /* ---------- B) VEREDICTO ---------- */
   const veredictoHtml = `
     <div class="verdict verdict--${r.parecer.classe}">
       <div class="verdict__head">
@@ -721,9 +901,14 @@ function renderResultado() {
           <dd>${escapeHtml(r.extra.unidade || 'Não informada')}</dd>
         </div>
         <div class="verdict__cell">
-          <dt>Nº do processo</dt>
+          <dt>Processo / Expediente</dt>
           <dd>${escapeHtml(r.extra.processo || 'Não informado')}</dd>
         </div>
+        ${r.extra.empresaDetectada ? `
+        <div class="verdict__cell">
+          <dt>Empresa mencionada</dt>
+          <dd style="color:var(--danger);">${escapeHtml(r.extra.empresaDetectada)}</dd>
+        </div>` : ''}
       </div>
 
       <div class="score">
@@ -736,7 +921,7 @@ function renderResultado() {
     </div>
   `;
 
-  // B) Checklist
+  /* ---------- C) CHECKLIST ---------- */
   const requisitosHtml = r.requisitos.map(req => {
     let cls = 'req-row--ok', icone = '✓', sevCls = 'sev--ok', sevLabel = 'Conforme';
     if (!req.conforme) {
@@ -758,7 +943,7 @@ function renderResultado() {
     `;
   }).join('');
 
-  // C) Alertas
+  /* ---------- D) ALERTAS DE PENDÊNCIAS ---------- */
   const naoConformes = r.requisitos.filter(x => !x.conforme);
   const alertasHtml = naoConformes.length === 0
     ? `<div class="alert alert--success">
@@ -786,10 +971,11 @@ function renderResultado() {
         `;
       }).join('');
 
-  // D) Minuta
+  /* ---------- E) MINUTA ---------- */
   const minuta = gerarMinuta(r);
 
   els.resultado.innerHTML = `
+    ${alertaDirecionamentoHtml}
     ${veredictoHtml}
 
     <div class="section">
@@ -816,10 +1002,10 @@ function renderResultado() {
     </div>
 
     <div class="section">
-      <h3 class="section__title">Minuta de resposta oficial (devolutiva)</h3>
+      <h3 class="section__title">Minuta de resposta oficial (Devolutiva)</h3>
       <pre id="minutaTexto" class="minuta" aria-label="Minuta de despacho oficial">${escapeHtml(minuta)}</pre>
       <div class="minuta__actions">
-        <button id="btnCopiar" class="btn btn--primary btn--sm" type="button">📋 Copiar despacho</button>
+        <button id="btnCopiar" class="btn btn--primary btn--sm" type="button">📋 Copiar Minuta Completa</button>
         <button id="btnBaixar" class="btn btn--ghost btn--sm" type="button">⬇ Baixar .txt</button>
         <button id="btnImprimir" class="btn btn--ghost btn--sm" type="button">🖨 Imprimir</button>
       </div>
@@ -832,90 +1018,143 @@ function renderResultado() {
 }
 
 /* ============================================================
-   MINUTA OFICIAL
+   GERADOR DA MINUTA OFICIAL — Devolutiva SEI
    ============================================================ */
+
+/**
+ * Gera a minuta oficial de devolutiva com interpolação dinâmica
+ * dos metadados extraídos (valor, processo, unidade, órgão).
+ */
 function gerarMinuta(r) {
   const d = r.dataAnalise;
-  const dataFmt = d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
-  const valorFmt = r.extra.valor > 0
-    ? r.extra.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-    : 'a ser indicado pelo requisitante';
+  const dataFmt = d.toLocaleDateString('pt-BR', {
+    day: '2-digit', month: 'long', year: 'numeric'
+  });
+  const numDespacho = String(Math.floor(Math.random() * 900) + 100);
+  const anoAtual = d.getFullYear();
 
-  const unidade     = r.extra.unidade || 'Unidade Requisitante';
-  const orgao       = r.extra.orgao || 'Órgão/Entidade';
-  const processo    = r.extra.processo || '_______________';
-  const responsavel = r.extra.responsavel || '____________________';
-  const cargo       = r.extra.cargo || 'Autoridade Competente';
+  /* --- Dados interpolados --- */
+  const orgao       = (r.extra.orgao     || 'ÓRGÃO / ENTIDADE PÚBLICA').toUpperCase();
+  const unidade     = r.extra.unidade    || 'Unidade Requisitante';
+  const processo    = r.extra.processo   || 'Expediente não identificado';
+  const objeto      = r.extra.objeto     || (LABELS_NATUREZA[r.natureza] || 'Contratação pública');
+  const valor       = r.extra.valor > 0
+                      ? formatarValorBR(r.extra.valor)
+                      : (r.extra.valorTexto || 'Não informado pelo requisitante');
+  const responsavel = r.extra.responsavel || '________________________________';
+  const cargo       = r.extra.cargo       || 'Autoridade Competente';
+  const empresa     = r.extra.empresaDetectada || '';
 
-  const pend = r.requisitos.filter(x => !x.conforme);
-  const pendenciasTxt = pend.length === 0
-    ? '  (Não foram identificadas pendências formais.)'
-    : pend.map((p, i) => {
+  /* --- Montagem das pendências numeradas --- */
+  const pendentes = r.requisitos.filter(x => !x.conforme);
+  const pendenciasTxt = pendentes.length === 0
+    ? '    Não foram identificadas pendências formais. Prossegue-se com a instrução processual.'
+    : pendentes.map((p, i) => {
         const sev = p.severidade === 'alta' ? 'ALTA'
                   : p.severidade === 'media' ? 'MÉDIA' : 'BAIXA';
-        return `  ${i + 1}. [Severidade ${sev}] ${p.titulo}\n     Fundamentação: ${p.law}\n     Providência: ${p.desc}`;
+        return `    ${i + 1}. [Severidade ${sev}] ${p.titulo}
+       Fundamento: ${p.law}
+       Providência: ${p.desc}`;
       }).join('\n\n');
 
-  const cabecalho = `
-${orgao.toUpperCase()}
+  /* --- Bloco especial de direcionamento (se aplicável) --- */
+  const blocoDirecionamento = empresa && pendentes.some(p => p.id === 'direcionamento')
+    ? `
+
+    5. VEDAÇÃO AO DIRECIONAMENTO DE FORNECEDOR (Art. 41, I e Art. 5º)
+
+    Constatou-se a indicação direta da empresa "${empresa}" no expediente
+    encaminhado. Tal indicação configura, em princípio, direcionamento vedado
+    pelo Art. 41, I da Lei nº 14.133/2021, salvo se devidamente fundamentada
+    em hipótese de inexigibilidade (Art. 74, III), com demonstração técnica
+    de exclusividade ou notória especialização do fornecedor.
+
+    Providência exigida: apresentar parecer técnico circunstanciado que
+    comprove a exclusividade ou notória especialização, OU retificar o
+    expediente para afastar a indicação direta de marca/fornecedor,
+    preservando-se o princípio da competitividade (Art. 5º).
+`
+    : '';
+
+  /* ============================================================
+     TEMPLATE COMPLETO DA MINUTA OFICIAL
+     ============================================================ */
+  const minuta = `DESPACHO DE TRIAGEM E ENQUADRAMENTO LEGAL Nº ${numDespacho}/${anoAtual}
+
+${orgao}
 ${unidade.toUpperCase()}
 
-Processo nº: ${processo}
-Assunto: Triagem de solicitação de contratação pública — Devolutiva ao setor requisitante
-Data: ${dataFmt}
-  `.trim();
+À Unidade Requisitante: ${unidade}
+Processo/Expediente: ${processo}
+Objeto: ${objeto}
+Valor Estimado: ${valor}
+Data de Análise: ${dataFmt}
 
-  const corpo = `
-DESPACHO DE TRIAGEM E ENQUADRAMENTO LEGAL
+========================================================================
+1. RESUMO EXECUTIVO
+========================================================================
 
-1. RESUMO EXECUTIVO DA SOLICITAÇÃO
+    Trata-se de análise técnica e jurídica preliminar da solicitação de
+contratação encaminhada pela unidade requisitante acima identificada,
+instruída nos autos do ${processo}, fundamentada na Lei Federal
+nº 14.133, de 1º de abril de 2021, e demais normas aplicáveis.
 
-Trata-se de solicitação encaminhada pela unidade requisitante acima identificada,
-tendo por objeto demanda de contratação pública cuja natureza foi classificada
-como: ${LABELS_NATUREZA[r.natureza] || r.natureza}.
-Valor estimado informado: ${valorFmt}.
-Após análise preliminar desta unidade de planejamento, foi realizada triagem
-técnica e jurídica com base na Lei nº 14.133, de 1º de abril de 2021, e demais
-normas aplicáveis.
+    A demanda foi classificada, preliminarmente, com a seguinte natureza:
+${LABELS_NATUREZA[r.natureza] || r.natureza}.
+Valor estimado informado pelo requisitante: ${valor}.
 
-2. ENQUADRAMENTO LEGAL PRELIMINAR
+========================================================================
+2. ENQUADRAMENTO E PARECER DA TRIAGEM
+========================================================================
 
-Modalidade sugerida: ${r.modalidade.modalidade}
-Base legal: ${r.modalidade.baseLegal}
-Fundamento: ${r.modalidade.descricao}
+    SITUAÇÃO: ${r.parecer.status}
+    Modalidade Sugerida: ${r.modalidade.modalidade}
+    Base Legal: ${r.modalidade.baseLegal}
+    Índice de Conformidade Formal: ${r.score}%
 
-Orientação complementar: ${r.modalidade.observacao}
+    Fundamentação: ${r.parecer.justificativa}
 
-Índice de conformidade formal apurado: ${r.score}%.
+    Descrição da modalidade: ${r.modalidade.descricao}
 
-3. PARECER DA TRIAGEM
+    Orientação complementar: ${r.modalidade.observacao}
 
-Situação: ${r.parecer.status.toUpperCase()}
-${r.parecer.justificativa}
-
-4. RELAÇÃO DE PENDÊNCIAS A SANAR
+========================================================================
+3. EXIGÊNCIAS E PENDÊNCIAS A SANAR
+========================================================================
 
 ${pendenciasTxt}
+${blocoDirecionamento}
+========================================================================
+4. CONCLUSÃO E ENCAMINHAMENTO
+========================================================================
 
-5. ORIENTAÇÕES AO REQUISITANTE
+    Diante do exposto, e considerando o resultado da triagem preliminar
+realizada nos termos da Lei nº 14.133/2021, restituam-se os autos à
+unidade requisitante para saneamento dos apontamentos relacionados no
+item 3, no prazo de 5 (cinco) dias úteis, contados do recebimento
+deste despacho.
 
-Solicita-se que a unidade requisitante, no prazo de 5 (cinco) dias úteis, adote
-as providências necessárias à regularização das pendências acima relacionadas,
-encaminhando a este setor o expediente complementado com a documentação
-comprobatória correspondente.
+    Após a regularização, os autos deverão retornar a esta unidade de
+planejamento para prosseguimento da instrução processual, com a
+elaboração do Estudo Técnico Preliminar (ETP) e do Termo de Referência
+ou Projeto Básico, conforme o caso.
 
-Permanece à disposição para os esclarecimentos que se fizerem necessários.
+    Permanece esta equipe à disposição para os esclarecimentos que se
+fizerem necessários.
 
 
-Atenciosamente,
+    Atenciosamente,
 
-_______________________________________________
-${responsavel}
-${cargo}
-${orgao}
-  `.trim();
+    _______________________________________________
+    ${responsavel}
+    ${cargo}
+    ${orgao}
 
-  return `${cabecalho}\n\n${corpo}`;
+    Documento gerado eletronicamente pelo sistema LicitaReq
+    Motor de regras — Lei nº 14.133/2021
+`;
+
+  return minuta;
 }
 
 /* ============================================================
@@ -935,7 +1174,7 @@ async function copiarTexto(texto) {
       document.execCommand('copy');
       document.body.removeChild(ta);
     }
-    showToast('Despacho copiado para a área de transferência.', 'success');
+    showToast('Minuta copiada para a área de transferência.', 'success');
   } catch (e) {
     showToast('Não foi possível copiar automaticamente.', 'error');
   }
@@ -980,35 +1219,45 @@ function imprimirMinuta(texto) {
    EXEMPLO E LIMPEZA
    ============================================================ */
 function carregarExemplo() {
-  els.unidade.value = 'Coordenação-Geral de Tecnologia da Informação';
-  els.processo.value = '00000.000123/2025-10';
-  els.orgao.value = 'Ministério Público do Estado';
+  /* Exemplo alinhado ao caso do usuário: direcionamento de empresa */
+  els.unidade.value = '';
+  els.processo.value = '';
+  els.orgao.value = '';
   els.responsavel.value = 'João Pereira da Silva';
   els.cargo.value = 'Chefe da Divisão de Licitações';
-  els.natureza.value = 'tic';
-  els.valor.value = '185.400,00';
+  els.natureza.value = 'auto';
+  els.valor.value = '';
 
   els.texto.value =
-`Assunto: Solicitação de contratação — Renovação de licenças de software de segurança.
+`DIRETORIA DE TECNOLOGIA DA INFORMAÇÃO
+Memorando nº 042/2026
 
-Senhor Chefe da Divisão de Licitações,
+À Unidade Requisitante: Setor Requisitante / TI
 
-1. A Coordenação-Geral de Tecnologia da Informação (CGTI) solicita a contratação de renovação de licenças do software de segurança "SecureX Enterprise", da marca SecureX Inc., na quantidade de 250 (duzentas e cinquenta) licenças anuais, pelo prazo de 12 (doze) meses, para atendimento das necessidades de proteção do ambiente computacional desta instituição.
+Objeto: Consultoria Especializada em Arquitetura de Nuvem
 
-2. Justifica-se a presente contratação em razão da necessidade de manutenção da continuidade dos serviços de segurança da informação, tendo em vista a proximidade do vencimento das licenças atualmente em uso, previsto para o dia 30 de dezembro de 2025.
+1. Solicitamos a contratação da empresa TechCloud Soluções Avançadas Ltda.
+para prestação de serviços de consultoria especializada em arquitetura de
+nuvem, incluindo migração de workloads e otimização de custos em ambiente
+multicloud.
 
-3. O valor estimado da contratação é de R$ 185.400,00 (cento e oitenta e cinco mil e quatrocentos reais), conforme pesquisa de preços realizada junto a fornecedores do ramo.
+2. Justifica-se a presente demanda em razão da necessidade de modernização
+da infraestrutura tecnológica desta Diretoria, visando a continuidade e a
+segurança dos serviços prestados à sociedade.
 
-4. Informamos que há dotação orçamentária específica prevista na Lei Orçamentária Anual para o exercício corrente, na natureza de despesa 33.90.40 — Serviços de Tecnologia da Informação.
+3. O valor estimado da contratação é de R$ 85.000,00 (oitenta e cinco mil
+reais), conforme pesquisa de preços realizada junto a fornecedores do ramo.
 
-5. O prazo de entrega das licenças é de 10 (dez) dias corridos contados do recebimento da nota de empenho, com ativação remota.
+4. Informamos que há dotação orçamentária específica prevista na Lei
+Orçamentária Anual para o exercício corrente.
 
-6. O fiscal do contrato será o servidor designado pela Portaria nº 145/2025.
+5. O prazo de execução dos serviços é de 6 (seis) meses, contados da
+assinatura do contrato.
 
-7. Diante do exposto, solicitamos o prosseguimento da instrução processual para a devida contratação.
+6. O fiscal do contrato será designado por portaria específica.
 
 Atenciosamente,
-Coordenação-Geral de Tecnologia da Informação`;
+Diretoria de Tecnologia da Informação`;
 
   atualizarContador();
   showToast('Exemplo carregado.', 'success');
@@ -1029,7 +1278,6 @@ function limparTudo() {
   renderFileList();
   atualizarContador();
 
-  /* Repõe o estado inicial: empty state visível, resultado oculto */
   els.emptyState.hidden = false;
   els.emptyState.removeAttribute('aria-hidden');
   els.emptyState.style.display = '';
@@ -1055,7 +1303,6 @@ function init() {
   initDropzone();
   renderFileList();
 
-  // Estado inicial explícito (garantia extra contra o bug)
   els.emptyState.hidden = false;
   els.emptyState.style.display = '';
   els.resultado.hidden = true;
@@ -1066,7 +1313,6 @@ function init() {
   els.btnExemplo.addEventListener('click', carregarExemplo);
   els.btnLimpar.addEventListener('click', limparTudo);
 
-  // Atalho: Ctrl/Cmd + Enter para analisar
   document.addEventListener('keydown', (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
       e.preventDefault();
