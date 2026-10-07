@@ -1,79 +1,70 @@
 /* ============================================================
-   LicitaReq — style.css
+   LicitaReq — style.css (v1.1)
    Dark Dashboard nativo · Glassmorphism · WCAG 2.1 AA
    Correções:
-     - Overflow do badge "Modalidade Sugerida"
-     - Paleta deep slate (#0f172a / #1e293b / #334155)
-     - Badges de alto contraste
-     - :focus-visible ciano neon
+     - Scroll INDEPENDENTE por painel (body fixo em 100vh)
+     - Estilos .motivacao-grid / .motivacao-item
+     - Contraste de alertas no tema claro
    ============================================================ */
 
 /* -------------------- RESET -------------------- */
 *, *::before, *::after { box-sizing: border-box; }
 [hidden] { display: none !important; }
-html, body { height: 100%; }
 
 /* -------------------- TOKENS — DARK (PADRÃO) -------------------- */
 :root,
 [data-theme="dark"] {
   color-scheme: dark;
 
-  /* Superfícies deep slate */
-  --bg-app:         #0f172a;   /* slate-900 — fundo principal */
-  --bg-app-2:       #121826;   /* obsidian */
-  --bg-panel:       rgba(30, 41, 59, 0.65);   /* slate-800 @ 65% */
-  --bg-panel-solid: #1e293b;   /* slate-800 — cards */
-  --bg-subtle:      rgba(51, 65, 85, 0.35);   /* slate-700 @ 35% */
+  --bg-app:         #0f172a;
+  --bg-app-2:       #121826;
+  --bg-panel:       rgba(30, 41, 59, 0.65);
+  --bg-panel-solid: #1e293b;
+  --bg-subtle:      rgba(51, 65, 85, 0.35);
   --bg-hover:       rgba(56, 189, 248, 0.08);
   --bg-input:       #0f172a;
 
-  /* Bordas sutis */
-  --border:         #334155;   /* slate-700 */
-  --border-strong:  #475569;   /* slate-600 */
+  --border:         #334155;
+  --border-strong:  #475569;
   --border-glow:    rgba(56, 189, 248, 0.4);
 
-  /* Textos — contraste WCAG AA */
-  --text:        #e2e8f0;   /* slate-200 — 13.2:1 sobre #0f172a */
-  --text-muted:  #cbd5e1;   /* slate-300 — 10.3:1 */
-  --text-soft:   #94a3b8;   /* slate-400 — 5.9:1 */
-  --text-faint:  #64748b;   /* slate-500 — 3.5:1 (apenas decorativo) */
+  --text:        #e2e8f0;
+  --text-muted:  #cbd5e1;
+  --text-soft:   #94a3b8;
+  --text-faint:  #64748b;
 
-  /* Marca — ciano neon institucional */
-  --brand-400:  #38bdf8;   /* sky-400 */
-  --brand-500:  #0ea5e9;   /* sky-500 */
-  --brand-600:  #6366f1;   /* indigo-500 */
-  --brand-700:  #4f46e5;   /* indigo-600 */
+  --brand-400:  #38bdf8;
+  --brand-500:  #0ea5e9;
+  --brand-600:  #6366f1;
+  --brand-700:  #4f46e5;
   --brand-soft: rgba(56, 189, 248, 0.14);
   --brand-glow: rgba(56, 189, 248, 0.55);
 
-  /* Semânticas de alto contraste (fundo escuro) */
-  --success:    #34d399;              /* emerald-400 */
+  --success:    #34d399;
   --success-fg: #d1fae5;
-  --success-bg: #064e3b;              /* emerald-900 */
+  --success-bg: #064e3b;
   --success-brd:#10b981;
 
-  --warning:    #fbbf24;              /* amber-400 */
+  --warning:    #fbbf24;
   --warning-fg: #fef3c7;
-  --warning-bg: #78350f;              /* amber-900 */
+  --warning-bg: #78350f;
   --warning-brd:#f59e0b;
 
-  --danger:     #f87171;              /* red-400 */
+  --danger:     #f87171;
   --danger-fg:  #fee2e2;
-  --danger-bg:  #7f1d1d;              /* red-900 */
+  --danger-bg:  #7f1d1d;
   --danger-brd: #ef4444;
 
-  --info:       #38bdf8;              /* sky-400 */
+  --info:       #38bdf8;
   --info-fg:    #e0f2fe;
-  --info-bg:    #0c4a6e;              /* sky-900 */
+  --info-bg:    #0c4a6e;
   --info-brd:   #0ea5e9;
 
-  /* Sombras */
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
   --shadow-md: 0 8px 24px -10px rgba(0, 0, 0, 0.8);
   --shadow-lg: 0 24px 64px -22px rgba(0, 0, 0, 0.95);
   --shadow-glow: 0 0 32px -8px var(--brand-glow);
 
-  /* Layout */
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 18px;
@@ -94,7 +85,7 @@ html, body { height: 100%; }
   --transition: 180ms cubic-bezier(.4, 0, .2, 1);
 }
 
-/* -------------------- TEMA CLARO (opcional) -------------------- */
+/* -------------------- TEMA CLARO -------------------- */
 [data-theme="light"] {
   color-scheme: light;
 
@@ -125,18 +116,22 @@ html, body { height: 100%; }
   --success:    #047857;
   --success-bg: #d1fae5;
   --success-brd:#059669;
+  --success-fg: #052e1f;   /* 🔧 FIX contraste */
 
   --warning:    #b45309;
   --warning-bg: #fef3c7;
   --warning-brd:#d97706;
+  --warning-fg: #451a03;   /* 🔧 FIX contraste */
 
   --danger:     #b91c1c;
   --danger-bg:  #fee2e2;
   --danger-brd: #dc2626;
+  --danger-fg:  #450a0a;   /* 🔧 FIX contraste */
 
   --info:       #0369a1;
   --info-bg:    #e0f2fe;
   --info-brd:   #0284c7;
+  --info-fg:    #082f49;   /* 🔧 FIX contraste */
 
   --shadow-sm: 0 1px 2px rgba(15, 23, 42, .06);
   --shadow-md: 0 8px 24px -10px rgba(15, 23, 42, .18);
@@ -144,7 +139,9 @@ html, body { height: 100%; }
   --shadow-glow: 0 0 32px -8px var(--brand-glow);
 }
 
-/* -------------------- BASE -------------------- */
+/* -------------------- BASE / LAYOUT FLEX -------------------- */
+html, body { height: 100%; }
+
 body {
   margin: 0;
   font-family: var(--font-sans);
@@ -158,6 +155,13 @@ body {
   background-attachment: fixed;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+
+  /* 🔧 LAYOUT FIXO — cada painel rola sozinho */
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  height: 100vh;
+  overflow: hidden;
+
   transition: background-color var(--transition), color var(--transition);
 }
 
@@ -169,12 +173,11 @@ ul { list-style: none; margin: 0; padding: 0; }
 a { color: var(--brand-400); }
 strong { color: var(--text); font-weight: 700; }
 
-/* -------------------- A11Y UTILITIES -------------------- */
+/* -------------------- A11Y -------------------- */
 .sr-only {
   position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
   overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
 }
-
 .skip-link {
   position: absolute; top: -60px; left: 16px; z-index: 100;
   background: var(--brand-600); color: #fff;
@@ -185,16 +188,13 @@ strong { color: var(--text); font-weight: 700; }
 }
 .skip-link:focus { top: 12px; }
 
-/* -------------------- FOCO VISÍVEL (WCAG 2.4.7) -------------------- */
 :focus { outline: none; }
-
 :focus-visible {
   outline: 3px solid var(--brand-400);
   outline-offset: 3px;
   border-radius: 8px;
   box-shadow: 0 0 0 6px rgba(56, 189, 248, 0.20);
 }
-
 button:focus-visible,
 .btn:focus-visible,
 .input:focus-visible,
@@ -210,7 +210,7 @@ a:focus-visible {
 
 /* -------------------- HEADER -------------------- */
 .app-header {
-  position: sticky; top: 0; z-index: 40;
+  flex: 0 0 auto;
   display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
   gap: var(--space-4);
   padding: 14px clamp(16px, 3vw, 40px);
@@ -220,6 +220,7 @@ a:focus-visible {
   -webkit-backdrop-filter: saturate(160%) blur(14px);
   border-bottom: 1px solid var(--border);
   box-shadow: var(--shadow-sm);
+  z-index: 40;
 }
 [data-theme="light"] .app-header { background: rgba(255, 255, 255, 0.75); }
 
@@ -262,14 +263,35 @@ a:focus-visible {
 
 /* -------------------- WORKSPACE -------------------- */
 .workspace {
+  /* 🔧 ocupa o espaço do meio; cada painel rola internamente */
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
   gap: clamp(16px, 2vw, 28px);
   padding: clamp(16px, 3vw, 36px);
-  max-width: 1600px; margin: 0 auto;
-  align-items: start;
+  max-width: 1600px;
+  width: 100%;
+  margin: 0 auto;
+  align-items: stretch;
 }
-@media (max-width: 1080px) { .workspace { grid-template-columns: 1fr; } }
+
+@media (max-width: 1080px) {
+  /* Mobile/tablet: volta ao fluxo normal da página */
+  body {
+    display: block;
+    height: auto;
+    min-height: 100vh;
+    overflow: auto;
+  }
+  .workspace {
+    grid-template-columns: 1fr;
+    overflow: visible;
+    min-height: auto;
+  }
+}
 
 /* -------------------- PAINÉIS -------------------- */
 .panel {
@@ -280,15 +302,39 @@ a:focus-visible {
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-md);
   padding: clamp(18px, 2.2vw, 28px);
-  transition: background var(--transition), border-color var(--transition);
 
-  /* 🔒 Contenção de overflow */
+  /* 🔧 SCROLL INTERNO */
   min-width: 0;
+  min-height: 0;
   max-width: 100%;
-  overflow: hidden;
+  max-height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+
+  transition: background var(--transition), border-color var(--transition);
 }
-.panel--input { position: sticky; top: calc(var(--header-h) + 16px); }
-@media (max-width: 1080px) { .panel--input { position: static; } }
+
+/* Scrollbar interna refinada */
+.panel::-webkit-scrollbar { width: 8px; }
+.panel::-webkit-scrollbar-track { background: transparent; }
+.panel::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+.panel::-webkit-scrollbar-thumb:hover {
+  background: var(--brand-400);
+  background-clip: content-box;
+}
+
+@media (max-width: 1080px) {
+  .panel {
+    max-height: none;
+    overflow-y: visible;
+    overflow-x: hidden;
+  }
+}
 
 .panel__head { margin-bottom: var(--space-5); }
 .panel__title {
@@ -332,7 +378,6 @@ a:focus-visible {
   box-shadow: inset 0 0 0 4px rgba(56, 189, 248, 0.15), var(--shadow-glow);
   transform: scale(1.005);
 }
-
 .dropzone__icon {
   width: 52px; height: 52px; display: grid; place-items: center;
   border-radius: 50%;
@@ -365,7 +410,6 @@ a:focus-visible {
   from { opacity: 0; transform: translateY(-6px); }
   to   { opacity: 1; transform: translateY(0); }
 }
-
 .fileitem__icon {
   width: 36px; height: 36px; flex: 0 0 auto;
   display: grid; place-items: center;
@@ -385,7 +429,6 @@ a:focus-visible {
 .fileitem__title bdi:last-child,
 .fileitem__name bdi:last-child { color: var(--brand-400); font-weight: 800; }
 .fileitem__size { font-size: .72rem; color: var(--text-soft); }
-
 .fileitem__status {
   font-size: .7rem; font-weight: 800;
   padding: 3px 9px; border-radius: 999px;
@@ -396,7 +439,6 @@ a:focus-visible {
 .fileitem__status--ok   { background: var(--success-bg); color: var(--success); border-color: var(--success-brd); }
 .fileitem__status--erro { background: var(--danger-bg);  color: var(--danger);  border-color: var(--danger-brd); }
 .fileitem__status--load { background: var(--warning-bg); color: var(--warning); border-color: var(--warning-brd); }
-
 .fileitem__remove {
   border: 0; background: transparent; color: var(--text-soft);
   font-size: 1.05rem; line-height: 1; padding: 6px 8px; border-radius: 8px;
@@ -419,7 +461,6 @@ a:focus-visible {
 /* -------------------- CAMPOS -------------------- */
 .field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .field__label { font-size: .8rem; font-weight: 600; color: var(--text-muted); }
-
 .input, .textarea, select.input {
   width: 100%;
   padding: 11px 13px;
@@ -493,7 +534,6 @@ a:focus-visible {
 }
 .btn--primary:active { transform: translateY(0); }
 .btn--primary:disabled { opacity: .55; cursor: not-allowed; transform: none; }
-
 .btn--ghost {
   background: var(--bg-panel-solid);
   color: var(--text-muted);
@@ -534,7 +574,6 @@ a:focus-visible {
   animation: fadeUp .35s ease;
   min-width: 0;
   max-width: 100%;
-  overflow: hidden;
 }
 @keyframes fadeUp {
   from { opacity: 0; transform: translateY(10px); }
@@ -584,9 +623,7 @@ a:focus-visible {
   word-break: break-word;
 }
 
-/* ============================================================
-   🔧 FIX OVERFLOW — Cards / Badges / Modalidade Sugerida
-   ============================================================ */
+/* 🔧 FIX OVERFLOW */
 .card-modalidade,
 .badge-modalidade,
 .resultado-card,
@@ -605,14 +642,14 @@ a:focus-visible {
 .badge-modalidade,
 .verdict__cell dd .badge {
   display: inline-block;
-  white-space: normal;          /* Quebra linha em telas pequenas */
+  white-space: normal;
   line-height: 1.4;
   padding: 0.5rem 0.85rem;
   max-width: 100%;
   hyphens: auto;
 }
 
-/* -------------------- Badges (alto contraste) -------------------- */
+/* -------------------- Badges -------------------- */
 .badge {
   display: inline-flex; align-items: center; gap: 6px;
   padding: 6px 12px; border-radius: 999px;
@@ -627,7 +664,6 @@ a:focus-visible {
   text-align: left;
   line-height: 1.35;
 }
-
 .badge--success {
   background: var(--success-bg);
   color: var(--success);
@@ -730,6 +766,50 @@ a:focus-visible {
   background: linear-gradient(180deg, var(--brand-400), var(--brand-600));
   box-shadow: 0 0 12px -2px var(--brand-glow);
   flex: 0 0 auto;
+}
+
+/* -------------------- Motivação jurídica (NOVO) -------------------- */
+.motivacao { padding-bottom: 18px; }
+
+.motivacao-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+  min-width: 0;
+}
+
+.motivacao-item {
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.motivacao-item--full { grid-column: 1 / -1; }
+
+.motivacao-item dt {
+  font-size: .68rem;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--text-soft);
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+
+.motivacao-item dd {
+  margin: 0;
+  font-size: .88rem;
+  color: var(--text);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+@media (max-width: 720px) {
+  .motivacao-item--full { grid-column: auto; }
 }
 
 /* -------------------- Checklist -------------------- */
@@ -850,12 +930,13 @@ a:focus-visible {
 /* -------------------- FOOTER -------------------- */
 .app-footer {
   max-width: 1600px; margin: 0 auto;
-  padding: 24px clamp(16px, 3vw, 40px) 40px;
-  font-size: .8rem; color: var(--text-soft);
+  padding: 16px clamp(16px, 3vw, 40px) 20px;
+  font-size: .78rem; color: var(--text-soft);
   border-top: 1px solid var(--border);
-  display: flex; flex-direction: column; gap: 6px;
+  display: flex; flex-direction: column; gap: 4px;
+  background: var(--bg-app);
 }
-.app-footer__warn { color: var(--text-muted); font-size: .78rem; }
+.app-footer__warn { color: var(--text-muted); font-size: .74rem; }
 
 /* -------------------- TOAST -------------------- */
 .toast {
@@ -875,7 +956,7 @@ a:focus-visible {
 .toast--success { background: var(--success-bg); border-color: var(--success-brd); color: var(--success-fg); }
 .toast--error   { background: var(--danger-bg);  border-color: var(--danger-brd);  color: var(--danger-fg);  }
 
-/* -------------------- SCROLLBAR -------------------- */
+/* -------------------- SCROLLBAR GLOBAL -------------------- */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
