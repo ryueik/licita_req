@@ -1,17 +1,17 @@
 /* ============================================================
-   LicitaReq — app.js
+   LicitaReq — app.js (v1.2)
    Motor de triagem baseado na Lei nº 14.133/2021
    Correções desta versão:
      - Emergência (Art. 75, VIII) com PRIORIDADE sobre Concorrência
      - Exceção de Inexigibilidade (Art. 74, §2º) no checklist de preços
      - Natureza "Bens e Serviços Comuns / Consumo" (lâmpadas, papel, ferramentas)
+     - Botão "📄 Baixar Minuta em PDF" (pdfMake) integrado ao dashboard
    ============================================================ */
 'use strict';
 
 /* -------------------- LIMITES LEGAIS -------------------- */
-/* ⚠️ Valores de referência — atualize anualmente conforme decretos. */
-const LIMITE_DISPENSA_BENS_SERVICOS =  50000.00;   // Art. 75, II
-const LIMITE_DISPENSA_OBRAS         = 100000.00;   // Art. 75, I
+const LIMITE_DISPENSA_BENS_SERVICOS =  50000.00;
+const LIMITE_DISPENSA_OBRAS         = 100000.00;
 const LIMITE_OBRA_ENG               = LIMITE_DISPENSA_OBRAS;
 const LIMITE_BENS_SERVICOS          = LIMITE_DISPENSA_BENS_SERVICOS;
 
@@ -53,7 +53,6 @@ const KEYWORDS = {
     'ferramenta', 'ferramentas', 'parafuso', 'prego', 'martelo',
     'chave de fenda', 'alicate', 'furadeira', 'material elétrico', 'material eletrico'
   ],
-  /* 🔧 NOVO: palavras que FORÇAM a natureza "Comuns / Consumo" */
   consumo: [
     'lâmpada', 'lampada', 'lâmpadas', 'lampadas',
     'papel a4', 'papel sulfite', 'material de escritório', 'material de escritorio',
@@ -87,7 +86,6 @@ const KEYWORDS = {
     'representante exclusivo', 'único fornecedor', 'unico fornecedor',
     'art. 74', 'artigo 74', 'inciso iii'
   ],
-  /* 🔧 NOVO: palavras que indicam justificativa de preço em inexigibilidade */
   justificativaPrecoInexigivel: [
     'nota fiscal', 'notas fiscais', 'nota fiscal anterior',
     'contrato anterior', 'contratos anteriores', 'contratação anterior',
@@ -136,21 +134,17 @@ const REQUISITOS = [
     test: (t) => /(\d+\s*(unid|unidade|un|pç|pc|caixa|cx|kg|litro|l|m²|m2|m³|m3|metro|pacote|resma|frasco|licen[çc]a))|quantidade\s*:?\s*\d+|\b\d{1,5}\s+(unidades?|itens?)/i.test(t)
   },
   {
-    /* 🔧 ATUALIZADO: Aceita justificativa por notas fiscais/contratos anteriores
-       quando a modalidade é Inexigibilidade (Art. 74, §2º). */
     id: 'valor',
     titulo: 'Estimativa preliminar de preço / pesquisa de mercado',
     desc: 'A solicitação deve vir acompanhada de estimativa de valor ou indicação de pesquisa de preços. Em contratações diretas por Inexigibilidade, admite-se justificativa de preço baseada em notas fiscais ou contratos anteriores do contratado (Art. 74, §2º).',
     law: 'Art. 18, §1º, IV e Art. 23 — Lei 14.133/2021',
     severidade: 'media',
     test: (t, extra) => {
-      /* --- Exceção de Inexigibilidade (Art. 74, §2º) --- */
       if (extra && extra.eInexigivel) {
         const temJustificativaPreco = KEYWORDS.justificativaPrecoInexigivel
           .some(k => t.toLowerCase().includes(k));
         if (temJustificativaPreco) return true;
       }
-      /* --- Regra geral --- */
       return (
         /(R\$\s*[\d.,]+)|(pesquisa de (preço|preco|mercado))|(estimativa de valor)|(valor estimado)/i.test(t) ||
         (extra && extra.valor && extra.valor > 0)
@@ -198,7 +192,6 @@ const REQUISITOS = [
     test: (t, extra) => {
       const temMarca = KEYWORDS.marca.some(k => t.toLowerCase().includes(k));
       const temJust  = /(padroniza|justificativa técnica|justificativa tecnica|parecer técnico|parecer tecnico|similaridade|compatibilidade|exclusividade|notória especialização|notoria especializacao)/i.test(t);
-      /* Exceção: em inexigibilidade, a marca é intrínseca ao fornecedor exclusivo */
       if (extra && extra.eInexigivel) return true;
       return !temMarca || temJust;
     }
@@ -223,7 +216,6 @@ const REQUISITOS = [
     law: 'Art. 5º e Art. 41 — Lei 14.133/2021',
     severidade: 'alta',
     test: (t, extra) => {
-      /* Exceção: em inexigibilidade, a exclusividade é lícita */
       if (extra && extra.eInexigivel) return true;
       return !/(direcionad[oa]\s+(?:para|à|a)\s+(?:empresa|fornecedor)|exclusivamente\s+(?:a|para)\s+(?:empresa|fornecedor))/i.test(t);
     }
@@ -606,7 +598,6 @@ function detectarInexigibilidade(texto) {
   return temKeyword || temJustificativa;
 }
 
-/* 🔧 NOVO: detector dedicado de emergência/calamidade */
 function detectarEmergencia(texto) {
   const t = (texto || '').toLowerCase();
   return /emerg[êe]ncial?|calamidade|desastre|defesa\s+civil|risco\s+iminente|paralisa[çc][ãa]o\s+de\s+servi[çc]o|desabastecimento/i.test(t);
@@ -624,8 +615,6 @@ function detectarServicoIntelectual(objeto) {
 
 /* ============================================================
    🎯 ÁRVORE DE DECISÃO JURÍDICA — Lei 14.133/2021
-   ORDEM: Leilão → Emergência → Inexigibilidade →
-          Dispensa Valor → Concorrência → Pregão
    ============================================================ */
 function determinarModalidadeEJustificativa(metadados) {
   const {
@@ -642,9 +631,7 @@ function determinarModalidadeEJustificativa(metadados) {
     ? valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
     : 'não informado';
 
-  /* ------------------------------------------------------------
-     1) LEILÃO ELETRÔNICO (Art. 6º, XL e Art. 31)
-     ------------------------------------------------------------ */
+  /* 1) LEILÃO ELETRÔNICO */
   if (eAlienacao || /aliena[çc][ãa]o|venda\s+de\s+bens|inserv[íi]ve(is|l)|desfazimento|leil[ãa]o/i.test(objeto)) {
     return {
       modalidade: 'Leilão Eletrônico',
@@ -666,10 +653,7 @@ function determinarModalidadeEJustificativa(metadados) {
     };
   }
 
-  /* ------------------------------------------------------------
-     2) DISPENSA EMERGENCIAL (Art. 75, VIII) — PRIORIDADE
-        Deve prevalecer sobre Concorrência/Engenharia.
-     ------------------------------------------------------------ */
+  /* 2) DISPENSA EMERGENCIAL */
   if (eEmergencial) {
     return {
       modalidade: 'Dispensa de Licitação Emergencial',
@@ -683,9 +667,7 @@ function determinarModalidadeEJustificativa(metadados) {
         'à continuidade da prestação do serviço público. A contratação deve ser instruída ' +
         'com a caracterização da situação emergencial e o prazo máximo de 1 (um) ano, ' +
         'sendo vedada a prorrogação (Art. 75, §1º).' +
-        (valor > 0
-          ? ` Valor estimado informado: ${valorFmt}.`
-          : ''),
+        (valor > 0 ? ` Valor estimado informado: ${valorFmt}.` : ''),
       descricao:
         'Contratação direta em razão de emergência ou calamidade pública, com risco à ' +
         'continuidade de serviços essenciais ou à incolumidade pública.',
@@ -695,9 +677,7 @@ function determinarModalidadeEJustificativa(metadados) {
     };
   }
 
-  /* ------------------------------------------------------------
-     3) INEXIGIBILIDADE (Art. 74)
-     ------------------------------------------------------------ */
+  /* 3) INEXIGIBILIDADE */
   if (eInexigivel) {
     return {
       modalidade: 'Inexigibilidade de Licitação',
@@ -711,9 +691,7 @@ function determinarModalidadeEJustificativa(metadados) {
         'afastando-se o dever geral de licitar. Nos termos do Art. 74, §2º, o preço ' +
         'pode ser justificado com base em notas fiscais ou contratos anteriores do ' +
         'contratado, quando a natureza do objeto inviabilizar a pesquisa de mercado.' +
-        (empresaDirecionada
-          ? ` ⚠ Empresa mencionada: ${empresaDirecionada}.`
-          : ''),
+        (empresaDirecionada ? ` ⚠ Empresa mencionada: ${empresaDirecionada}.` : ''),
       descricao:
         'Contratação direta por inviabilidade de competição (fornecedor exclusivo, ' +
         'notória especialização ou artista consagrado).',
@@ -723,9 +701,7 @@ function determinarModalidadeEJustificativa(metadados) {
     };
   }
 
-  /* ------------------------------------------------------------
-     4) DISPENSA POR VALOR (Art. 75, I e II)
-     ------------------------------------------------------------ */
+  /* 4) DISPENSA POR VALOR */
   const eObraEng = detectarObraEngenharia(objeto) || natureza === 'obra';
 
   if (eObraEng && valor > 0 && valor <= LIMITE_DISPENSA_OBRAS) {
@@ -769,9 +745,7 @@ function determinarModalidadeEJustificativa(metadados) {
     };
   }
 
-  /* ------------------------------------------------------------
-     5) CONCORRÊNCIA (Art. 6º, XXXVIII e Art. 36)
-     ------------------------------------------------------------ */
+  /* 5) CONCORRÊNCIA */
   if (detectarServicoIntelectual(objeto) || eObraEng || natureza === 'tecnicos' || natureza === 'obra') {
     const tipo = detectarServicoIntelectual(objeto)
       ? 'serviço técnico especializado de natureza predominantemente intelectual'
@@ -793,9 +767,7 @@ function determinarModalidadeEJustificativa(metadados) {
     };
   }
 
-  /* ------------------------------------------------------------
-     6) PREGÃO ELETRÔNICO (Regra geral — Art. 6º, XLI e Art. 29)
-     ------------------------------------------------------------ */
+  /* 6) PREGÃO ELETRÔNICO */
   const comRessalva = !!empresaDirecionada;
   return {
     modalidade: comRessalva ? 'Pregão Eletrônico (com ressalva)' : 'Pregão Eletrônico',
@@ -911,21 +883,12 @@ function contemScore(texto, palavras) {
   return s;
 }
 
-/* ============================================================
-   🔧 DETECÇÃO DE NATUREZA — com OVERRIDE de materiais de consumo
-   ============================================================ */
 function detectarNatureza(texto, naturezaSelecionada) {
   if (naturezaSelecionada && naturezaSelecionada !== 'auto') return naturezaSelecionada;
   const t = texto.toLowerCase();
 
-  /* ------------------------------------------------------------
-     🔧 PRIORIDADE 1: Materiais de consumo/expediente SEMPRE comuns
-     Evita falsos-positivos que classificavam lâmpadas elétricas
-     ou papel A4 como "TIC" por conter "sistema" ou "elétrico".
-     ------------------------------------------------------------ */
   const scoreConsumo = contemScore(t, KEYWORDS.consumo);
   if (scoreConsumo >= 1) {
-    // Só força "comuns" se não houver sinais MUITO fortes de TIC/obra
     const scoreTicForte = contemScore(t, ['software', 'licença de software', 'datacenter',
       'firewall', 'servidor de rede', 'desenvolvimento de sistema', 'erp',
       'aplicativo', 'cloud computing']);
@@ -936,9 +899,6 @@ function detectarNatureza(texto, naturezaSelecionada) {
     }
   }
 
-  /* ------------------------------------------------------------
-     PRIORIDADE 2: Pontuação normal entre categorias
-     ------------------------------------------------------------ */
   const scores = {
     obra:     contemScore(t, KEYWORDS.obra),
     tic:      contemScore(t, KEYWORDS.tic),
@@ -1047,7 +1007,6 @@ function analisar() {
 
   const meta = extrairMetadados(textoCompleto);
 
-  /* 🔧 SINAIS são calculados ANTES para alimentar os requisitos */
   const eInexigivel = detectarInexigibilidade(textoCompleto);
   const eAlienacao  = detectarAlienacao(textoCompleto, meta.objeto);
   const eEmergencial = detectarEmergencia(textoCompleto);
@@ -1063,7 +1022,6 @@ function analisar() {
     cargo:            els.cargo.value.trim(),
     empresaDetectada: meta.empresa,
     objeto:           meta.objeto,
-    /* 🔧 Flags que alimentam exceções do checklist */
     eInexigivel:      eInexigivel,
     eAlienacao:       eAlienacao,
     eEmergencial:     eEmergencial
@@ -1123,7 +1081,6 @@ const LABELS_NATUREZA = {
   obra:     'Obras e serviços de engenharia',
   tecnicos: 'Serviços técnicos especializados',
   tic:      'Tecnologia da Informação e Comunicação (TIC)',
-  /* 🔧 Atualizado para refletir o pedido do usuário */
   comuns:   'Bens e Serviços Comuns / Consumo'
 };
 
@@ -1137,7 +1094,6 @@ function renderResultado() {
 
   const naturezaLabel = LABELS_NATUREZA[r.natureza] || r.natureza;
 
-  /* ---------- Alerta crítico de direcionamento ---------- */
   const requisitoDirecionamento = r.requisitos.find(x => x.id === 'direcionamento');
   const temAlertaDirecionamento =
     r.extra.empresaDetectada && requisitoDirecionamento && !requisitoDirecionamento.conforme;
@@ -1164,7 +1120,6 @@ function renderResultado() {
       </div>
     ` : '';
 
-  /* ---------- Veredicto ---------- */
   const veredictoHtml = `
     <div class="verdict verdict--${r.parecer.classe}">
       <div class="verdict__head">
@@ -1217,7 +1172,6 @@ function renderResultado() {
     </div>
   `;
 
-  /* ---------- Bloco de motivação jurídica ---------- */
   const motivacaoHtml = `
     <div class="section motivacao" style="border-left:5px solid var(--brand-400);background:linear-gradient(180deg, rgba(56,189,248,0.08), rgba(15,23,42,0.05));">
       <h3 class="section__title" style="color:var(--brand-400);">
@@ -1243,7 +1197,6 @@ function renderResultado() {
     </div>
   `;
 
-  /* ---------- Checklist ---------- */
   const requisitosHtml = r.requisitos.map(req => {
     let cls = 'req-row--ok', icone = '✓', sevCls = 'sev--ok', sevLabel = 'Conforme';
     if (!req.conforme) {
@@ -1265,7 +1218,6 @@ function renderResultado() {
     `;
   }).join('');
 
-  /* ---------- Alertas de pendências ---------- */
   const naoConformes = r.requisitos.filter(x => !x.conforme);
   const alertasHtml = naoConformes.length === 0
     ? `<div class="alert alert--success">
@@ -1293,7 +1245,6 @@ function renderResultado() {
         `;
       }).join('');
 
-  /* ---------- Minuta ---------- */
   const minuta = gerarMinuta(r);
 
   els.resultado.innerHTML = `
@@ -1328,13 +1279,16 @@ function renderResultado() {
       <h3 class="section__title">Minuta de resposta oficial (Devolutiva)</h3>
       <pre id="minutaTexto" class="minuta" aria-label="Minuta de despacho oficial">${escapeHtml(minuta)}</pre>
       <div class="minuta__actions">
-        <button id="btnCopiar" class="btn btn--primary btn--sm" type="button" aria-label="Copiar minuta completa para a área de transferência">📋 Copiar Minuta Completa</button>
+        <button id="btnBaixarPDF" class="btn btn--secondary btn--sm" type="button" aria-label="Baixar minuta em PDF timbrado">📄 Baixar Minuta em PDF</button>
+        <button id="btnCopiar" class="btn btn--primary btn--sm" type="button" aria-label="Copiar minuta completa para a área de transferência">📋 Copiar Minuta</button>
         <button id="btnBaixar" class="btn btn--ghost btn--sm" type="button" aria-label="Baixar minuta em arquivo de texto">⬇ Baixar .txt</button>
         <button id="btnImprimir" class="btn btn--ghost btn--sm" type="button" aria-label="Imprimir minuta">🖨 Imprimir</button>
       </div>
     </div>
   `;
 
+  /* Bindings */
+  $('#btnBaixarPDF')?.addEventListener('click', gerarPDFDevolutiva);
   $('#btnCopiar')?.addEventListener('click', () => copiarTexto(minuta));
   $('#btnBaixar')?.addEventListener('click', () => baixarTxt(minuta));
   $('#btnImprimir')?.addEventListener('click', () => imprimirMinuta(minuta));
@@ -1521,483 +1475,4 @@ function imprimirMinuta(texto) {
       pre { white-space: pre-wrap; font-family: inherit; font-size: 12pt; }
       @media print { body { padding: 20mm; } }
     </style></head>
-    <body><pre>${escapeHtml(texto)}</pre>
-    <script>window.onload=()=>setTimeout(()=>window.print(),300);<\/script>
-    </body></html>
-  `;
-  win.document.write(html);
-  win.document.close();
-}
-
-/* ============================================================
-   EXEMPLO E LIMPEZA
-   ============================================================ */
-function carregarExemplo() {
-  els.unidade.value = '';
-  els.processo.value = '';
-  els.orgao.value = '';
-  els.responsavel.value = 'João Pereira da Silva';
-  els.cargo.value = 'Chefe da Divisão de Licitações';
-  els.natureza.value = 'auto';
-  els.valor.value = '';
-
-  els.texto.value =
-`DIRETORIA DE TECNOLOGIA DA INFORMAÇÃO
-Memorando nº 042/2026
-
-De: Setor Requisitante / TI
-Para: Divisão de Licitações
-Assunto: Consultoria Especializada em Arquitetura de Nuvem --- 1
-
-1. Solicitamos a contratação da empresa TechCloud Soluções Avançadas Ltda.
-para prestação de serviços de consultoria especializada em arquitetura de
-nuvem, incluindo migração de workloads e otimização de custos em ambiente
-multicloud.
-
-2. Justifica-se a presente demanda em razão da necessidade de modernização
-da infraestrutura tecnológica desta Diretoria, visando a continuidade e a
-segurança dos serviços prestados à sociedade.
-
-3. O valor estimado da contratação é de R$ 85.000,00 (oitenta e cinco mil
-reais), conforme pesquisa de preços realizada junto a fornecedores do ramo.
-
-4. Informamos que há dotação orçamentária específica prevista na Lei
-Orçamentária Anual para o exercício corrente.
-
-5. O prazo de execução dos serviços é de 6 (seis) meses, contados da
-assinatura do contrato.
-
-6. O fiscal do contrato será designado por portaria específica.
-
-Atenciosamente,
-Diretoria de Tecnologia da Informação`;
-
-  atualizarContador();
-  showToast('Exemplo carregado.', 'success');
-}
-
-function limparTudo() {
-  els.texto.value = '';
-  els.unidade.value = '';
-  els.processo.value = '';
-  els.natureza.value = 'auto';
-  els.valor.value = '';
-  els.orgao.value = '';
-  els.responsavel.value = '';
-  els.cargo.value = '';
-  state.arquivos = [];
-  state.resultado = null;
-
-  renderFileList();
-  atualizarContador();
-
-  els.emptyState.hidden = false;
-  els.emptyState.removeAttribute('aria-hidden');
-  els.emptyState.style.display = '';
-
-  els.resultado.hidden = true;
-  els.resultado.setAttribute('aria-hidden', 'true');
-  els.resultado.style.display = 'none';
-  els.resultado.innerHTML = '';
-
-  const status = $('#resultado-status');
-  if (status) status.textContent = '';
-
-  showToast('Formulário limpo.', 'success');
-}
-
-function atualizarContador() {
-  els.charCount.textContent = els.texto.value.length;
-}
-
-/* ============================================================
-   INICIALIZAÇÃO
-   ============================================================ */
-function init() {
-  initTema();
-  initAccordions();
-  initDropzone();
-  renderFileList();
-
-  els.emptyState.hidden = false;
-  els.emptyState.style.display = '';
-  els.resultado.hidden = true;
-  els.resultado.style.display = 'none';
-
-  els.texto.addEventListener('input', atualizarContador);
-  els.btnAnalisar.addEventListener('click', analisar);
-  els.btnExemplo.addEventListener('click', carregarExemplo);
-  els.btnLimpar.addEventListener('click', limparTudo);
-
-  document.addEventListener('keydown', (e) => {
-    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-      e.preventDefault();
-      analisar();
-    }
-  });
-
-  atualizarContador();
-}
-
-/* ============================================================
-   EXPORTAÇÃO PDF — DESPACHO TIMBRADO (pdfMake)
-   ============================================================ */
-function gerarPDFDevolutiva() {
-  const r = state.resultado;
-  if (!r) {
-    showToast('Realize uma análise antes de exportar o PDF.', 'error');
-    return;
-  }
-  if (!window.pdfMake) {
-    showToast('Biblioteca pdfMake não carregada. Verifique a conexão.', 'error');
-    return;
-  }
-
-  const d = r.dataAnalise || new Date();
-  const dataFmt = d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
-  const numeroDespacho = String(Math.floor(Math.random() * 900) + 100) + '/' + d.getFullYear();
-
-  const orgao        = (r.extra.orgao || 'Órgão / Entidade Pública').toUpperCase();
-  const processo     = r.extra.processo || 'Expediente não identificado';
-  const unidade      = r.extra.unidade || 'Unidade Requisitante';
-  const objeto       = r.extra.objeto || 'Contratação pública';
-  const valorFmt     = r.extra.valor > 0 ? formatarValorBR(r.extra.valor) : 'Não informado';
-  const responsavel  = r.extra.responsavel || '';
-  const cargo        = r.extra.cargo || 'Autoridade Competente';
-  const empresa      = r.extra.empresaDetectada || '';
-  const naturezaTxt  = LABELS_NATUREZA[r.natureza] || r.natureza;
-
-  const deferido      = r.parecer.classe === 'deferido';
-  const statusColor   = deferido ? '#059669' : '#dc2626';
-  const scoreColor    = r.score >= 80 ? '#10b981' : r.score >= 60 ? '#f59e0b' : '#ef4444';
-
-  /* ---------- Pendências ---------- */
-  const pendentes = r.requisitos.filter(x => !x.conforme);
-  const pendenciasBody = pendentes.length === 0
-    ? [[
-        { text: '—', alignment: 'center', color: '#94a3b8' },
-        { text: 'Nenhuma pendência formal identificada. Processo apto para prosseguimento.', italics: true, color: '#059669', colSpan: 2 },
-        {}
-      ]]
-    : pendentes.map(p => {
-        const sev   = (p.severidade || 'baixa').toUpperCase();
-        const sevBg = sev === 'ALTA' ? '#fee2e2' : (sev === 'MÉDIA' || sev === 'MEDIA') ? '#fef3c7' : '#e0f2fe';
-        const sevFg = sev === 'ALTA' ? '#991b1b' : (sev === 'MÉDIA' || sev === 'MEDIA') ? '#92400e' : '#075985';
-        return [
-          { text: sev, color: sevFg, fillColor: sevBg, bold: true, fontSize: 8, alignment: 'center' },
-          {
-            stack: [
-              { text: p.titulo, bold: true, fontSize: 9 },
-              { text: p.desc, fontSize: 8.5, color: '#475569', margin: [0, 2, 0, 0] }
-            ]
-          },
-          { text: p.law, fontSize: 7.5, color: '#0284c7', italics: true }
-        ];
-      });
-
-  const docDefinition = {
-    pageSize: 'A4',
-    pageMargins: [40, 60, 40, 60],
-    defaultStyle: {
-      font: 'Roboto',
-      fontSize: 10,
-      color: '#1e293b',
-      lineHeight: 1.4
-    },
-
-    /* ---------- HEADER (a partir da pág. 2) ---------- */
-    header: (currentPage) => {
-      if (currentPage === 1) return null;
-      return {
-        margin: [40, 20, 40, 0],
-        columns: [
-          { text: 'LicitaReq · Despacho de Triagem', fontSize: 8, color: '#94a3b8' },
-          { text: orgao, fontSize: 8, color: '#94a3b8', alignment: 'right' }
-        ]
-      };
-    },
-
-    /* ---------- FOOTER ---------- */
-    footer: (currentPage, pageCount) => ({
-      margin: [40, 10, 40, 0],
-      columns: [
-        { text: 'Documento gerado eletronicamente pelo sistema LicitaReq · Lei 14.133/2021', fontSize: 7.5, color: '#94a3b8' },
-        { text: `Página ${currentPage} de ${pageCount}`, fontSize: 7.5, color: '#94a3b8', alignment: 'right' }
-      ]
-    }),
-
-    content: [
-      /* =============== CABEÇALHO TIMBRADO =============== */
-      {
-        columns: [
-          {
-            width: 55,
-            table: {
-              body: [[{
-                text: 'LR',
-                color: 'white',
-                bold: true,
-                fontSize: 22,
-                alignment: 'center',
-                fillColor: '#6366f1',
-                margin: [0, 8, 0, 8]
-              }]]
-            },
-            layout: 'noBorders'
-          },
-          {
-            width: '*',
-            stack: [
-              { text: orgao, fontSize: 13, bold: true, color: '#0f172a' },
-              { text: 'SISTEMA DE TRIAGEM DE CONTRATAÇÕES PÚBLICAS', fontSize: 8.5, color: '#64748b', characterSpacing: 0.5 },
-              { text: 'Lei nº 14.133/2021  ·  Decreto nº 11.317/2022', fontSize: 8, color: '#94a3b8', italics: true }
-            ],
-            margin: [14, 4, 0, 0]
-          }
-        ]
-      },
-      {
-        canvas: [{ type: 'line', x1: 0, y1: 0, x2: 515, y2: 0, lineWidth: 1.5, lineColor: '#6366f1' }],
-        margin: [0, 12, 0, 0]
-      },
-      {
-        text: 'DESPACHO DE TRIAGEM E ENQUADRAMENTO LEGAL',
-        fontSize: 12, bold: true, alignment: 'center', color: '#0f172a',
-        margin: [0, 16, 0, 2]
-      },
-      {
-        text: `Nº ${numeroDespacho}  ·  ${dataFmt}`,
-        fontSize: 9, alignment: 'center', color: '#64748b',
-        margin: [0, 0, 0, 18]
-      },
-
-      /* =============== TABELA DE METADADOS =============== */
-      {
-        table: {
-          widths: ['32%', '68%'],
-          body: [
-            [
-              { text: 'Processo / Expediente', style: 'metaLabel' },
-              { text: processo, style: 'metaValue' }
-            ],
-            [
-              { text: 'Unidade Requisitante', style: 'metaLabel' },
-              { text: unidade, style: 'metaValue' }
-            ],
-            [
-              { text: 'Objeto', style: 'metaLabel' },
-              { text: objeto, style: 'metaValue' }
-            ],
-            [
-              { text: 'Natureza do Objeto', style: 'metaLabel' },
-              { text: naturezaTxt, style: 'metaValue' }
-            ],
-            [
-              { text: 'Valor Estimado', style: 'metaLabel' },
-              { text: valorFmt, style: 'metaValue' }
-            ],
-            [
-              { text: 'Modalidade Sugerida', style: 'metaLabel' },
-              {
-                stack: [
-                  { text: r.modalidade.modalidade, style: 'metaValue' },
-                  { text: r.modalidade.baseLegal, fontSize: 8, color: '#64748b', italics: true, margin: [0, 2, 0, 0] }
-                ]
-              }
-            ],
-            [
-              { text: 'Parecer da Triagem', style: 'metaLabel' },
-              { text: r.parecer.status, color: statusColor, bold: true, fontSize: 10.5 }
-            ],
-            [
-              { text: 'Índice de Conformidade', style: 'metaLabel' },
-              {
-                stack: [
-                  { text: `${r.score}%`, bold: true, fontSize: 12, color: scoreColor },
-                  {
-                    canvas: [
-                      { type: 'rect', x: 0, y: 0, w: 200, h: 5, r: 2.5, color: '#e2e8f0' },
-                      { type: 'rect', x: 0, y: 0, w: 200 * r.score / 100, h: 5, r: 2.5, color: scoreColor }
-                    ],
-                    margin: [0, 4, 0, 0]
-                  }
-                ]
-              }
-            ],
-            ...(empresa ? [[
-              { text: 'Empresa mencionada', style: 'metaLabel' },
-              { text: empresa, color: '#dc2626', bold: true, fontSize: 10 }
-            ]] : [])
-          ]
-        },
-        layout: {
-          fillColor: (rowIndex) => rowIndex % 2 === 0 ? '#f8fafc' : '#ffffff',
-          hLineWidth: (i, node) => (i === 0 || i === node.table.body.length) ? 1 : 0.5,
-          vLineWidth: () => 0,
-          hLineColor: () => '#e2e8f0',
-          paddingTop: () => 8,
-          paddingBottom: () => 8,
-          paddingLeft: () => 10,
-          paddingRight: () => 10
-        },
-        margin: [0, 0, 0, 20]
-      },
-
-      /* =============== 1. RESUMO EXECUTIVO =============== */
-      { text: '1. RESUMO EXECUTIVO', style: 'sectionTitle' },
-      {
-        text: [
-          'Trata-se de análise técnica e jurídica preliminar da solicitação de contratação ',
-          'encaminhada pela unidade requisitante acima identificada, instruída nos autos do processo ',
-          { text: processo, bold: true },
-          ', fundamentada na Lei Federal nº 14.133, de 1º de abril de 2021, e demais normas aplicáveis.'
-        ],
-        style: 'bodyText'
-      },
-      {
-        text: [
-          'A demanda foi classificada, preliminarmente, com a seguinte natureza: ',
-          { text: naturezaTxt, bold: true },
-          '. Valor estimado informado pelo requisitante: ',
-          { text: valorFmt, bold: true },
-          '.'
-        ],
-        style: 'bodyText'
-      },
-
-      /* =============== 2. ENQUADRAMENTO E MOTIVAÇÃO =============== */
-      { text: '2. ENQUADRAMENTO E MOTIVAÇÃO JURÍDICA', style: 'sectionTitle' },
-      {
-        table: {
-          widths: ['*'],
-          body: [[{
-            stack: [
-              { text: 'MODALIDADE SUGERIDA', fontSize: 8, bold: true, color: '#64748b', characterSpacing: 0.5 },
-              { text: r.modalidade.modalidade, fontSize: 12, bold: true, color: '#0f172a', margin: [0, 3, 0, 10] },
-              { text: 'BASE LEGAL', fontSize: 8, bold: true, color: '#64748b', characterSpacing: 0.5 },
-              { text: r.modalidade.baseLegal, fontSize: 10, color: '#0284c7', bold: true, margin: [0, 3, 0, 10] },
-              { text: 'MOTIVAÇÃO DO ENQUADRAMENTO', fontSize: 8, bold: true, color: '#64748b', characterSpacing: 0.5 },
-              { text: r.modalidade.motivo, fontSize: 10, color: '#334155', margin: [0, 3, 0, 0], alignment: 'justify' }
-            ],
-            margin: [12, 12, 12, 12],
-            fillColor: '#f1f5f9'
-          }]]
-        },
-        layout: 'noBorders',
-        margin: [0, 0, 0, 20]
-      },
-
-      /* =============== 3. EXIGÊNCIAS E PENDÊNCIAS =============== */
-      { text: '3. EXIGÊNCIAS E PENDÊNCIAS A SANAR', style: 'sectionTitle' },
-      {
-        table: {
-          headerRows: 1,
-          dontBreakRows: true,
-          widths: ['12%', '58%', '30%'],
-          body: [
-            [
-              { text: 'GRAU', style: 'tableHeader', alignment: 'center' },
-              { text: 'PENDÊNCIA', style: 'tableHeader' },
-              { text: 'FUNDAMENTO LEGAL', style: 'tableHeader' }
-            ],
-            ...pendenciasBody
-          ]
-        },
-        layout: {
-          fillColor: (rowIndex) => rowIndex === 0 ? '#1e293b' : null,
-          hLineWidth: () => 0.5,
-          vLineWidth: () => 0.5,
-          hLineColor: () => '#cbd5e1',
-          vLineColor: () => '#cbd5e1',
-          paddingTop: () => 6,
-          paddingBottom: () => 6,
-          paddingLeft: () => 8,
-          paddingRight: () => 8
-        },
-        margin: [0, 0, 0, 20]
-      },
-
-      /* =============== 4. CONCLUSÃO =============== */
-      { text: '4. CONCLUSÃO E ENCAMINHAMENTO', style: 'sectionTitle' },
-      {
-        text: deferido
-          ? 'Diante da conformidade formal verificada nos autos, e considerando o resultado da triagem preliminar realizada nos termos da Lei nº 14.133/2021, OPINA-SE pelo DEFERIMENTO do prosseguimento instrucional, com a elaboração do Estudo Técnico Preliminar (ETP) e do Termo de Referência ou Projeto Básico, conforme o caso.'
-          : 'Diante do exposto, e considerando o resultado da triagem preliminar realizada nos termos da Lei nº 14.133/2021, RESTITUAM-SE os autos à unidade requisitante para saneamento dos apontamentos relacionados no item 3, no prazo de 5 (cinco) dias úteis, contados do recebimento deste despacho.',
-        style: 'bodyText'
-      },
-      {
-        text: 'Após a regularização, os autos deverão retornar a esta unidade de planejamento para prosseguimento da instrução processual.',
-        style: 'bodyText'
-      },
-
-      /* =============== BLOCO DE ASSINATURA =============== */
-      {
-        table: {
-          dontBreakRows: true,
-          widths: ['*'],
-          body: [[{
-            stack: [
-              { text: ' ', margin: [0, 20, 0, 0] },
-              {
-                canvas: [{
-                  type: 'line', x1: 130, y1: 0, x2: 385, y2: 0,
-                  lineWidth: 0.8, lineColor: '#334155'
-                }]
-              },
-              {
-                text: responsavel || '____________________________',
-                fontSize: 10, bold: true, alignment: 'center',
-                margin: [0, 6, 0, 2]
-              },
-              { text: cargo, fontSize: 9, alignment: 'center', color: '#475569' },
-              { text: orgao, fontSize: 8.5, alignment: 'center', color: '#64748b', italics: true, margin: [0, 2, 0, 0] }
-            ],
-            margin: [0, 10, 0, 10]
-          }]]
-        },
-        layout: 'noBorders',
-        margin: [0, 20, 0, 0]
-      }
-    ],
-
-    styles: {
-      metaLabel:  { fontSize: 8.5, bold: true, color: '#475569' },
-      metaValue:  { fontSize: 9.5, color: '#0f172a' },
-      sectionTitle: {
-        fontSize: 11,
-        bold: true,
-        color: '#0f172a',
-        margin: [0, 14, 0, 8]
-      },
-      bodyText: {
-        fontSize: 10,
-        color: '#334155',
-        lineHeight: 1.5,
-        margin: [0, 0, 0, 8],
-        alignment: 'justify'
-      },
-      tableHeader: {
-        fontSize: 8.5,
-        bold: true,
-        color: '#ffffff'
-      }
-    }
-  };
-
-  const procSafe = (processo || 'LicitaReq').replace(/[/\\?%*:|"<>]/g, '_');
-  const filename = `Despacho_Triagem_${procSafe}_${d.getFullYear()}.pdf`;
-
-  try {
-    pdfMake.createPdf(docDefinition).download(filename);
-    showToast('PDF gerado com sucesso.', 'success');
-  } catch (err) {
-    console.error('[LicitaReq] Erro ao gerar PDF:', err);
-    showToast('Erro ao gerar o PDF. Verifique o console.', 'error');
-  }
-}
-
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', init);
-} else {
-  init();
-}
+    <body><pre>${escapeHtml
