@@ -1,19 +1,18 @@
 /* ============================================================
    LicitaReq — app.js
    Motor de triagem baseado na Lei nº 14.133/2021
-   Correções aplicadas:
-     - Limpeza de metadados (De:/Para:/---/numeração)
-     - Normalização de Unidade Requisitante e Objeto
-     - Detecção de direcionamento empresarial (Art. 41, I / 74, III)
-     - Minuta oficial SEI com interpolação dinâmica
-     - Ocultação tripla do empty state
+   Refatoração: motivação jurídica explícita da modalidade.
    ============================================================ */
 'use strict';
 
 /* -------------------- LIMITES LEGAIS -------------------- */
-/* Atualize anualmente conforme decretos de atualização monetária. */
-const LIMITE_OBRA_ENG      = 119812.02;   // Art. 75, I
-const LIMITE_BENS_SERVICOS =  59906.02;   // Art. 75, II
+/* ⚠️ Valores de referência — atualize anualmente conforme
+   os decretos de atualização monetária (art. 182 da Lei 14.133/2021). */
+const LIMITE_DISPENSA_BENS_SERVICOS =  50000.00;   // Art. 75, II
+const LIMITE_DISPENSA_OBRAS         = 100000.00;   // Art. 75, I
+/* Compatibilidade com checagens anteriores */
+const LIMITE_OBRA_ENG      = LIMITE_DISPENSA_OBRAS;
+const LIMITE_BENS_SERVICOS = LIMITE_DISPENSA_BENS_SERVICOS;
 
 /* -------------------- PALAVRAS-CHAVE -------------------- */
 const KEYWORDS = {
@@ -35,7 +34,8 @@ const KEYWORDS = {
     'consultoria', 'consultoria especializada', 'assessoria técnica',
     'parecer técnico', 'auditoria', 'perícia', 'pericia', 'laudo',
     'estudo técnico', 'projeto de engenharia', 'capacitação',
-    'treinamento especializado', 'arquitetura', 'engenharia consultiva'
+    'treinamento especializado', 'arquitetura', 'engenharia consultiva',
+    'projeto', 'intelectual'
   ],
   comuns: [
     'material de escritório', 'material de escritorio', 'papel', 'caneta',
@@ -61,6 +61,12 @@ const KEYWORDS = {
     'fornecedor exclusivo', 'inviabilidade de competição', 'inviabilidade de competicao',
     'representante exclusivo', 'único fornecedor', 'unico fornecedor',
     'art. 74', 'artigo 74', 'inciso iii'
+  ],
+  alienacao: [
+    'alienação', 'alienacao', 'venda de bens', 'venda de bem',
+    'bens inservíveis', 'bens inserviveis', 'inservível', 'inservivel',
+    'desfazimento', 'leilão', 'leilao', 'hasta pública', 'hasta publica',
+    'leiloeiro', 'maior lance', 'bens móveis inservíveis', 'bens imóveis'
   ],
   marca: [
     'marca ', 'marca:', 'da marca', 'modelo ', 'modelo:', 'fabricante',
@@ -250,26 +256,20 @@ function truncarNome(nome, ext, max = 34) {
 }
 
 /* ============================================================
-   ✨ LIMPEZA DE METADADOS
+   LIMPEZA DE METADADOS
    ============================================================ */
 
-/**
- * Aplica limpeza em cascata em Unidade Requisitante e Objeto,
- * removendo ruídos de cabeçalho ("De:", "Para:", "Assunto:", "---", "1.", etc).
- */
 function limparMetadados(dados) {
   let unidade = dados.unidadeRequisitante || '';
   let objeto  = dados.objeto             || '';
 
-  /* ---------- UNIDADE REQUISITANTE ---------- */
-  // 1) Corta a string no primeiro rótulo de cabeçalho que apareça
+  /* --- Unidade --- */
   unidade = unidade
     .split(/\b(?:De|Para|Ao|À|Assunto|Ref|Refer[êe]ncia|Objeto|Processo|Expediente)\s*:/i)[0]
     .replace(/[—–\-]{1,}|[:#]/g, '')
     .replace(/\s+/g, ' ')
     .trim();
 
-  // 2) Normaliza para nomes canônicos conhecidos
   if (/tecnologia\s+da\s+informa[çc][ãa]o|^\s*ti\s*$|\bti\b/i.test(unidade)) {
     unidade = 'Diretoria de Tecnologia da Informação (TI)';
   } else if (/setor\s+requisitante\s*[\/\-]?\s*ti/i.test(unidade)) {
@@ -280,14 +280,12 @@ function limparMetadados(dados) {
     unidade = 'Diretoria de Tecnologia da Informação (TI)';
   }
 
-  // 3) Remove rodapés ("Atenciosamente, ...") que possam ter vazado
   unidade = unidade
     .replace(/\s*(atenciosamente|att\.?|cordiais\s+sauda[çc][õo]es)[\s\S]*$/i, '')
     .replace(/[.,;:]+$/, '')
     .trim();
 
-  /* ---------- OBJETO ---------- */
-  // 1) Corta no primeiro marcador de seção ou numeração
+  /* --- Objeto --- */
   objeto = objeto
     .split(/---|—{2,}|\s\d+\.\s|\s#/)[0]
     .replace(/^(?:solicita[çc][ãa]o\s+de|assunto|objeto|ref(?:er[êe]ncia)?)\s*[:\-–—]?\s*/i, '')
@@ -296,10 +294,7 @@ function limparMetadados(dados) {
     .replace(/\s+/g, ' ')
     .trim();
 
-  // 2) Fallback caso fique vazio
   if (!objeto) objeto = 'Consultoria Especializada em Arquitetura de Nuvem';
-
-  // 3) Limita tamanho
   if (objeto.length > 160) objeto = objeto.slice(0, 160).trim() + '…';
 
   return {
@@ -326,7 +321,7 @@ function aplicarTema(tema) {
   els.themeToggle.querySelector('.theme-label').textContent = isDark ? 'Modo claro' : 'Modo escuro';
 
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.setAttribute('content', isDark ? '#0a0f1a' : '#f1f5f9');
+  if (meta) meta.setAttribute('content', isDark ? '#0f172a' : '#f1f5f9');
 
   try { localStorage.setItem('licitareq-tema', tema); } catch (e) {}
 }
@@ -520,7 +515,6 @@ function renderFileList() {
 function detectarEmpresaDirecionada(texto) {
   if (!texto) return null;
 
-  // Padrão 1 — Razão social com sufixo societário
   const padraoRazaoSocial =
     /\b([A-ZÀ-Ú][\wÀ-ú&.'-]*(?:\s+(?:[A-ZÀ-Ú][\wÀ-ú&.'-]*|de|da|do|das|dos|e)){0,7}\s+(?:Ltda\.?|LTDA\.?|S\.A\.?|S\/A|S\.A|ME|EIRELI|EPP))\b/g;
 
@@ -531,7 +525,6 @@ function detectarEmpresaDirecionada(texto) {
     if (nome.length > 4 && !encontradas.includes(nome)) encontradas.push(nome);
   }
 
-  // Padrão 2 — "empresa X", "fornecedor X", "contratação da X"
   if (encontradas.length === 0) {
     const padraoContexto =
       /(?:empresa|fornecedor|contrata[çc][aã]o\s+d[aeo]|aquisi[çc][aã]o\s+d[aeo]|junto\s+[àa])\s+([A-ZÀ-Ú][\wÀ-ú&.'-]*(?:\s+(?:[A-ZÀ-Ú][\wÀ-ú&.'-]*|de|da|do|e)){0,6})/g;
@@ -542,6 +535,210 @@ function detectarEmpresaDirecionada(texto) {
   }
 
   return encontradas.length ? encontradas[0] : null;
+}
+
+/* ============================================================
+   DETECÇÃO DE SINAIS ESPECÍFICOS (para árvore de decisão)
+   ============================================================ */
+
+/**
+ * Detecta se o processo envolve alienação de bens (leilão).
+ */
+function detectarAlienacao(texto, objeto) {
+  const base = `${texto || ''} ${objeto || ''}`.toLowerCase();
+  return KEYWORDS.alienacao.some(k => base.includes(k));
+}
+
+/**
+ * Detecta se há fundamentação mínima de inexigibilidade
+ * (exclusividade, notória especialização, etc.).
+ */
+function detectarInexigibilidade(texto) {
+  const t = (texto || '').toLowerCase();
+  const temKeyword = KEYWORDS.inexigibilidade.some(k => t.includes(k));
+  const temJustificativa = KEYWORDS.justificativaExclusividade.some(k => t.includes(k));
+  return temKeyword || temJustificativa;
+}
+
+/**
+ * Detecta se o objeto é obra/engenharia.
+ */
+function detectarObraEngenharia(objeto) {
+  const t = (objeto || '').toLowerCase();
+  return /obra|obras|engenharia|reforma|constru[çc][ãa]o|pavimenta|saneamento|drenagem|edifica|estrutural/i.test(t);
+}
+
+/**
+ * Detecta se o objeto é serviço técnico especializado / intelectual.
+ */
+function detectarServicoIntelectual(objeto) {
+  const t = (objeto || '').toLowerCase();
+  return /consultoria|arquitetura|projeto|estudo\s+t[ée]cnico|intelectual|parecer|auditoria|per[íi]cia|laudo|assessoria\s+t[ée]cnica/i.test(t);
+}
+
+/* ============================================================
+   🎯 ÁRVORE DE DECISÃO JURÍDICA — Lei 14.133/2021
+   Determina modalidade + base legal + MOTIVAÇÃO textual
+   ============================================================ */
+function determinarModalidadeEJustificativa(metadados) {
+  const {
+    objeto = '',
+    valor = 0,
+    eInexigivel = false,
+    eAlienacao = false,
+    empresaDirecionada = '',
+    natureza = 'comuns'
+  } = metadados;
+
+  const valorFmt = valor > 0
+    ? valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+    : 'não informado';
+
+  /* ------------------------------------------------------------
+     1) LEILÃO ELETRÔNICO (Art. 6º, XL e Art. 31)
+     ------------------------------------------------------------ */
+  if (eAlienacao || /aliena[çc][ãa]o|venda\s+de\s+bens|inserv[íi]ve(is|l)|desfazimento|leil[ãa]o/i.test(objeto)) {
+    return {
+      modalidade: 'Leilão Eletrônico',
+      baseLegal: 'Art. 6º, XL e Art. 31 — Lei 14.133/2021',
+      cor: 'warning',
+      motivo:
+        'Processo voltado à alienação de bens móveis inservíveis ou de bens imóveis ' +
+        'da Administração Pública. O critério de julgamento é o MAIOR LANCE, e a ' +
+        'modalidade obrigatória é o Leilão, preferencialmente em formato eletrônico, ' +
+        'conforme Art. 31 da Lei nº 14.133/2021. A alienação depende de prévia ' +
+        'avaliação, autorização legislativa (quando imóvel) e licitação na modalidade ' +
+        'leilão (Art. 76).',
+      descricao:
+        'Modalidade obrigatória para alienação de bens móveis inservíveis ou ' +
+        'imóveis da Administração Pública.',
+      observacao:
+        'Exige avaliação prévia do bem, autorização da autoridade competente e, ' +
+        'para imóveis, autorização legislativa específica.'
+    };
+  }
+
+  /* ------------------------------------------------------------
+     2) INEXIGIBILIDADE (Art. 74)
+     ------------------------------------------------------------ */
+  if (eInexigivel) {
+    return {
+      modalidade: 'Inexigibilidade de Licitação',
+      baseLegal: 'Art. 74 — Lei 14.133/2021',
+      cor: 'danger',
+      motivo:
+        'Há inviabilidade de competição devidamente caracterizada nos autos, seja ' +
+        'por exclusividade de fornecedor (Art. 74, I), notória especialização técnica ' +
+        'ou acadêmica (Art. 74, III), ou ainda por consagração de artista (Art. 74, II). ' +
+        'A contratação direta é a única via apta a satisfazer a necessidade pública, ' +
+        'afastando-se o dever geral de licitar.',
+      descricao:
+        'Contratação direta por inviabilidade de competição (fornecedor exclusivo, ' +
+        'notória especialização ou artista consagrado).',
+      observacao:
+        'Deve ser instruída com parecer técnico circunstanciado demonstrando a ' +
+        'exclusividade ou a notória especialização (Art. 74, §1º e §2º).' +
+        (empresaDirecionada
+          ? ` ⚠ Empresa mencionada: ${empresaDirecionada}.`
+          : '')
+    };
+  }
+
+  /* ------------------------------------------------------------
+     3) DISPENSA POR VALOR (Art. 75, I e II)
+     ------------------------------------------------------------ */
+  const eObraEng = detectarObraEngenharia(objeto) || natureza === 'obra';
+
+  if (eObraEng && valor > 0 && valor <= LIMITE_DISPENSA_OBRAS) {
+    return {
+      modalidade: 'Dispensa de Licitação por Valor',
+      baseLegal: 'Art. 75, I — Lei 14.133/2021',
+      cor: 'success',
+      motivo:
+        `O valor estimado da contratação de obra/engenharia (${valorFmt}) está ` +
+        `dentro do limite legal de R$ ${LIMITE_DISPENSA_OBRAS.toLocaleString('pt-BR')} ` +
+        'estabelecido pelo Art. 75, I da Lei nº 14.133/2021. A contratação direta por ' +
+        'dispensa é autorizada em razão do pequeno vulto econômico, visando a ' +
+        'celeridade e a economia processual, sem prejuízo do dever de pesquisa de ' +
+        'preços e de escolha fundamentada do fornecedor.',
+      descricao:
+        `Obras e serviços de engenharia com valor estimado de até ` +
+        `R$ ${LIMITE_DISPENSA_OBRAS.toLocaleString('pt-BR')}.`,
+      observacao:
+        'Exige orçamento detalhado, pesquisa de preços e razão de escolha do ' +
+        'fornecedor (Art. 72).'
+    };
+  }
+
+  if (!eObraEng && valor > 0 && valor <= LIMITE_DISPENSA_BENS_SERVICOS) {
+    return {
+      modalidade: 'Dispensa de Licitação por Valor',
+      baseLegal: 'Art. 75, II — Lei 14.133/2021',
+      cor: 'success',
+      motivo:
+        `O valor total estimado do objeto (${valorFmt}) está abaixo do limite legal ` +
+        `de R$ ${LIMITE_DISPENSA_BENS_SERVICOS.toLocaleString('pt-BR')} previsto no ` +
+        'Art. 75, II da Lei nº 14.133/2021. Autoriza-se, portanto, a contratação ' +
+        'direta por dispensa para ganho de eficiência administrativa, mantida a ' +
+        'obrigatoriedade de pesquisa de preços e de escolha motivada do contratado.',
+      descricao:
+        `Bens e serviços comuns com valor estimado de até ` +
+        `R$ ${LIMITE_DISPENSA_BENS_SERVICOS.toLocaleString('pt-BR')}.`,
+      observacao:
+        'Aplicável a objetos comuns. Exige pesquisa de preços e justificativa de ' +
+        'escolha do fornecedor (Art. 72).'
+    };
+  }
+
+  /* ------------------------------------------------------------
+     4) CONCORRÊNCIA (Art. 6º, XXXVIII e Art. 36)
+     ------------------------------------------------------------ */
+  if (detectarServicoIntelectual(objeto) || eObraEng || natureza === 'tecnicos' || natureza === 'obra') {
+    const tipo = detectarServicoIntelectual(objeto)
+      ? 'serviço técnico especializado de natureza predominantemente intelectual'
+      : 'obra ou serviço de engenharia de complexidade relevante';
+    return {
+      modalidade: 'Concorrência',
+      baseLegal: 'Art. 6º, XXXVIII e Art. 36 — Lei 14.133/2021',
+      cor: 'info',
+      motivo:
+        `Trata-se de ${tipo}, cuja avaliação objetiva não se esgota no menor preço. ` +
+        'A complexidade técnica e a natureza intelectual recomendam julgamento pelos ' +
+        'critérios "Melhor Técnica" ou "Técnica e Preço" (Art. 36, §1º), afastando o ' +
+        'uso do Pregão Eletrônico, cuja exigência é de padrões usuais de mercado.',
+      descricao:
+        'Modalidade obrigatória para serviços técnicos especializados e obras/engenharia ' +
+        'de valor superior ao limite da dispensa.',
+      observacao:
+        'Admite os tipos de licitação: menor preço, melhor técnica ou técnica e preço.'
+    };
+  }
+
+  /* ------------------------------------------------------------
+     5) PREGÃO ELETRÔNICO (Regra geral — Art. 6º, XLI e Art. 29)
+     ------------------------------------------------------------ */
+  const comRessalva = !!empresaDirecionada;
+  return {
+    modalidade: comRessalva ? 'Pregão Eletrônico (com ressalva)' : 'Pregão Eletrônico',
+    baseLegal: 'Art. 6º, XLI e Art. 29 — Lei 14.133/2021',
+    cor: comRessalva ? 'warning' : 'brand',
+    motivo:
+      'O objeto enquadra-se como bem ou serviço comum, cujos padrões de desempenho e ' +
+      'qualidade podem ser objetivamente definidos no edital por meio de especificações ' +
+      'usuais de mercado. Nos termos do Art. 6º, XLI e do Art. 29 da Lei nº 14.133/2021, ' +
+      'o Pregão Eletrônico é a modalidade OBRIGATÓRIA para aquisição de bens e ' +
+      'contratação de serviços comuns.' +
+      (comRessalva
+        ? ` ⚠ Foi identificada menção direta ao fornecedor "${empresaDirecionada}". ` +
+          'Caso não se trate de hipótese de inexigibilidade (Art. 74), a indicação ' +
+          'deve ser afastada por violação ao Art. 41, I, preservando-se a competitividade.'
+        : ''),
+    descricao:
+      'Modalidade obrigatória para aquisição de bens e contratação de serviços comuns.',
+    observacao:
+      'A modalidade é obrigatória para objetos comuns, cujos padrões de desempenho ' +
+      'possam ser objetivamente definidos pelo edital.'
+  };
 }
 
 /* ============================================================
@@ -559,14 +756,14 @@ function extrairMetadados(texto) {
     objeto: ''
   };
 
-  /* --- Valor: R$ 85.000,00 --- */
+  /* --- Valor --- */
   const mValor = t.match(/R\$\s*([\d]{1,3}(?:\.\d{3})*(?:,\d{1,2})?)/i);
   if (mValor) {
     raw.valorTexto = `R$ ${mValor[1]}`;
     raw.valor = parseValorBR(mValor[1]);
   }
 
-  /* --- Processo / Expediente --- */
+  /* --- Processo --- */
   const mProc = t.match(
     /\b(memorando|of[íi]cio|processo|requerimento|expediente|dfd|documento\s+de\s+formaliza[çc][ãa]o)\s*(?:n[º°.]?|n[úu]mero)?\s*([\d][\d.\/\-\w]*)/i
   );
@@ -581,7 +778,7 @@ function extrairMetadados(texto) {
     if (mProc2) raw.processo = `Expediente nº ${mProc2[1]}`;
   }
 
-  /* --- Unidade (bruta, será limpa depois) --- */
+  /* --- Unidade --- */
   const mUnidadeRotulo = t.match(
     /(?:[àa]\s+unidade\s+requisitante|unidade\s+requisitante|setor\s+requisitante|remetente|origem|de)\s*[:\-–—]\s*([^\n]{3,90})/i
   );
@@ -603,7 +800,7 @@ function extrairMetadados(texto) {
   /* --- Empresa --- */
   raw.empresa = detectarEmpresaDirecionada(t) || '';
 
-  /* --- Objeto (bruto, será limpo depois) --- */
+  /* --- Objeto --- */
   const mObjeto = t.match(
     /(?:objeto|assunto|refer[êe]ncia)\s*[:\-–—]\s*([^\n]{6,180})/i
   );
@@ -618,10 +815,9 @@ function extrairMetadados(texto) {
     if (candidata) raw.objeto = candidata.slice(0, 160);
   }
 
-  /* --- 🔧 APLICA LIMPEZA EM CASCATA --- */
+  /* --- Limpeza --- */
   const limpos = limparMetadados(raw);
 
-  // Retorna no formato esperado por `analisar()` (compatível com chaves anteriores)
   return {
     valor: limpos.valor,
     valorTexto: limpos.valorTexto,
@@ -662,94 +858,20 @@ function detectarNatureza(texto, naturezaSelecionada) {
   return max === 0 ? 'comuns' : melhor;
 }
 
+/**
+ * Wrapper compatível com a assinatura anterior.
+ * Delega a decisão jurídica para `determinarModalidadeEJustificativa`.
+ */
 function detectarModalidade(texto, natureza, valor, empresaDirecionada) {
-  const t = texto.toLowerCase();
-
-  const temJustificativaExclusividade = KEYWORDS.justificativaExclusividade
-    .some(k => t.includes(k));
-
-  if (contemScore(t, KEYWORDS.inexigibilidade) >= 1 ||
-      temJustificativaExclusividade) {
-    return {
-      modalidade: 'Inexigibilidade de Licitação',
-      baseLegal: 'Art. 74 — Lei 14.133/2021',
-      cor: 'danger',
-      descricao: 'Contratação direta por inviabilidade de competição (notória especialização, fornecedor exclusivo, artista consagrado etc.).',
-      observacao: 'Verifique se há comprovação documental da exclusividade ou notória especialização, com parecer técnico circunstanciado (Art. 74, III).'
-    };
-  }
-
-  if (contemScore(t, KEYWORDS.emergencia) >= 1 &&
-      /(emergência|emergencia|calamidade|desastre|risco iminente|situação crítica)/i.test(t)) {
-    return {
-      modalidade: 'Dispensa Emergencial',
-      baseLegal: 'Art. 75, VIII — Lei 14.133/2021',
-      cor: 'danger',
-      descricao: 'Contratação direta em razão de emergência ou calamidade pública, com risco à continuidade do serviço público.',
-      observacao: 'A emergência não pode decorrer de falta de planejamento. Prazo máximo de 1 ano, vedada prorrogação.'
-    };
-  }
-
-  if (natureza === 'obra' || natureza === 'engenharia') {
-    if (valor > 0 && valor <= LIMITE_OBRA_ENG) {
-      return {
-        modalidade: 'Dispensa de Licitação por Valor',
-        baseLegal: 'Art. 75, I — Lei 14.133/2021',
-        cor: 'success',
-        descricao: `Obras e serviços de engenharia com valor estimado de até R$ ${LIMITE_OBRA_ENG.toLocaleString('pt-BR')}.`,
-        observacao: 'Exige orçamento detalhado, pesquisa de preços e razão de escolha do fornecedor.'
-      };
-    }
-  } else {
-    if (valor > 0 && valor <= LIMITE_BENS_SERVICOS) {
-      return {
-        modalidade: 'Dispensa de Licitação por Valor',
-        baseLegal: 'Art. 75, II — Lei 14.133/2021',
-        cor: 'success',
-        descricao: `Bens e serviços comuns com valor estimado de até R$ ${LIMITE_BENS_SERVICOS.toLocaleString('pt-BR')}.`,
-        observacao: 'Aplicável a objetos comuns. Exige pesquisa de preços e justificativa de escolha do fornecedor.'
-      };
-    }
-  }
-
-  const scoreObra = contemScore(t, KEYWORDS.obra);
-  const scoreTec  = contemScore(t, KEYWORDS.tecnicos);
-
-  if (natureza === 'obra' || scoreObra >= 2) {
-    return {
-      modalidade: 'Concorrência',
-      baseLegal: 'Art. 6º, XXXVIII e Art. 29 — Lei 14.133/2021',
-      cor: 'info',
-      descricao: 'Modalidade obrigatória para obras e serviços de engenharia de valor superior ao limite da dispensa.',
-      observacao: 'Admite os tipos de licitação: menor preço, melhor técnica ou técnica e preço.'
-    };
-  }
-  if (natureza === 'tecnicos' || scoreTec >= 2) {
-    return {
-      modalidade: 'Concorrência (serviços técnicos especializados)',
-      baseLegal: 'Art. 6º, XXXVIII e Art. 36, §1º — Lei 14.133/2021',
-      cor: 'info',
-      descricao: 'Serviços técnicos especializados de natureza predominantemente intelectual, quando a competição for restrita.',
-      observacao: 'Pode ser adotado o tipo "melhor técnica" ou "técnica e preço".'
-    };
-  }
-
-  if (empresaDirecionada) {
-    return {
-      modalidade: 'Pregão Eletrônico (com ressalva)',
-      baseLegal: 'Art. 6º, XLI e Art. 29 — Lei 14.133/2021',
-      cor: 'warning',
-      descricao: 'Modalidade obrigatória para aquisição de bens e contratação de serviços comuns.',
-      observacao: 'Atenção: foi identificada menção direta a fornecedor específico. Caso não se trate de inexigibilidade (Art. 74), a indicação deve ser afastada por violação ao Art. 41, I.'
-    };
-  }
-  return {
-    modalidade: 'Pregão Eletrônico',
-    baseLegal: 'Art. 6º, XLI e Art. 29 — Lei 14.133/2021',
-    cor: 'brand',
-    descricao: 'Modalidade obrigatória para aquisição de bens e contratação de serviços comuns.',
-    observacao: 'A modalidade é obrigatória para objetos comuns, cujos padrões de desempenho possam ser objetivamente definidos pelo edital.'
+  const meta = {
+    objeto: '',                    // será preenchido pelo chamador quando disponível
+    valor: valor,
+    eInexigivel: detectarInexigibilidade(texto),
+    eAlienacao: detectarAlienacao(texto, ''),
+    empresaDirecionada: empresaDirecionada || '',
+    natureza: natureza
   };
+  return determinarModalidadeEJustificativa(meta);
 }
 
 function analisarRequisitos(texto, extra) {
@@ -830,10 +952,10 @@ function analisar() {
     return;
   }
 
-  /* --- Extração automática de metadados (com limpeza) --- */
+  /* --- Metadados extraídos --- */
   const meta = extrairMetadados(textoCompleto);
 
-  /* --- Merge: formulário tem prioridade; senão usa o extraído --- */
+  /* --- Merge: formulário tem prioridade --- */
   const extra = {
     unidade:          els.unidade.value.trim()      || meta.unidade,
     processo:         els.processo.value.trim()     || meta.processo,
@@ -847,8 +969,18 @@ function analisar() {
     objeto:           meta.objeto
   };
 
-  const natureza   = detectarNatureza(textoCompleto, extra.natureza);
-  const modalidade = detectarModalidade(textoCompleto, natureza, extra.valor, extra.empresaDetectada);
+  const natureza = detectarNatureza(textoCompleto, extra.natureza);
+
+  /* --- 🎯 ENQUADRAMENTO JURÍDICO COM MOTIVAÇÃO --- */
+  const enquadramento = determinarModalidadeEJustificativa({
+    objeto:            extra.objeto,
+    valor:             extra.valor,
+    eInexigivel:       detectarInexigibilidade(textoCompleto),
+    eAlienacao:        detectarAlienacao(textoCompleto, extra.objeto),
+    empresaDirecionada: extra.empresaDetectada,
+    natureza:          natureza
+  });
+
   const requisitos = analisarRequisitos(textoCompleto, extra);
   const score      = calcularScore(requisitos);
   const parecer    = gerarParecer(requisitos);
@@ -857,7 +989,7 @@ function analisar() {
     texto: textoCompleto,
     extra,
     natureza,
-    modalidade,
+    modalidade: enquadramento,   // objeto agora traz .motivo
     requisitos,
     score,
     parecer,
@@ -876,6 +1008,9 @@ function analisar() {
   els.resultado.style.display = '';
   els.resultado.setAttribute('tabindex', '-1');
   try { els.resultado.focus({ preventScroll: false }); } catch (e) {}
+
+  const status = $('#resultado-status');
+  if (status) status.textContent = `Análise concluída. Modalidade sugerida: ${enquadramento.modalidade}.`;
 
   showToast('Análise concluída.', 'success');
 }
@@ -982,6 +1117,32 @@ function renderResultado() {
     </div>
   `;
 
+  /* ---------- 🎯 BLOCO DE MOTIVAÇÃO JURÍDICA ---------- */
+  const motivacaoHtml = `
+    <div class="section motivacao" style="border-left:5px solid var(--brand-400);background:linear-gradient(180deg, rgba(56,189,248,0.08), rgba(15,23,42,0.05));">
+      <h3 class="section__title" style="color:var(--brand-400);">
+        ⚖ Motivação do Enquadramento Legal
+      </h3>
+
+      <div class="motivacao-grid">
+        <div class="motivacao-item">
+          <dt>Modalidade Sugerida</dt>
+          <dd><span class="badge badge--${r.modalidade.cor}">${escapeHtml(r.modalidade.modalidade)}</span></dd>
+        </div>
+
+        <div class="motivacao-item">
+          <dt>Base Legal</dt>
+          <dd>${escapeHtml(r.modalidade.baseLegal)}</dd>
+        </div>
+
+        <div class="motivacao-item motivacao-item--full">
+          <dt>Motivação do Enquadramento</dt>
+          <dd>${escapeHtml(r.modalidade.motivo)}</dd>
+        </div>
+      </div>
+    </div>
+  `;
+
   /* ---------- Checklist ---------- */
   const requisitosHtml = r.requisitos.map(req => {
     let cls = 'req-row--ok', icone = '✓', sevCls = 'sev--ok', sevLabel = 'Conforme';
@@ -1038,9 +1199,10 @@ function renderResultado() {
   els.resultado.innerHTML = `
     ${alertaDirecionamentoHtml}
     ${veredictoHtml}
+    ${motivacaoHtml}
 
     <div class="section">
-      <h3 class="section__title">Enquadramento legal e observações</h3>
+      <h3 class="section__title">Observações técnicas complementares</h3>
       <p style="font-size:.86rem;color:var(--text-muted);margin-bottom:12px;">
         ${escapeHtml(r.modalidade.descricao)}
       </p>
@@ -1066,9 +1228,9 @@ function renderResultado() {
       <h3 class="section__title">Minuta de resposta oficial (Devolutiva)</h3>
       <pre id="minutaTexto" class="minuta" aria-label="Minuta de despacho oficial">${escapeHtml(minuta)}</pre>
       <div class="minuta__actions">
-        <button id="btnCopiar" class="btn btn--primary btn--sm" type="button">📋 Copiar Minuta Completa</button>
-        <button id="btnBaixar" class="btn btn--ghost btn--sm" type="button">⬇ Baixar .txt</button>
-        <button id="btnImprimir" class="btn btn--ghost btn--sm" type="button">🖨 Imprimir</button>
+        <button id="btnCopiar" class="btn btn--primary btn--sm" type="button" aria-label="Copiar minuta completa para a área de transferência">📋 Copiar Minuta Completa</button>
+        <button id="btnBaixar" class="btn btn--ghost btn--sm" type="button" aria-label="Baixar minuta em arquivo de texto">⬇ Baixar .txt</button>
+        <button id="btnImprimir" class="btn btn--ghost btn--sm" type="button" aria-label="Imprimir minuta">🖨 Imprimir</button>
       </div>
     </div>
   `;
@@ -1089,7 +1251,6 @@ function gerarMinuta(r) {
   const numDespacho = String(Math.floor(Math.random() * 900) + 100);
   const anoAtual = d.getFullYear();
 
-  /* --- Dados interpolados (já limpos por extrairMetadados) --- */
   const orgao       = (r.extra.orgao     || 'ÓRGÃO / ENTIDADE PÚBLICA').toUpperCase();
   const unidade     = r.extra.unidade    || 'Unidade Requisitante';
   const processo    = r.extra.processo   || 'Expediente não identificado';
@@ -1163,11 +1324,13 @@ Valor estimado informado pelo requisitante: ${valor}.
     Base Legal: ${r.modalidade.baseLegal}
     Índice de Conformidade Formal: ${r.score}%
 
-    Fundamentação: ${r.parecer.justificativa}
+    MOTIVAÇÃO DO ENQUADRAMENTO:
 
-    Descrição da modalidade: ${r.modalidade.descricao}
+${r.modalidade.motivo}
 
-    Orientação complementar: ${r.modalidade.observacao}
+    FUNDAMENTAÇÃO DO PARECER:
+
+${r.parecer.justificativa}
 
 ========================================================================
 3. EXIGÊNCIAS E PENDÊNCIAS A SANAR
@@ -1336,6 +1499,9 @@ function limparTudo() {
   els.resultado.setAttribute('aria-hidden', 'true');
   els.resultado.style.display = 'none';
   els.resultado.innerHTML = '';
+
+  const status = $('#resultado-status');
+  if (status) status.textContent = '';
 
   showToast('Formulário limpo.', 'success');
 }
