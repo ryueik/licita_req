@@ -1,11 +1,13 @@
 /* ============================================================
-   LicitaReq — app.js (v1.2)
+   LicitaReq — app.js (v1.2.1)
    Motor de triagem baseado na Lei nº 14.133/2021
    Correções desta versão:
      - Emergência (Art. 75, VIII) com PRIORIDADE sobre Concorrência
      - Exceção de Inexigibilidade (Art. 74, §2º) no checklist de preços
      - Natureza "Bens e Serviços Comuns / Consumo" (lâmpadas, papel, ferramentas)
      - Botão "📄 Baixar Minuta em PDF" (pdfMake) integrado ao dashboard
+     - [v1.2.1] FIX: erro de sintaxe no footer do pdfMake (string não fechada)
+     - [v1.2.1] FIX: Decreto 11.317/2022 (revogado) → Decreto 11.871/2024
    ============================================================ */
 'use strict';
 
@@ -1562,7 +1564,7 @@ function gerarPDFDevolutiva() {
     footer: (currentPage, pageCount) => ({
       margin: [40, 10, 40, 0],
       columns: [
-        { text: 'Documento gerado eletronicamente pelo sistema LicitaReq, fontSize: 7.5, color: '#94a3b8' },
+        { text: 'Documento gerado eletronicamente pelo sistema LicitaReq', fontSize: 7.5, color: '#94a3b8' },
         { text: `Página ${currentPage} de ${pageCount}`, fontSize: 7.5, color: '#94a3b8', alignment: 'right' }
       ]
     }),
@@ -1590,7 +1592,7 @@ function gerarPDFDevolutiva() {
             stack: [
               { text: orgao, fontSize: 13, bold: true, color: '#0f172a' },
               { text: 'SISTEMA DE TRIAGEM DE CONTRATAÇÕES PÚBLICAS', fontSize: 8.5, color: '#64748b', characterSpacing: 0.5 },
-              { text: 'Lei nº 14.133/2021  ·  Decreto nº 11.317/2022', fontSize: 8, color: '#94a3b8', italics: true }
+              { text: 'Lei nº 14.133/2021  ·  Decreto nº 11.871/2024', fontSize: 8, color: '#94a3b8', italics: true }
             ],
             margin: [14, 4, 0, 0]
           }
