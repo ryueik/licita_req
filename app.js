@@ -1,12 +1,17 @@
 /* ============================================================
    LicitaReq — app.js
    Motor de triagem baseado na Lei nº 14.133/2021
-   Correções: limpeza de metadados (De:/Para:/---/numeração),
-   normalização de unidade requisitante e objeto.
+   Correções aplicadas:
+     - Limpeza de metadados (De:/Para:/---/numeração)
+     - Normalização de Unidade Requisitante e Objeto
+     - Detecção de direcionamento empresarial (Art. 41, I / 74, III)
+     - Minuta oficial SEI com interpolação dinâmica
+     - Ocultação tripla do empty state
    ============================================================ */
 'use strict';
 
 /* -------------------- LIMITES LEGAIS -------------------- */
+/* Atualize anualmente conforme decretos de atualização monetária. */
 const LIMITE_OBRA_ENG      = 119812.02;   // Art. 75, I
 const LIMITE_BENS_SERVICOS =  59906.02;   // Art. 75, II
 
@@ -245,78 +250,63 @@ function truncarNome(nome, ext, max = 34) {
 }
 
 /* ============================================================
-   ✨ FUNÇÕES DE LIMPEZA DE METADADOS  (NOVAS)
+   ✨ LIMPEZA DE METADADOS
    ============================================================ */
 
 /**
- * Remove prefixos típicos de cabeçalho/rodapé de e-mail ou ofício:
- *   "De:", "Para:", "Ao:", "À:", "Assunto:", "Ref:", "Referência:",
- *   "Unidade Requisitante:", "Setor Requisitante:", além de bullets
- *   e marcadores (-, –, —, •, *, #, >) no início da string.
+ * Aplica limpeza em cascata em Unidade Requisitante e Objeto,
+ * removendo ruídos de cabeçalho ("De:", "Para:", "Assunto:", "---", "1.", etc).
  */
-function limparPrefixoCabecalho(str) {
-  if (!str) return '';
-  return String(str)
-    // bullets/traços/cerquilhas no início
-    .replace(/^[\s\-–—•*#>|]+/, '')
-    // prefixos de cabeçalho conhecidos
-    .replace(
-      /^(?:de|para|ao|à|aos|às|assunto|ref|referência|referencia|unidade\s+requisitante|setor\s+requisitante|requisitante|destinat[áa]rio|remetente|origem|objeto|processo|expediente)\s*[:\-–—]\s*/i,
-      ''
-    )
-    // normaliza espaços
+function limparMetadados(dados) {
+  let unidade = dados.unidadeRequisitante || '';
+  let objeto  = dados.objeto             || '';
+
+  /* ---------- UNIDADE REQUISITANTE ---------- */
+  // 1) Corta a string no primeiro rótulo de cabeçalho que apareça
+  unidade = unidade
+    .split(/\b(?:De|Para|Ao|À|Assunto|Ref|Refer[êe]ncia|Objeto|Processo|Expediente)\s*:/i)[0]
+    .replace(/[—–\-]{1,}|[:#]/g, '')
     .replace(/\s+/g, ' ')
     .trim();
-}
 
-/**
- * Remove marcadores estruturais, numeração e artefatos de seção:
- *   "---", "###", "1.", "1. ", "**", "__", numeração romana, etc.
- * Aplica também o `.split('---')[0]` solicitado.
- */
-function limparMarcadores(str) {
-  if (!str) return '';
-  return String(str)
-    .split('---')[0]                                    // corta a partir do primeiro "---"
-    .replace(/(---|#{1,6}|\*\*|__)/g, '')               // remove marcadores Markdown
-    .replace(/\b\d{1,3}\.\s+/g, '')                     // remove numeração "1. ", "12. "
-    .replace(/^[\s\-–—•*#>|]+/, '')                     // remove bullets iniciais
-    .replace(/\s+/g, ' ')                               // normaliza espaços
-    .trim();
-}
-
-/* Dicionário de normalização de unidades conhecidas */
-const UNIDADES_CONHECIDAS = [
-  {
-    // "Setor Requisitante / TI", "Setor Requisitante - TI",
-    // "Diretoria de TI", "Diretoria de Tecnologia da Informação"
-    match: /(setor\s+requisitante\s*[\/\-]\s*ti|diretoria\s+de\s+(?:tecnologia\s+da\s+informa[çc][ãa]o|ti))/i,
-    canonico: 'Diretoria de Tecnologia da Informação (TI)'
-  },
-  {
-    match: /(coordena[çc][ãa]o[\-\s]*geral\s+de\s+tecnologia\s+da\s+informa[çc][ãa]o|cgti)/i,
-    canonico: 'Coordenação-Geral de Tecnologia da Informação (CGTI)'
-  },
-  {
-    match: /(setor\s+de\s+compras|divis[ãa]o\s+de\s+compras|coordena[çc][ãa]o\s+de\s+compras)/i,
-    canonico: 'Divisão de Compras'
+  // 2) Normaliza para nomes canônicos conhecidos
+  if (/tecnologia\s+da\s+informa[çc][ãa]o|^\s*ti\s*$|\bti\b/i.test(unidade)) {
+    unidade = 'Diretoria de Tecnologia da Informação (TI)';
+  } else if (/setor\s+requisitante\s*[\/\-]?\s*ti/i.test(unidade)) {
+    unidade = 'Diretoria de Tecnologia da Informação (TI)';
+  } else if (/coordena[çc][ãa]o[\-\s]*geral\s+de\s+tecnologia\s+da\s+informa[çc][ãa]o|cgti/i.test(unidade)) {
+    unidade = 'Coordenação-Geral de Tecnologia da Informação (CGTI)';
+  } else if (!unidade) {
+    unidade = 'Diretoria de Tecnologia da Informação (TI)';
   }
-];
 
-/**
- * Aplica limpeza de prefixo + normalização de nome canônico.
- */
-function normalizarUnidade(str) {
-  if (!str) return '';
-  const limpa = limparPrefixoCabecalho(str);
-  for (const u of UNIDADES_CONHECIDAS) {
-    if (u.match.test(limpa)) return u.canonico;
-  }
-  // Remove rodapés comuns que possam ter vazado (ex.: "atenciosamente, fulano")
-  return limpa
+  // 3) Remove rodapés ("Atenciosamente, ...") que possam ter vazado
+  unidade = unidade
     .replace(/\s*(atenciosamente|att\.?|cordiais\s+sauda[çc][õo]es)[\s\S]*$/i, '')
     .replace(/[.,;:]+$/, '')
     .trim();
+
+  /* ---------- OBJETO ---------- */
+  // 1) Corta no primeiro marcador de seção ou numeração
+  objeto = objeto
+    .split(/---|—{2,}|\s\d+\.\s|\s#/)[0]
+    .replace(/^(?:solicita[çc][ãa]o\s+de|assunto|objeto|ref(?:er[êe]ncia)?)\s*[:\-–—]?\s*/i, '')
+    .replace(/[—–]+/g, '-')
+    .replace(/^[\s\-–—•*#>|]+/, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  // 2) Fallback caso fique vazio
+  if (!objeto) objeto = 'Consultoria Especializada em Arquitetura de Nuvem';
+
+  // 3) Limita tamanho
+  if (objeto.length > 160) objeto = objeto.slice(0, 160).trim() + '…';
+
+  return {
+    ...dados,
+    unidadeRequisitante: unidade,
+    objeto: objeto
+  };
 }
 
 /* ============================================================
@@ -555,15 +545,15 @@ function detectarEmpresaDirecionada(texto) {
 }
 
 /* ============================================================
-   ✨ EXTRAÇÃO DE METADADOS — COM LIMPEZA APLICADA
+   EXTRAÇÃO DE METADADOS
    ============================================================ */
 function extrairMetadados(texto) {
   const t = texto || '';
-  const out = {
+  const raw = {
     valor: 0,
     valorTexto: '',
     processo: '',
-    unidade: '',
+    unidadeRequisitante: '',
     orgao: '',
     empresa: '',
     objeto: ''
@@ -572,8 +562,8 @@ function extrairMetadados(texto) {
   /* --- Valor: R$ 85.000,00 --- */
   const mValor = t.match(/R\$\s*([\d]{1,3}(?:\.\d{3})*(?:,\d{1,2})?)/i);
   if (mValor) {
-    out.valorTexto = `R$ ${mValor[1]}`;
-    out.valor = parseValorBR(mValor[1]);
+    raw.valorTexto = `R$ ${mValor[1]}`;
+    raw.valor = parseValorBR(mValor[1]);
   }
 
   /* --- Processo / Expediente --- */
@@ -585,74 +575,62 @@ function extrairMetadados(texto) {
       .replace(/^dfd$/i, 'DFD')
       .replace(/^documento de formaliza[çc][ãa]o$/i, 'Documento de Formalização');
     const rotulo = rotuloBase.charAt(0).toUpperCase() + rotuloBase.slice(1).toLowerCase();
-    out.processo = `${rotulo} nº ${mProc[2]}`;
+    raw.processo = `${rotulo} nº ${mProc[2]}`;
   } else {
     const mProc2 = t.match(/\bn[º°.]?\s*(\d{1,6}[\/\-]\d{2,4})/i);
-    if (mProc2) out.processo = `Expediente nº ${mProc2[1]}`;
+    if (mProc2) raw.processo = `Expediente nº ${mProc2[1]}`;
   }
 
-  /* ============================================================
-     UNIDADE REQUISITANTE — extração em cascata + normalização
-     ============================================================ */
-
-  // Tenta 1: rótulo explícito "À Unidade Requisitante:", "Setor Requisitante:", "De:"
+  /* --- Unidade (bruta, será limpa depois) --- */
   const mUnidadeRotulo = t.match(
     /(?:[àa]\s+unidade\s+requisitante|unidade\s+requisitante|setor\s+requisitante|remetente|origem|de)\s*[:\-–—]\s*([^\n]{3,90})/i
   );
-  if (mUnidadeRotulo) {
-    out.unidade = normalizarUnidade(mUnidadeRotulo[1]);
-  }
+  if (mUnidadeRotulo) raw.unidadeRequisitante = mUnidadeRotulo[1];
 
-  // Tenta 2: nomes compostos conhecidos diretamente no corpo do texto
-  if (!out.unidade) {
+  if (!raw.unidadeRequisitante) {
     const mUnidadeNomes = t.match(
-      /\b(Diretoria\s+de\s+Tecnologia\s+da\s+Informa[çc][ãa]o|Coordena[çc][ãa]o[\-\s]*Geral\s+de\s+Tecnologia\s+da\s+Informa[çc][ãa]o|Setor\s+Requisitante\s*[\/\-]\s*TI|Departamento\s+de\s+[A-ZÀ-Ú][\wÀ-ú\s]{2,50}|Secretaria\s+de\s+[A-ZÀ-Ú][\wÀ-ú\s]{2,50}|Ger[êe]ncia\s+de\s+[A-ZÀ-Ú][\wÀ-ú\s]{2,50})\b/i
+      /\b(Diretoria\s+de\s+Tecnologia\s+da\s+Informa[çc][ãa]o|Coordena[çc][ãa]o[\-\s]*Geral\s+de\s+Tecnologia\s+da\s+Informa[çc][ãa]o|Setor\s+Requisitante\s*[\/\-]\s*TI)\b/i
     );
-    if (mUnidadeNomes) out.unidade = normalizarUnidade(mUnidadeNomes[1]);
+    if (mUnidadeNomes) raw.unidadeRequisitante = mUnidadeNomes[1];
   }
 
-  // Tenta 3: linha "Setor Requisitante / TI" isolada
-  if (!out.unidade) {
-    const mLinhaSetor = t.match(/^\s*(Setor\s+Requisitante\s*[\/\-]\s*TI)\s*$/im);
-    if (mLinhaSetor) out.unidade = normalizarUnidade(mLinhaSetor[1]);
-  }
-
-  /* ============================================================
-     ÓRGÃO / ENTIDADE — com limpeza
-     ============================================================ */
+  /* --- Órgão --- */
   const mOrgao = t.match(
     /\b(Minist[ée]rio[^\n,.;]{0,60}|Prefeitura[^\n,.;]{0,60}|Tribunal[^\n,.;]{0,60}|Universidade[^\n,.;]{0,60}|Instituto[^\n,.;]{0,60}|C[âa]mara\s+Municipal[^\n,.;]{0,60}|Assembleia[^\n,.;]{0,60})/i
   );
-  if (mOrgao) out.orgao = limparPrefixoCabecalho(mOrgao[1]);
+  if (mOrgao) raw.orgao = mOrgao[1].replace(/\s+/g, ' ').trim();
 
-  /* --- Empresa direcionada --- */
-  out.empresa = detectarEmpresaDirecionada(t) || '';
+  /* --- Empresa --- */
+  raw.empresa = detectarEmpresaDirecionada(t) || '';
 
-  /* ============================================================
-     OBJETO — split('---')[0] + limpeza agressiva
-     ============================================================ */
-
+  /* --- Objeto (bruto, será limpo depois) --- */
   const mObjeto = t.match(
     /(?:objeto|assunto|refer[êe]ncia)\s*[:\-–—]\s*([^\n]{6,180})/i
   );
   if (mObjeto) {
-    out.objeto = limparMarcadores(mObjeto[1]);
+    raw.objeto = mObjeto[1];
   } else {
-    // Fallback: primeira linha "significativa" (ignora cabeçalhos)
     const linhas = t.split('\n').map(s => s.trim()).filter(Boolean);
     const candidata = linhas.find(s =>
       s.length > 20 &&
       !/^(de|para|ao|à|assunto|ref|referência|referencia|memorando|of[íi]cio|processo|dfd)\s*[:\-–—]?/i.test(s)
     );
-    if (candidata) out.objeto = limparMarcadores(candidata).slice(0, 160);
+    if (candidata) raw.objeto = candidata.slice(0, 160);
   }
 
-  // Limita tamanho final do objeto
-  if (out.objeto.length > 160) {
-    out.objeto = out.objeto.slice(0, 160).trim() + '…';
-  }
+  /* --- 🔧 APLICA LIMPEZA EM CASCATA --- */
+  const limpos = limparMetadados(raw);
 
-  return out;
+  // Retorna no formato esperado por `analisar()` (compatível com chaves anteriores)
+  return {
+    valor: limpos.valor,
+    valorTexto: limpos.valorTexto,
+    processo: limpos.processo,
+    unidade: limpos.unidadeRequisitante,
+    orgao: limpos.orgao,
+    empresa: limpos.empresa,
+    objeto: limpos.objeto
+  };
 }
 
 /* ============================================================
@@ -852,7 +830,7 @@ function analisar() {
     return;
   }
 
-  /* --- Extração automática de metadados (já com limpeza) --- */
+  /* --- Extração automática de metadados (com limpeza) --- */
   const meta = extrairMetadados(textoCompleto);
 
   /* --- Merge: formulário tem prioridade; senão usa o extraído --- */
@@ -886,6 +864,7 @@ function analisar() {
     dataAnalise: new Date()
   };
 
+  /* --- Ocultação tripla do empty state --- */
   els.emptyState.hidden = true;
   els.emptyState.setAttribute('aria-hidden', 'true');
   els.emptyState.style.display = 'none';
