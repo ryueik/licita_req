@@ -1475,4 +1475,458 @@ function imprimirMinuta(texto) {
       pre { white-space: pre-wrap; font-family: inherit; font-size: 12pt; }
       @media print { body { padding: 20mm; } }
     </style></head>
-    <body><pre>${escapeHtml
+    <body><pre>${escapeHtml(texto)}</pre>
+    <script>window.onload=()=>setTimeout(()=>window.print(),300);<\/script>
+    </body></html>
+  `;
+  win.document.write(html);
+  win.document.close();
+}
+
+/* ============================================================
+   EXPORTAÇÃO PDF — DESPACHO TIMBRADO (pdfMake)
+   ============================================================ */
+function gerarPDFDevolutiva() {
+  const r = state.resultado;
+  if (!r) {
+    showToast('Realize uma análise antes de exportar o PDF.', 'error');
+    return;
+  }
+  if (!window.pdfMake) {
+    showToast('Biblioteca pdfMake não carregada. Verifique a conexão.', 'error');
+    return;
+  }
+
+  const d = r.dataAnalise || new Date();
+  const dataFmt = d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+  const numeroDespacho = String(Math.floor(Math.random() * 900) + 100) + '/' + d.getFullYear();
+
+  const orgao        = (r.extra.orgao || 'Órgão / Entidade Pública').toUpperCase();
+  const processo     = r.extra.processo || 'Expediente não identificado';
+  const unidade      = r.extra.unidade || 'Unidade Requisitante';
+  const objeto       = r.extra.objeto || 'Contratação pública';
+  const valorFmt     = r.extra.valor > 0 ? formatarValorBR(r.extra.valor) : 'Não informado';
+  const responsavel  = r.extra.responsavel || '';
+  const cargo        = r.extra.cargo || 'Autoridade Competente';
+  const empresa      = r.extra.empresaDetectada || '';
+  const naturezaTxt  = LABELS_NATUREZA[r.natureza] || r.natureza;
+
+  const deferido      = r.parecer.classe === 'deferido';
+  const statusColor   = deferido ? '#059669' : '#dc2626';
+  const scoreColor    = r.score >= 80 ? '#10b981' : r.score >= 60 ? '#f59e0b' : '#ef4444';
+
+  const pendentes = r.requisitos.filter(x => !x.conforme);
+  const pendenciasBody = pendentes.length === 0
+    ? [[
+        { text: '—', alignment: 'center', color: '#94a3b8' },
+        { text: 'Nenhuma pendência formal identificada. Processo apto para prosseguimento.', italics: true, color: '#059669', colSpan: 2 },
+        {}
+      ]]
+    : pendentes.map(p => {
+        const sev   = (p.severidade || 'baixa').toUpperCase();
+        const sevBg = sev === 'ALTA' ? '#fee2e2' : (sev === 'MÉDIA' || sev === 'MEDIA') ? '#fef3c7' : '#e0f2fe';
+        const sevFg = sev === 'ALTA' ? '#991b1b' : (sev === 'MÉDIA' || sev === 'MEDIA') ? '#92400e' : '#075985';
+        return [
+          { text: sev, color: sevFg, fillColor: sevBg, bold: true, fontSize: 8, alignment: 'center' },
+          {
+            stack: [
+              { text: p.titulo, bold: true, fontSize: 9 },
+              { text: p.desc, fontSize: 8.5, color: '#475569', margin: [0, 2, 0, 0] }
+            ]
+          },
+          { text: p.law, fontSize: 7.5, color: '#0284c7', italics: true }
+        ];
+      });
+
+  const docDefinition = {
+    pageSize: 'A4',
+    pageMargins: [40, 60, 40, 60],
+    defaultStyle: {
+      font: 'Roboto',
+      fontSize: 10,
+      color: '#1e293b',
+      lineHeight: 1.4
+    },
+
+    header: (currentPage) => {
+      if (currentPage === 1) return null;
+      return {
+        margin: [40, 20, 40, 0],
+        columns: [
+          { text: 'LicitaReq · Despacho de Triagem', fontSize: 8, color: '#94a3b8' },
+          { text: orgao, fontSize: 8, color: '#94a3b8', alignment: 'right' }
+        ]
+      };
+    },
+
+    footer: (currentPage, pageCount) => ({
+      margin: [40, 10, 40, 0],
+      columns: [
+        { text: 'Documento gerado eletronicamente pelo sistema LicitaReq · Lei 14.133/2021', fontSize: 7.5, color: '#94a3b8' },
+        { text: `Página ${currentPage} de ${pageCount}`, fontSize: 7.5, color: '#94a3b8', alignment: 'right' }
+      ]
+    }),
+
+    content: [
+      {
+        columns: [
+          {
+            width: 55,
+            table: {
+              body: [[{
+                text: 'LR',
+                color: 'white',
+                bold: true,
+                fontSize: 22,
+                alignment: 'center',
+                fillColor: '#6366f1',
+                margin: [0, 8, 0, 8]
+              }]]
+            },
+            layout: 'noBorders'
+          },
+          {
+            width: '*',
+            stack: [
+              { text: orgao, fontSize: 13, bold: true, color: '#0f172a' },
+              { text: 'SISTEMA DE TRIAGEM DE CONTRATAÇÕES PÚBLICAS', fontSize: 8.5, color: '#64748b', characterSpacing: 0.5 },
+              { text: 'Lei nº 14.133/2021  ·  Decreto nº 11.317/2022', fontSize: 8, color: '#94a3b8', italics: true }
+            ],
+            margin: [14, 4, 0, 0]
+          }
+        ]
+      },
+      {
+        canvas: [{ type: 'line', x1: 0, y1: 0, x2: 515, y2: 0, lineWidth: 1.5, lineColor: '#6366f1' }],
+        margin: [0, 12, 0, 0]
+      },
+      {
+        text: 'DESPACHO DE TRIAGEM E ENQUADRAMENTO LEGAL',
+        fontSize: 12, bold: true, alignment: 'center', color: '#0f172a',
+        margin: [0, 16, 0, 2]
+      },
+      {
+        text: `Nº ${numeroDespacho}  ·  ${dataFmt}`,
+        fontSize: 9, alignment: 'center', color: '#64748b',
+        margin: [0, 0, 0, 18]
+      },
+
+      {
+        table: {
+          widths: ['32%', '68%'],
+          body: [
+            [{ text: 'Processo / Expediente', style: 'metaLabel' }, { text: processo, style: 'metaValue' }],
+            [{ text: 'Unidade Requisitante', style: 'metaLabel' }, { text: unidade, style: 'metaValue' }],
+            [{ text: 'Objeto', style: 'metaLabel' }, { text: objeto, style: 'metaValue' }],
+            [{ text: 'Natureza do Objeto', style: 'metaLabel' }, { text: naturezaTxt, style: 'metaValue' }],
+            [{ text: 'Valor Estimado', style: 'metaLabel' }, { text: valorFmt, style: 'metaValue' }],
+            [
+              { text: 'Modalidade Sugerida', style: 'metaLabel' },
+              {
+                stack: [
+                  { text: r.modalidade.modalidade, style: 'metaValue' },
+                  { text: r.modalidade.baseLegal, fontSize: 8, color: '#64748b', italics: true, margin: [0, 2, 0, 0] }
+                ]
+              }
+            ],
+            [
+              { text: 'Parecer da Triagem', style: 'metaLabel' },
+              { text: r.parecer.status, color: statusColor, bold: true, fontSize: 10.5 }
+            ],
+            [
+              { text: 'Índice de Conformidade', style: 'metaLabel' },
+              {
+                stack: [
+                  { text: `${r.score}%`, bold: true, fontSize: 12, color: scoreColor },
+                  {
+                    canvas: [
+                      { type: 'rect', x: 0, y: 0, w: 200, h: 5, r: 2.5, color: '#e2e8f0' },
+                      { type: 'rect', x: 0, y: 0, w: 200 * r.score / 100, h: 5, r: 2.5, color: scoreColor }
+                    ],
+                    margin: [0, 4, 0, 0]
+                  }
+                ]
+              }
+            ],
+            ...(empresa ? [[
+              { text: 'Empresa mencionada', style: 'metaLabel' },
+              { text: empresa, color: '#dc2626', bold: true, fontSize: 10 }
+            ]] : [])
+          ]
+        },
+        layout: {
+          fillColor: (rowIndex) => rowIndex % 2 === 0 ? '#f8fafc' : '#ffffff',
+          hLineWidth: (i, node) => (i === 0 || i === node.table.body.length) ? 1 : 0.5,
+          vLineWidth: () => 0,
+          hLineColor: () => '#e2e8f0',
+          paddingTop: () => 8,
+          paddingBottom: () => 8,
+          paddingLeft: () => 10,
+          paddingRight: () => 10
+        },
+        margin: [0, 0, 0, 20]
+      },
+
+      { text: '1. RESUMO EXECUTIVO', style: 'sectionTitle' },
+      {
+        text: [
+          'Trata-se de análise técnica e jurídica preliminar da solicitação de contratação ',
+          'encaminhada pela unidade requisitante acima identificada, instruída nos autos do processo ',
+          { text: processo, bold: true },
+          ', fundamentada na Lei Federal nº 14.133, de 1º de abril de 2021, e demais normas aplicáveis.'
+        ],
+        style: 'bodyText'
+      },
+      {
+        text: [
+          'A demanda foi classificada, preliminarmente, com a seguinte natureza: ',
+          { text: naturezaTxt, bold: true },
+          '. Valor estimado informado pelo requisitante: ',
+          { text: valorFmt, bold: true },
+          '.'
+        ],
+        style: 'bodyText'
+      },
+
+      { text: '2. ENQUADRAMENTO E MOTIVAÇÃO JURÍDICA', style: 'sectionTitle' },
+      {
+        table: {
+          widths: ['*'],
+          body: [[{
+            stack: [
+              { text: 'MODALIDADE SUGERIDA', fontSize: 8, bold: true, color: '#64748b', characterSpacing: 0.5 },
+              { text: r.modalidade.modalidade, fontSize: 12, bold: true, color: '#0f172a', margin: [0, 3, 0, 10] },
+              { text: 'BASE LEGAL', fontSize: 8, bold: true, color: '#64748b', characterSpacing: 0.5 },
+              { text: r.modalidade.baseLegal, fontSize: 10, color: '#0284c7', bold: true, margin: [0, 3, 0, 10] },
+              { text: 'MOTIVAÇÃO DO ENQUADRAMENTO', fontSize: 8, bold: true, color: '#64748b', characterSpacing: 0.5 },
+              { text: r.modalidade.motivo, fontSize: 10, color: '#334155', margin: [0, 3, 0, 0], alignment: 'justify' }
+            ],
+            margin: [12, 12, 12, 12],
+            fillColor: '#f1f5f9'
+          }]]
+        },
+        layout: 'noBorders',
+        margin: [0, 0, 0, 20]
+      },
+
+      { text: '3. EXIGÊNCIAS E PENDÊNCIAS A SANAR', style: 'sectionTitle' },
+      {
+        table: {
+          headerRows: 1,
+          dontBreakRows: true,
+          widths: ['12%', '58%', '30%'],
+          body: [
+            [
+              { text: 'GRAU', style: 'tableHeader', alignment: 'center' },
+              { text: 'PENDÊNCIA', style: 'tableHeader' },
+              { text: 'FUNDAMENTO LEGAL', style: 'tableHeader' }
+            ],
+            ...pendenciasBody
+          ]
+        },
+        layout: {
+          fillColor: (rowIndex) => rowIndex === 0 ? '#1e293b' : null,
+          hLineWidth: () => 0.5,
+          vLineWidth: () => 0.5,
+          hLineColor: () => '#cbd5e1',
+          vLineColor: () => '#cbd5e1',
+          paddingTop: () => 6,
+          paddingBottom: () => 6,
+          paddingLeft: () => 8,
+          paddingRight: () => 8
+        },
+        margin: [0, 0, 0, 20]
+      },
+
+      { text: '4. CONCLUSÃO E ENCAMINHAMENTO', style: 'sectionTitle' },
+      {
+        text: deferido
+          ? 'Diante da conformidade formal verificada nos autos, e considerando o resultado da triagem preliminar realizada nos termos da Lei nº 14.133/2021, OPINA-SE pelo DEFERIMENTO do prosseguimento instrucional, com a elaboração do Estudo Técnico Preliminar (ETP) e do Termo de Referência ou Projeto Básico, conforme o caso.'
+          : 'Diante do exposto, e considerando o resultado da triagem preliminar realizada nos termos da Lei nº 14.133/2021, RESTITUAM-SE os autos à unidade requisitante para saneamento dos apontamentos relacionados no item 3, no prazo de 5 (cinco) dias úteis, contados do recebimento deste despacho.',
+        style: 'bodyText'
+      },
+      {
+        text: 'Após a regularização, os autos deverão retornar a esta unidade de planejamento para prosseguimento da instrução processual.',
+        style: 'bodyText'
+      },
+
+      {
+        table: {
+          dontBreakRows: true,
+          widths: ['*'],
+          body: [[{
+            stack: [
+              { text: ' ', margin: [0, 20, 0, 0] },
+              {
+                canvas: [{
+                  type: 'line', x1: 130, y1: 0, x2: 385, y2: 0,
+                  lineWidth: 0.8, lineColor: '#334155'
+                }]
+              },
+              {
+                text: responsavel || '____________________________',
+                fontSize: 10, bold: true, alignment: 'center',
+                margin: [0, 6, 0, 2]
+              },
+              { text: cargo, fontSize: 9, alignment: 'center', color: '#475569' },
+              { text: orgao, fontSize: 8.5, alignment: 'center', color: '#64748b', italics: true, margin: [0, 2, 0, 0] }
+            ],
+            margin: [0, 10, 0, 10]
+          }]]
+        },
+        layout: 'noBorders',
+        margin: [0, 20, 0, 0]
+      }
+    ],
+
+    styles: {
+      metaLabel:  { fontSize: 8.5, bold: true, color: '#475569' },
+      metaValue:  { fontSize: 9.5, color: '#0f172a' },
+      sectionTitle: {
+        fontSize: 11,
+        bold: true,
+        color: '#0f172a',
+        margin: [0, 14, 0, 8]
+      },
+      bodyText: {
+        fontSize: 10,
+        color: '#334155',
+        lineHeight: 1.5,
+        margin: [0, 0, 0, 8],
+        alignment: 'justify'
+      },
+      tableHeader: {
+        fontSize: 8.5,
+        bold: true,
+        color: '#ffffff'
+      }
+    }
+  };
+
+  const procSafe = (processo || 'LicitaReq').replace(/[/\\?%*:|"<>]/g, '_');
+  const filename = `Despacho_Triagem_${procSafe}_${d.getFullYear()}.pdf`;
+
+  try {
+    pdfMake.createPdf(docDefinition).download(filename);
+    showToast('PDF gerado com sucesso.', 'success');
+  } catch (err) {
+    console.error('[LicitaReq] Erro ao gerar PDF:', err);
+    showToast('Erro ao gerar o PDF. Verifique o console.', 'error');
+  }
+}
+
+/* ============================================================
+   EXEMPLO E LIMPEZA
+   ============================================================ */
+function carregarExemplo() {
+  els.unidade.value = '';
+  els.processo.value = '';
+  els.orgao.value = '';
+  els.responsavel.value = 'João Pereira da Silva';
+  els.cargo.value = 'Chefe da Divisão de Licitações';
+  els.natureza.value = 'auto';
+  els.valor.value = '';
+
+  els.texto.value =
+`DIRETORIA DE TECNOLOGIA DA INFORMAÇÃO
+Memorando nº 042/2026
+
+De: Setor Requisitante / TI
+Para: Divisão de Licitações
+Assunto: Consultoria Especializada em Arquitetura de Nuvem --- 1
+
+1. Solicitamos a contratação da empresa TechCloud Soluções Avançadas Ltda.
+para prestação de serviços de consultoria especializada em arquitetura de
+nuvem, incluindo migração de workloads e otimização de custos em ambiente
+multicloud.
+
+2. Justifica-se a presente demanda em razão da necessidade de modernização
+da infraestrutura tecnológica desta Diretoria, visando a continuidade e a
+segurança dos serviços prestados à sociedade.
+
+3. O valor estimado da contratação é de R$ 85.000,00 (oitenta e cinco mil
+reais), conforme pesquisa de preços realizada junto a fornecedores do ramo.
+
+4. Informamos que há dotação orçamentária específica prevista na Lei
+Orçamentária Anual para o exercício corrente.
+
+5. O prazo de execução dos serviços é de 6 (seis) meses, contados da
+assinatura do contrato.
+
+6. O fiscal do contrato será designado por portaria específica.
+
+Atenciosamente,
+Diretoria de Tecnologia da Informação`;
+
+  atualizarContador();
+  showToast('Exemplo carregado.', 'success');
+}
+
+function limparTudo() {
+  els.texto.value = '';
+  els.unidade.value = '';
+  els.processo.value = '';
+  els.natureza.value = 'auto';
+  els.valor.value = '';
+  els.orgao.value = '';
+  els.responsavel.value = '';
+  els.cargo.value = '';
+  state.arquivos = [];
+  state.resultado = null;
+
+  renderFileList();
+  atualizarContador();
+
+  els.emptyState.hidden = false;
+  els.emptyState.removeAttribute('aria-hidden');
+  els.emptyState.style.display = '';
+
+  els.resultado.hidden = true;
+  els.resultado.setAttribute('aria-hidden', 'true');
+  els.resultado.style.display = 'none';
+  els.resultado.innerHTML = '';
+
+  const status = $('#resultado-status');
+  if (status) status.textContent = '';
+
+  showToast('Formulário limpo.', 'success');
+}
+
+function atualizarContador() {
+  els.charCount.textContent = els.texto.value.length;
+}
+
+/* ============================================================
+   INICIALIZAÇÃO
+   ============================================================ */
+function init() {
+  initTema();
+  initAccordions();
+  initDropzone();
+  renderFileList();
+
+  els.emptyState.hidden = false;
+  els.emptyState.style.display = '';
+  els.resultado.hidden = true;
+  els.resultado.style.display = 'none';
+
+  els.texto.addEventListener('input', atualizarContador);
+  els.btnAnalisar.addEventListener('click', analisar);
+  els.btnExemplo.addEventListener('click', carregarExemplo);
+  els.btnLimpar.addEventListener('click', limparTudo);
+
+  document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      analisar();
+    }
+  });
+
+  atualizarContador();
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}
