@@ -1562,7 +1562,7 @@ function gerarPDFDevolutiva() {
     footer: (currentPage, pageCount) => ({
       margin: [40, 10, 40, 0],
       columns: [
-        { text: 'Documento gerado eletronicamente pelo sistema LicitaReq · Lei 14.133/2021', fontSize: 7.5, color: '#94a3b8' },
+        { text: 'Documento gerado eletronicamente pelo sistema LicitaReq, fontSize: 7.5, color: '#94a3b8' },
         { text: `Página ${currentPage} de ${pageCount}`, fontSize: 7.5, color: '#94a3b8', alignment: 'right' }
       ]
     }),
