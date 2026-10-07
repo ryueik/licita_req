@@ -1,10 +1,11 @@
 /* ============================================================
-   LicitaReq — style.css (v1.1)
+   LicitaReq — style.css (v1.2)
    Dark Dashboard nativo · Glassmorphism · WCAG 2.1 AA
    Correções:
      - Scroll INDEPENDENTE por painel (body fixo em 100vh)
      - Estilos .motivacao-grid / .motivacao-item
      - Contraste de alertas no tema claro
+     - Botão .btn--secondary (exportar PDF)
    ============================================================ */
 
 /* -------------------- RESET -------------------- */
@@ -116,22 +117,22 @@
   --success:    #047857;
   --success-bg: #d1fae5;
   --success-brd:#059669;
-  --success-fg: #052e1f;   /* 🔧 FIX contraste */
+  --success-fg: #052e1f;
 
   --warning:    #b45309;
   --warning-bg: #fef3c7;
   --warning-brd:#d97706;
-  --warning-fg: #451a03;   /* 🔧 FIX contraste */
+  --warning-fg: #451a03;
 
   --danger:     #b91c1c;
   --danger-bg:  #fee2e2;
   --danger-brd: #dc2626;
-  --danger-fg:  #450a0a;   /* 🔧 FIX contraste */
+  --danger-fg:  #450a0a;
 
   --info:       #0369a1;
   --info-bg:    #e0f2fe;
   --info-brd:   #0284c7;
-  --info-fg:    #082f49;   /* 🔧 FIX contraste */
+  --info-fg:    #082f49;
 
   --shadow-sm: 0 1px 2px rgba(15, 23, 42, .06);
   --shadow-md: 0 8px 24px -10px rgba(15, 23, 42, .18);
@@ -156,7 +157,6 @@ body {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 
-  /* 🔧 LAYOUT FIXO — cada painel rola sozinho */
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
   height: 100vh;
@@ -263,7 +263,6 @@ a:focus-visible {
 
 /* -------------------- WORKSPACE -------------------- */
 .workspace {
-  /* 🔧 ocupa o espaço do meio; cada painel rola internamente */
   flex: 1 1 auto;
   min-height: 0;
   overflow: hidden;
@@ -279,7 +278,6 @@ a:focus-visible {
 }
 
 @media (max-width: 1080px) {
-  /* Mobile/tablet: volta ao fluxo normal da página */
   body {
     display: block;
     height: auto;
@@ -303,7 +301,6 @@ a:focus-visible {
   box-shadow: var(--shadow-md);
   padding: clamp(18px, 2.2vw, 28px);
 
-  /* 🔧 SCROLL INTERNO */
   min-width: 0;
   min-height: 0;
   max-width: 100%;
@@ -314,7 +311,6 @@ a:focus-visible {
   transition: background var(--transition), border-color var(--transition);
 }
 
-/* Scrollbar interna refinada */
 .panel::-webkit-scrollbar { width: 8px; }
 .panel::-webkit-scrollbar-track { background: transparent; }
 .panel::-webkit-scrollbar-thumb {
@@ -534,6 +530,21 @@ a:focus-visible {
 }
 .btn--primary:active { transform: translateY(0); }
 .btn--primary:disabled { opacity: .55; cursor: not-allowed; transform: none; }
+
+/* 🔧 NOVO: botão secundário para exportação em PDF */
+.btn--secondary {
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: #ffffff;
+  box-shadow: 0 10px 24px -10px rgba(16, 185, 129, 0.5);
+}
+.btn--secondary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 28px -10px rgba(16, 185, 129, 0.6),
+              0 0 20px -6px rgba(16, 185, 129, 0.7);
+}
+.btn--secondary:active { transform: translateY(0); }
+.btn--secondary:disabled { opacity: .55; cursor: not-allowed; transform: none; }
+
 .btn--ghost {
   background: var(--bg-panel-solid);
   color: var(--text-muted);
@@ -768,7 +779,7 @@ a:focus-visible {
   flex: 0 0 auto;
 }
 
-/* -------------------- Motivação jurídica (NOVO) -------------------- */
+/* -------------------- Motivação jurídica -------------------- */
 .motivacao { padding-bottom: 18px; }
 
 .motivacao-grid {
