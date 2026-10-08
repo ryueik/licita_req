@@ -9,7 +9,7 @@
   <meta name="color-scheme" content="dark light" />
   <meta name="theme-color" content="#0f172a" />
 
-  <!-- Anti-flash de tema (executa ANTES do CSS carregar) -->
+  <!-- Anti-flash de tema -->
   <script>
     (function () {
       try {
@@ -21,10 +21,7 @@
     })();
   </script>
 
-  <link
-    rel="icon"
-    href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%236366f1'/%3E%3Ctext x='32' y='43' font-family='Arial' font-size='30' font-weight='bold' fill='white' text-anchor='middle'%3ELR%3C/text%3E%3C/svg%3E"
-  />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%236366f1'/%3E%3Ctext x='32' y='43' font-family='Arial' font-size='30' font-weight='bold' fill='white' text-anchor='middle'%3ELR%3C/text%3E%3C/svg%3E" />
 
   <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin />
   <link rel="stylesheet" href="style.css" />
@@ -54,24 +51,12 @@
         <span class="chip__label">Lei nº 14.133/2021</span>
       </span>
 
-      <button
-        id="btnConfigOrg"
-        class="btn btn--ghost btn--icon"
-        type="button"
-        aria-label="Configurar órgão"
-        title="Configurar dados do órgão"
-      >
+      <button id="btnConfigOrg" class="btn btn--ghost btn--icon" type="button" aria-label="Configurar órgão" title="Configurar dados do órgão">
         <span aria-hidden="true">⚙️</span>
         <span class="btn__label">Órgão</span>
       </button>
 
-      <button
-        id="themeToggle"
-        class="btn btn--ghost btn--icon"
-        type="button"
-        aria-pressed="true"
-        aria-label="Alternar para o tema claro"
-      >
+      <button id="themeToggle" class="btn btn--ghost btn--icon" type="button" aria-pressed="true" aria-label="Alternar para o tema claro">
         <span class="theme-icon" aria-hidden="true">☀️</span>
         <span class="theme-label">Modo claro</span>
       </button>
@@ -155,15 +140,7 @@
           <span class="prontidao__label">Prontidão da Demanda</span>
           <span class="prontidao__value" id="prontidaoValor">0%</span>
         </div>
-        <div
-          class="prontidao__bar"
-          role="progressbar"
-          aria-valuemin="0"
-          aria-valuemax="100"
-          aria-valuenow="0"
-          id="prontidaoBar"
-          aria-label="Prontidão da demanda"
-        >
+        <div class="prontidao__bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="prontidaoBar" aria-label="Prontidão da demanda">
           <div class="prontidao__fill" id="prontidaoFill" style="width:0%"></div>
         </div>
         <p class="prontidao__hint" id="prontidaoHint">
@@ -426,6 +403,35 @@
         </div>
       </fieldset>
 
+      <!-- Bloco 7-A: Aprovadores e Validadores (NOVO) -->
+      <fieldset class="dfd-fieldset aprovadores-fieldset">
+        <legend class="dfd-legend">
+          <span class="dfd-legend__num">7A</span>
+          <span class="dfd-legend__text">Aprovadores e Validadores</span>
+          <span class="dfd-legend__law">Art. 18, § 1º</span>
+          <span class="dfd-legend__badge" id="aprovadoresContador">0</span>
+        </legend>
+
+        <p class="aprovadores__intro">
+          Adicione <strong>quantos aprovadores e validadores desejar</strong>. Eles aparecerão
+          no PDF em blocos de assinatura organizados em duas colunas, com espaço reservado
+          para assinatura ou carimbo.
+        </p>
+
+        <div id="aprovadoresList" class="aprovadores__list" aria-live="polite"></div>
+
+        <div class="aprovadores__actions">
+          <button id="btnAddAprovador" type="button" class="btn btn--ghost btn--icon">
+            <span aria-hidden="true">➕</span>
+            <span class="btn__label">Adicionar aprovador</span>
+          </button>
+          <button id="btnAddAprovadorPadrao" type="button" class="btn btn--ghost btn--icon">
+            <span aria-hidden="true">👥</span>
+            <span class="btn__label">Adicionar dupla padrão</span>
+          </button>
+        </div>
+      </fieldset>
+
       <!-- Bloco 8: Observações -->
       <fieldset class="dfd-fieldset">
         <legend class="dfd-legend">
@@ -471,14 +477,7 @@
           </div>
         </header>
 
-        <div
-          id="dropzone"
-          class="dropzone"
-          tabindex="0"
-          role="button"
-          aria-describedby="dropzone-hint"
-          aria-label="Área de envio de arquivos. Pressione Enter ou Espaço para selecionar arquivos do computador."
-        >
+        <div id="dropzone" class="dropzone" tabindex="0" role="button" aria-describedby="dropzone-hint" aria-label="Área de envio de arquivos. Pressione Enter ou Espaço para selecionar arquivos do computador.">
           <input type="file" id="fileInput" class="sr-only" accept=".pdf,.doc,.docx,.txt,.md,text/plain" multiple aria-hidden="true" tabindex="-1" />
           <div class="dropzone__icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -589,16 +588,7 @@
           </p>
         </div>
 
-        <article
-          id="resultado"
-          class="result"
-          role="region"
-          aria-live="polite"
-          aria-atomic="false"
-          aria-labelledby="titulo-resultado"
-          aria-describedby="resultado-status"
-          hidden
-        ></article>
+        <article id="resultado" class="result" role="region" aria-live="polite" aria-atomic="false" aria-labelledby="titulo-resultado" aria-describedby="resultado-status" hidden></article>
 
         <p id="resultado-status" class="sr-only" aria-live="polite" aria-atomic="true"></p>
       </section>
@@ -689,7 +679,6 @@
           </div>
         </div>
 
-        <!-- ===== LOGO UPLOAD ===== -->
         <div class="logo-section">
           <h4 class="logo-section__title">🏛️ Logomarca do Órgão</h4>
           <p class="logo-section__hint">
@@ -698,23 +687,9 @@
             A logo aparecerá nos PDFs gerados.
           </p>
 
-          <div
-            id="logoDropzone"
-            class="logo-dropzone"
-            tabindex="0"
-            role="button"
-            aria-label="Enviar logomarca do órgão. Pressione Enter para selecionar um arquivo de imagem."
-          >
-            <input
-              type="file"
-              id="logoInput"
-              class="sr-only"
-              accept="image/png,image/jpeg,image/jpg,image/svg+xml,image/webp,image/gif"
-              aria-hidden="true"
-              tabindex="-1"
-            />
+          <div id="logoDropzone" class="logo-dropzone" tabindex="0" role="button" aria-label="Enviar logomarca do órgão. Pressione Enter para selecionar um arquivo de imagem.">
+            <input type="file" id="logoInput" class="sr-only" accept="image/png,image/jpeg,image/jpg,image/svg+xml,image/webp,image/gif" aria-hidden="true" tabindex="-1" />
 
-            <!-- Preview -->
             <div class="logo-preview" id="logoPreview" hidden>
               <img id="logoPreviewImg" alt="Pré-visualização da logomarca" />
               <div class="logo-preview__info">
@@ -726,7 +701,6 @@
               </button>
             </div>
 
-            <!-- Estado vazio -->
             <div class="logo-dropzone__empty" id="logoDropzoneEmpty">
               <div class="logo-dropzone__icon" aria-hidden="true">🖼️</div>
               <p class="logo-dropzone__title">
@@ -749,6 +723,7 @@
 
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+  <script defer src="pdf-dfd.js"></script>
   <script defer src="app.js"></script>
 </body>
 </html>
