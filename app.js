@@ -473,7 +473,7 @@ function baixarJSONDFD() {
   const payload = {
     meta: {
       geradoEm: new Date().toISOString(),
-      versao: 'LicitaReq v3.0',
+      versao: 'LicitaReq v3.1',
       tag: 'LicitaReq_Documento_Oficial'
     },
     orgao: org,
@@ -485,7 +485,7 @@ function baixarJSONDFD() {
   const a    = document.createElement('a');
   a.href = url;
 
-  /* ✅ Reutiliza a mesma nomenclatura do PDF, apenas troca a extensão */
+  /* ✅ Mesmo nome-base do PDF, extensão .json */
   a.download = montarNomeArquivoPDF(d.numero).replace(/\.pdf$/i, '.json');
 
   document.body.appendChild(a);
@@ -494,6 +494,7 @@ function baixarJSONDFD() {
   URL.revokeObjectURL(url);
   toast('JSON do DFD gerado: ' + a.download, 'success');
 }
+
 /* ==============================================================
    5. PDF — Geração (com nomenclatura limpa)
    ============================================================== */
