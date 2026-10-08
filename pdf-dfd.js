@@ -1,17 +1,16 @@
 /* ============================================================
    LicitaReq — pdf-dfd.js
-   v4.2 — Correção de rodapé + margens seguras
+   v4.3 — Autenticação em página única + margens finais
    ------------------------------------------------------------
    • Página 1 ............ Capa Executiva / Termo de Abertura
    • Páginas 2..N ........ Painel de Conformidade + Corpo Técnico
    • Página N+1 .......... Aprovações e Validações (exclusiva)
-   • Página N+2 .......... TAG de Autenticação (exclusiva, final)
+   • Página N+2 .......... TAG de Autenticação (exclusiva, 1 página)
    • Nome do arquivo limpo (DFD_042_2026.pdf)
-   • Rodapé isolado — sem colisão com caixas de borda
    ============================================================ */
 
 /* --------------------------------------------------------------
-   DICIONÁRIO DE RÓTULOS REVISADOS
+   DICIONÁRIO DE RÓTULOS
    -------------------------------------------------------------- */
 const ROTULOS = Object.freeze({
   modalidade: {
@@ -99,38 +98,30 @@ function normalizarValorMonetario(v) {
 }
 
 /* ==============================================================
-   FUNÇÃO PRINCIPAL — Monta o docDefinition do pdfMake
+   FUNÇÃO PRINCIPAL
    ============================================================== */
 function buildDfdPdfDefinition(dfd, org, logoDataUrl, opts = {}) {
   const geradoEm = opts.geradoEm || new Date();
   const tag      = opts.tag      || gerarTagAutenticacao(dfd, org);
   const hash     = opts.hash     || gerarHashDocumento(dfd, org);
-  const versao   = opts.versao   || 'LicitaReq v4.2';
+  const versao   = opts.versao   || 'LicitaReq v4.3';
 
   const aprovadores = Array.isArray(opts.aprovadores) ? opts.aprovadores : [];
 
-  /* ---------- Camada 1: CAPA EXECUTIVA ---------- */
-  const capa = montarCapaExecutiva(dfd, org, logoDataUrl, geradoEm);
-
-  /* ---------- Camada 2: CORPO TÉCNICO ---------- */
-  const corpoTecnico = montarCorpoTecnico(dfd, org);
-
-  /* ---------- Camada 3: PÁGINAS DE APROVAÇÕES (array) ---------- */
+  const capa              = montarCapaExecutiva(dfd, org, logoDataUrl, geradoEm);
+  const corpoTecnico      = montarCorpoTecnico(dfd, org);
   const paginasAprovacoes = montarPaginaAprovacoes(aprovadores);
-
-  /* ---------- Camada 4: PÁGINA DE AUTENTICAÇÃO ---------- */
   const paginaAutenticacao = montarPaginaAutenticacao({
     tag, hash, geradoEm, versao, org, dfd
   });
 
-  /* ---------- Documento final ---------- */
   return {
     pageSize: 'A4',
 
-    /* ⭐ [AJUSTE 1] Bottom margin ampliada: 70 → 90
-       Dá 20 pt extras de respiro entre o conteúdo e o rodapé,
-       evitando colisão com caixas de borda (ex.: Nota de Apresentação). */
-    pageMargins: [50, 60, 50, 90],
+    /* ⭐ Margens equilibradas:
+       - top  45 pt → header (quando há) + respiro
+       - bottom 50 pt → rodapé + 32 pt de folga do conteúdo */
+    pageMargins: [40, 45, 40, 50],
 
     info: {
       title:    ('DFD ' + (dfd.numero || '') + ' — ' + ((org && org.nome) || 'LicitaReq')).trim(),
@@ -139,10 +130,12 @@ function buildDfdPdfDefinition(dfd, org, logoDataUrl, opts = {}) {
       keywords: 'LicitaReq, DFD, LicitaAudit, ' + tag,
       creator:  versao
     },
+
+    /* ---- Header (a partir da página 2) ---- */
     header: function (currentPage) {
       if (currentPage === 1) return { text: '' };
       return {
-        margin: [50, 20, 50, 0],
+        margin: [40, 14, 40, 0],
         columns: [
           { text: (org && org.nome) || 'LicitaReq', fontSize: 8, color: '#94a3b8' },
           { text: ('DFD ' + (dfd.numero || '')).trim(),
@@ -151,12 +144,10 @@ function buildDfdPdfDefinition(dfd, org, logoDataUrl, opts = {}) {
       };
     },
 
-    /* ⭐ [AJUSTE 2] Rodapé com margem superior reduzida (20 → 8)
-       Como o bottom margin aumentou para 90 pt, o rodapé agora
-       fica bem ancorado no rodapé físico da página, longe do conteúdo. */
+    /* ---- Footer ancorado no rodapé físico ---- */
     footer: function (currentPage, pageCount) {
       return {
-        margin: [50, 8, 50, 0],
+        margin: [40, 6, 40, 0],
         columns: [
           { text: 'LicitaReq · Documento Oficial · ' + formatarDataHora(geradoEm),
             fontSize: 7.5, color: '#94a3b8' },
@@ -165,23 +156,24 @@ function buildDfdPdfDefinition(dfd, org, logoDataUrl, opts = {}) {
         ]
       };
     },
+
     content: [
       capa,
       corpoTecnico,
       ...(Array.isArray(paginasAprovacoes) ? paginasAprovacoes : [paginasAprovacoes]),
       paginaAutenticacao
     ],
+
     defaultStyle: { fontSize: 9.5, color: '#0f172a', lineHeight: 1.35 }
   };
 }
 
 /* ==============================================================
-   CAMADA 1 — CAPA EXECUTIVA / TERMO DE ABERTURA
+   CAPA EXECUTIVA
    ============================================================== */
 function montarCapaExecutiva(dfd, org, logoDataUrl, geradoEm) {
   return {
     stack: [
-      /* ---- Faixa institucional no topo ---- */
       {
         table: {
           widths: ['*'],
@@ -201,34 +193,20 @@ function montarCapaExecutiva(dfd, org, logoDataUrl, geradoEm) {
         margin: [0, 0, 0, 26]
       },
 
-      /* ---- Logo + Órgão ---- */
       logoDataUrl
-        ? {
-            image: logoDataUrl,
-            fit: [100, 100],
-            alignment: 'center',
-            margin: [0, 0, 0, 14]
-          }
+        ? { image: logoDataUrl, fit: [100, 100], alignment: 'center',
+            margin: [0, 0, 0, 14] }
         : { text: '', margin: [0, 0, 0, 26] },
 
-      {
-        text: (org && org.nome ? org.nome : 'ÓRGÃO / ENTIDADE').toUpperCase(),
-        fontSize: 15,
-        bold: true,
-        alignment: 'center',
-        color: '#1e1b4b',
-        margin: [0, 0, 0, 4]
-      },
-      {
-        text: [
+      { text: (org && org.nome ? org.nome : 'ÓRGÃO / ENTIDADE').toUpperCase(),
+        fontSize: 15, bold: true, alignment: 'center',
+        color: '#1e1b4b', margin: [0, 0, 0, 4] },
+      { text: [
           org && org.sigla ? 'Sigla: ' + org.sigla : '',
           org && org.cnpj  ? 'CNPJ: '  + org.cnpj  : ''
         ].filter(Boolean).join(' · '),
-        fontSize: 8.5,
-        alignment: 'center',
-        color: '#64748b',
-        margin: [0, 0, 0, 2]
-      },
+        fontSize: 8.5, alignment: 'center', color: '#64748b',
+        margin: [0, 0, 0, 2] },
       org && org.endereco
         ? { text: org.endereco, fontSize: 8, alignment: 'center',
             color: '#94a3b8', margin: [0, 0, 0, 2] }
@@ -240,29 +218,19 @@ function montarCapaExecutiva(dfd, org, logoDataUrl, geradoEm) {
 
       { text: '', margin: [0, 0, 0, 22] },
 
-      /* ---- Título Principal ---- */
-      {
-        canvas: [{
-          type: 'line', x1: 0, y1: 0, x2: 495, y2: 0,
-          lineWidth: 1.2, lineColor: '#4f46e5'
-        }],
-        margin: [0, 0, 0, 16]
-      },
+      { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 515, y2: 0,
+                   lineWidth: 1.2, lineColor: '#4f46e5' }],
+        margin: [0, 0, 0, 16] },
       { text: 'DOCUMENTO DE FORMALIZAÇÃO DE DEMANDA',
         fontSize: 18, bold: true, alignment: 'center',
         color: '#1e1b4b', margin: [0, 0, 0, 6] },
       { text: 'Lei nº 14.133/2021 · Art. 18, § 1º',
         fontSize: 11, alignment: 'center', color: '#4f46e5',
         margin: [0, 0, 0, 4] },
-      {
-        canvas: [{
-          type: 'line', x1: 0, y1: 0, x2: 495, y2: 0,
-          lineWidth: 1.2, lineColor: '#4f46e5'
-        }],
-        margin: [0, 16, 0, 20]
-      },
+      { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 515, y2: 0,
+                   lineWidth: 1.2, lineColor: '#4f46e5' }],
+        margin: [0, 16, 0, 20] },
 
-      /* ---- Identificação Geral (Cards) ---- */
       { text: 'IDENTIFICAÇÃO GERAL', fontSize: 10, bold: true,
         color: '#4f46e5', alignment: 'center', margin: [0, 0, 0, 10] },
 
@@ -270,25 +238,18 @@ function montarCapaExecutiva(dfd, org, logoDataUrl, geradoEm) {
         table: {
           widths: ['*', '*'],
           body: [
-            [
-              cartaoIdentificacao('Nº do DFD', dfd.numero || '—'),
-              cartaoIdentificacao('Data', formatarData(dfd.data) || formatarData(geradoEm))
-            ],
-            [
-              cartaoIdentificacao('Unidade Requisitante', dfd.unidade || '—'),
-              cartaoIdentificacao('Órgão / Entidade', dfd.orgao || (org && org.nome) || '—')
-            ],
-            [
-              cartaoIdentificacao('Responsável pela Demanda', dfd.responsavel || '—'),
-              cartaoIdentificacao('Cargo / Função', dfd.cargo || '—')
-            ]
+            [ cartaoIdentificacao('Nº do DFD', dfd.numero || '—'),
+              cartaoIdentificacao('Data', formatarData(dfd.data) || formatarData(geradoEm)) ],
+            [ cartaoIdentificacao('Unidade Requisitante', dfd.unidade || '—'),
+              cartaoIdentificacao('Órgão / Entidade', dfd.orgao || (org && org.nome) || '—') ],
+            [ cartaoIdentificacao('Responsável pela Demanda', dfd.responsavel || '—'),
+              cartaoIdentificacao('Cargo / Função', dfd.cargo || '—') ]
           ]
         },
         layout: layoutCartoes(),
         margin: [0, 0, 0, 18]
       },
 
-      /* ---- Destaque: Valor Estimado ---- */
       {
         table: {
           widths: ['*'],
@@ -301,8 +262,7 @@ function montarCapaExecutiva(dfd, org, logoDataUrl, geradoEm) {
                 fontSize: 22, bold: true, alignment: 'center',
                 color: '#1e1b4b', margin: [0, 0, 0, 4] },
               { text: 'Estimativa baseada em: ' + rotulo('metodo', dfd.metodo),
-                fontSize: 8, alignment: 'center',
-                color: '#64748b' }
+                fontSize: 8, alignment: 'center', color: '#64748b' }
             ],
             fillColor: '#eef2ff',
             margin: [20, 14, 20, 14]
@@ -312,7 +272,6 @@ function montarCapaExecutiva(dfd, org, logoDataUrl, geradoEm) {
         margin: [0, 0, 0, 20]
       },
 
-      /* ---- Objeto Resumido ---- */
       dfd.objeto
         ? {
             table: {
@@ -334,10 +293,6 @@ function montarCapaExecutiva(dfd, org, logoDataUrl, geradoEm) {
           }
         : null,
 
-      /* ---- Nota de Apresentação Institucional ----
-         ⭐ [AJUSTE 3] Margem vertical ampliada:
-            top   0 → 12 (afasta do bloco do Objeto)
-            bottom 24 → 18 (garante respiro antes do pageBreak) */
       {
         table: {
           widths: ['*'],
@@ -371,20 +326,15 @@ function montarCapaExecutiva(dfd, org, logoDataUrl, geradoEm) {
         margin: [0, 12, 0, 18]
       },
 
-      /* ---- Rodapé da Capa ---- */
-      {
-        text: 'Emitido em ' + formatarDataHora(geradoEm),
-        fontSize: 8, alignment: 'center',
-        color: '#94a3b8', margin: [0, 10, 0, 0]
-      },
+      { text: 'Emitido em ' + formatarDataHora(geradoEm),
+        fontSize: 8, alignment: 'center', color: '#94a3b8',
+        margin: [0, 10, 0, 0] },
 
-      /* ---- 🔒 QUEBRA DE PÁGINA APÓS A CAPA ---- */
       { text: '', pageBreak: 'after' }
     ]
   };
 }
 
-/* Cartão pequeno de identificação (par label/valor) */
 function cartaoIdentificacao(label, valor) {
   return {
     stack: [
@@ -427,7 +377,7 @@ function layoutBordaFina() {
 }
 
 /* ==============================================================
-   CAMADA 2 — CORPO TÉCNICO
+   CORPO TÉCNICO
    ============================================================== */
 function montarCorpoTecnico(dfd, org) {
   return {
@@ -502,13 +452,9 @@ function montarPainelConformidade(dfd, org) {
           paddingBottom: function () { return 0; }
         }
       },
-      {
-        canvas: [{
-          type: 'line', x1: 0, y1: 0, x2: 495, y2: 0,
-          lineWidth: 1, lineColor: '#4f46e5'
-        }],
-        margin: [0, 12, 0, 4]
-      }
+      { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 515, y2: 0,
+                   lineWidth: 1, lineColor: '#4f46e5' }],
+        margin: [0, 12, 0, 4] }
     ]
   };
 }
@@ -529,14 +475,12 @@ function montarSecoesTecnicas(dfd, org) {
         campo('Cargo / Função',           dfd.cargo)
       )
     ]),
-
     secao('2. Objeto e Justificativa', [
       campo('Descrição Resumida do Objeto', dfd.objeto, { full: true }),
       campo('Justificativa da Necessidade Pública (Fundamentada)', dfd.justificativa,
             { full: true, bloco: true }),
       campo('Estimativa de Quantidades', dfd.quantidades, { full: true })
     ]),
-
     secao('3. Alinhamento ao Plano de Contratações Anual (PCA)', [
       parDuplo(
         campo('Previsão no PCA',      rotulo('pca', dfd.pcaPrevisto)),
@@ -545,7 +489,6 @@ function montarSecoesTecnicas(dfd, org) {
       campo('Justificativa do Alinhamento', dfd.pcaJustificativa,
             { full: true, bloco: true })
     ]),
-
     secao('4. Enquadramento Legal', [
       parDuplo(
         campo('Modalidade Pretendida (Art. 28)', rotulo('modalidade', dfd.modalidade)),
@@ -556,7 +499,6 @@ function montarSecoesTecnicas(dfd, org) {
         campo('Regime de Execução (Art. 46)',     rotulo('regime',   dfd.regime))
       )
     ]),
-
     secao('5. Estimativa Orçamentária', [
       parDuplo(
         campo('Valor Estimado', normalizarValorMonetario(dfd.valor)),
@@ -567,7 +509,6 @@ function montarSecoesTecnicas(dfd, org) {
         campo('Fonte de Recurso',     dfd.fonte)
       )
     ]),
-
     secao('6. Parcelamento, Prazo e Entrega', [
       parDuplo(
         campo('Decisão de Parcelamento (Art. 47)', rotulo('parcelamento', dfd.parcelamento)),
@@ -578,7 +519,6 @@ function montarSecoesTecnicas(dfd, org) {
         campo('Condições de Pagamento',       rotulo('pagamento', dfd.pagamento))
       )
     ]),
-
     secao('7. Fiscalização e Gestão Contratual (Art. 117)', [
       parDuplo(
         campo('Fiscal Titular',     dfd.fiscalTitular),
@@ -589,7 +529,6 @@ function montarSecoesTecnicas(dfd, org) {
         campo('Vistoria Técnica',   rotulo('vistoria', dfd.vistoria))
       )
     ]),
-
     secao('8. Observações Complementares', [
       campo('Observações Adicionais',
             dfd.observacoes || 'Sem observações adicionais.',
@@ -599,7 +538,7 @@ function montarSecoesTecnicas(dfd, org) {
 }
 
 /* ==============================================================
-   CAMADA 3 — PÁGINAS DE APROVAÇÕES
+   PÁGINAS DE APROVAÇÕES
    ============================================================== */
 function montarPaginaAprovacoes(aprovadores) {
   aprovadores = aprovadores || [];
@@ -647,13 +586,8 @@ function montarPaginaAprovacoes(aprovadores) {
     return {
       pageBreak: 'before',
       stack: [
-        montarCabecalhoAprovacoes(
-          ehPrimeira,
-          idx + 1,
-          grupos.length,
-          aprovadores.length,
-          grupo.length
-        ),
+        montarCabecalhoAprovacoes(ehPrimeira, idx + 1, grupos.length,
+                                   aprovadores.length, grupo.length),
         ...linhas,
         ehUltima
           ? montarRodapeAprovacoes(aprovadores.length, grupos.length)
@@ -684,34 +618,21 @@ function distribuirAprovadores(aprovadores, maxPorPagina) {
 function montarCabecalhoAprovacoes(ehPrimeira, pagina, totalPaginas, totalSignatarios, nestaGrupo) {
   const stack = [
     { text: 'APROVAÇÃO E VALIDAÇÃO',
-      fontSize: ehPrimeira ? 15 : 13,
-      bold: true,
-      alignment: 'center',
-      color: '#1e1b4b',
-      margin: [0, 0, 0, 4] },
+      fontSize: ehPrimeira ? 15 : 13, bold: true,
+      alignment: 'center', color: '#1e1b4b', margin: [0, 0, 0, 4] },
     { text: 'Lei nº 14.133/2021 · Art. 18, § 1º',
-      fontSize: 9,
-      alignment: 'center',
-      color: '#4f46e5',
-      margin: [0, 0, 0, 8] },
-    {
-      canvas: [{
-        type: 'line', x1: 0, y1: 0, x2: 495, y2: 0,
-        lineWidth: 1.2, lineColor: '#4f46e5'
-      }],
-      margin: [0, 0, 0, 10]
-    }
+      fontSize: 9, alignment: 'center', color: '#4f46e5', margin: [0, 0, 0, 8] },
+    { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 515, y2: 0,
+                 lineWidth: 1.2, lineColor: '#4f46e5' }],
+      margin: [0, 0, 0, 10] }
   ];
 
   if (totalPaginas > 1) {
     stack.push({
       text: 'Página ' + pagina + ' de ' + totalPaginas +
             ' · ' + nestaGrupo + ' de ' + totalSignatarios + ' assinaturas',
-      fontSize: 8,
-      italics: true,
-      alignment: 'center',
-      color: '#94a3b8',
-      margin: [0, 0, 0, 10]
+      fontSize: 8, italics: true, alignment: 'center',
+      color: '#94a3b8', margin: [0, 0, 0, 10]
     });
   }
 
@@ -722,11 +643,8 @@ function montarCabecalhoAprovacoes(ehPrimeira, pagina, totalPaginas, totalSignat
             'informações e a conformidade com a legislação vigente. O documento ' +
             'deve ser assinado eletronicamente ou de próprio punho, no espaço ' +
             'reservado para assinatura e/ou carimbo.',
-      fontSize: 9,
-      color: '#334155',
-      lineHeight: 1.5,
-      alignment: 'justify',
-      margin: [0, 0, 0, 18]
+      fontSize: 9, color: '#334155', lineHeight: 1.5,
+      alignment: 'justify', margin: [0, 0, 0, 18]
     });
   }
 
@@ -760,21 +678,12 @@ function montarRodapeAprovacoes(total, totalPaginas) {
   return {
     unbreakable: true,
     stack: [
-      {
-        canvas: [{
-          type: 'line', x1: 0, y1: 0, x2: 495, y2: 0,
-          lineWidth: 0.6, lineColor: '#cbd5e1'
-        }],
-        margin: [0, 30, 0, 10]
-      },
-      {
-        text: 'Total de assinaturas: ' + total +
+      { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 515, y2: 0,
+                   lineWidth: 0.6, lineColor: '#cbd5e1' }],
+        margin: [0, 30, 0, 10] },
+      { text: 'Total de assinaturas: ' + total +
               (totalPaginas > 1 ? ' · distribuídas em ' + totalPaginas + ' páginas' : ''),
-        fontSize: 8,
-        italics: true,
-        alignment: 'center',
-        color: '#94a3b8'
-      }
+        fontSize: 8, italics: true, alignment: 'center', color: '#94a3b8' }
     ]
   };
 }
@@ -782,20 +691,14 @@ function montarRodapeAprovacoes(total, totalPaginas) {
 function blocoAssinatura(p) {
   const linhas = [
     { text: '', margin: [0, 32, 0, 0] },
-    {
-      canvas: [{
-        type: 'line', x1: 0, y1: 0, x2: 215, y2: 0,
-        lineWidth: 0.9, lineColor: '#475569',
-        dash: { length: 3, space: 2 }
-      }],
-      margin: [0, 0, 0, 5]
-    },
-    { text: 'Assinatura / Carimbo',
-      fontSize: 7, italics: true, alignment: 'center',
-      color: '#94a3b8', margin: [0, 0, 0, 8] },
-    { text: p.nome || '—',
-      fontSize: 10.5, bold: true, alignment: 'center',
-      color: '#0f172a' }
+    { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 225, y2: 0,
+                 lineWidth: 0.9, lineColor: '#475569',
+                 dash: { length: 3, space: 2 } }],
+      margin: [0, 0, 0, 5] },
+    { text: 'Assinatura / Carimbo', fontSize: 7, italics: true,
+      alignment: 'center', color: '#94a3b8', margin: [0, 0, 0, 8] },
+    { text: p.nome || '—', fontSize: 10.5, bold: true,
+      alignment: 'center', color: '#0f172a' }
   ];
 
   if (p.cargo) linhas.push({
@@ -815,10 +718,7 @@ function blocoAssinatura(p) {
   return [{
     table: {
       widths: ['*'],
-      body: [[{
-        stack: linhas,
-        margin: [12, 8, 12, 10]
-      }]]
+      body: [[{ stack: linhas, margin: [12, 8, 12, 10] }]]
     },
     layout: {
       hLineColor: function () { return '#e2e8f0'; },
@@ -834,7 +734,10 @@ function blocoAssinatura(p) {
 }
 
 /* ==============================================================
-   CAMADA 4 — PÁGINA FINAL EXCLUSIVA DE AUTENTICAÇÃO
+   PÁGINA FINAL — AUTENTICAÇÃO (compactada p/ 1 página única)
+   --------------------------------------------------------------
+   Altura estimada: ~480 pt (cabe folgado em 747 pt disponíveis)
+   O container externo recebe `unbreakable: true` para reforçar.
    ============================================================== */
 function montarPaginaAutenticacao(ctx) {
   const tag      = ctx.tag;
@@ -846,107 +749,123 @@ function montarPaginaAutenticacao(ctx) {
 
   return {
     pageBreak: 'before',
-    stack: [
-      { text: '', margin: [0, 30, 0, 0] },
-      { text: '🔐', fontSize: 44, alignment: 'center', margin: [0, 0, 0, 10] },
-      { text: 'AUTENTICAÇÃO E RASTREABILIDADE',
-        fontSize: 17, bold: true, alignment: 'center',
-        color: '#4f46e5', margin: [0, 0, 0, 6] },
-      { text: 'Documento Oficial LicitaReq · Integração LicitaAudit',
-        fontSize: 10, alignment: 'center', color: '#64748b',
-        margin: [0, 0, 0, 34] },
+    /* ⭐ unbreakable no nível do stack externo — impede quebra
+       caso o conteúdo seja menor que a página */
+    stack: [{
+      unbreakable: true,
+      stack: [
+        /* Espaçador superior mínimo */
+        { text: '', margin: [0, 4, 0, 0] },
 
-      {
-        table: {
-          widths: ['*'],
-          body: [[{
-            stack: [
-              { text: 'TAG DE AUTENTICAÇÃO',
-                fontSize: 9, bold: true, alignment: 'center',
-                color: '#c7d2fe', margin: [0, 0, 0, 4] },
-              { text: tag,
-                fontSize: 15, bold: true, alignment: 'center',
-                color: '#ffffff', margin: [0, 4, 0, 0] }
-            ],
-            fillColor: '#4f46e5',
-            margin: [22, 20, 22, 20]
-          }]]
-        },
-        layout: 'noBorders',
-        margin: [0, 0, 0, 26]
-      },
+        /* Emoji compacto */
+        { text: '🔐', fontSize: 28, alignment: 'center', margin: [0, 0, 0, 4] },
 
-      {
-        table: {
-          widths: ['35%', '*'],
-          body: [
-            linhaMeta('Hash de Integridade', hash),
-            linhaMeta('Emitido em',          formatarDataHora(geradoEm)),
-            linhaMeta('Sistema Emissor',     versao),
-            linhaMeta('Órgão Emissor',       org.nome || '—'),
-            linhaMeta('Expediente',          dfd.numero || '—'),
-            linhaMeta('Tag de Integração',   'PREFIRO_TAG: LicitaReq_Documento_Oficial')
-          ]
-        },
-        layout: layoutTabelaMeta(),
-        margin: [0, 0, 0, 26]
-      },
+        /* Título principal */
+        { text: 'AUTENTICAÇÃO E RASTREABILIDADE',
+          fontSize: 14, bold: true, alignment: 'center',
+          color: '#4f46e5', margin: [0, 0, 0, 3] },
 
-      {
-        table: {
-          widths: ['*'],
-          body: [[{
-            stack: [
-              { text: '⚠  AVISO IMPORTANTE',
-                fontSize: 9.5, bold: true, color: '#92400e',
-                margin: [0, 0, 0, 6] },
-              { text:
-                'Este documento foi gerado automaticamente pelo sistema LicitaReq e possui ' +
-                'TAG de autenticação única rastreável pelo LicitaAudit. A validade jurídica ' +
-                'do presente DFD está condicionada à conferência pela assessoria jurídica, ' +
-                'pelo controle interno e pela autoridade competente, nos termos da Lei nº 14.133/2021.',
-                fontSize: 8.5, color: '#78350f', lineHeight: 1.45 }
-            ],
-            fillColor: '#fef3c7',
-            margin: [16, 14, 16, 14]
-          }]]
-        },
-        layout: 'noBorders',
-        margin: [0, 0, 0, 26]
-      },
+        /* Subtítulo */
+        { text: 'Documento Oficial LicitaReq · Integração LicitaAudit',
+          fontSize: 8.5, alignment: 'center', color: '#64748b',
+          margin: [0, 0, 0, 14] },
 
-      {
-        table: {
-          widths: ['*'],
-          body: [[{
-            stack: [
-              { text: '◆  SELO DIGITAL LICITAREQ',
-                fontSize: 9, bold: true, alignment: 'center',
-                color: '#4f46e5', margin: [0, 0, 0, 4] },
-              { text: 'Documento íntegro · Não adulterado · Rastreável',
-                fontSize: 8, alignment: 'center',
-                color: '#64748b', margin: [0, 4, 0, 0] },
-              { text: tag,
-                fontSize: 8, alignment: 'center',
-                color: '#94a3b8', margin: [0, 6, 0, 0] }
-            ],
-            fillColor: '#eef2ff',
-            margin: [16, 12, 16, 12]
-          }]]
+        /* ---- TAG principal (compacta) ---- */
+        {
+          table: {
+            widths: ['*'],
+            body: [[{
+              stack: [
+                { text: 'TAG DE AUTENTICAÇÃO',
+                  fontSize: 8, bold: true, alignment: 'center',
+                  color: '#c7d2fe', margin: [0, 0, 0, 3] },
+                { text: tag,
+                  fontSize: 12, bold: true, alignment: 'center',
+                  color: '#ffffff', margin: [0, 3, 0, 0] }
+              ],
+              fillColor: '#4f46e5',
+              margin: [16, 12, 16, 12]
+            }]]
+          },
+          layout: 'noBorders',
+          margin: [0, 0, 0, 12]
         },
-        layout: 'noBorders',
-        margin: [0, 0, 0, 0]
-      }
-    ]
+
+        /* ---- Metadados (linhas compactas) ---- */
+        {
+          table: {
+            widths: ['35%', '*'],
+            body: [
+              linhaMeta('Hash de Integridade', hash),
+              linhaMeta('Emitido em',          formatarDataHora(geradoEm)),
+              linhaMeta('Sistema Emissor',     versao),
+              linhaMeta('Órgão Emissor',       org.nome || '—'),
+              linhaMeta('Expediente',          dfd.numero || '—'),
+              linhaMeta('Tag de Integração',   'PREFIRO_TAG: LicitaReq_Documento_Oficial')
+            ]
+          },
+          layout: layoutTabelaMeta(),
+          margin: [0, 0, 0, 12]
+        },
+
+        /* ---- Aviso legal (compacto) ---- */
+        {
+          table: {
+            widths: ['*'],
+            body: [[{
+              stack: [
+                { text: '⚠  AVISO IMPORTANTE',
+                  fontSize: 8.5, bold: true, color: '#92400e',
+                  margin: [0, 0, 0, 4] },
+                { text:
+                  'Este documento foi gerado automaticamente pelo sistema LicitaReq e possui ' +
+                  'TAG de autenticação única rastreável pelo LicitaAudit. A validade jurídica ' +
+                  'do presente DFD está condicionada à conferência pela assessoria jurídica, ' +
+                  'pelo controle interno e pela autoridade competente, nos termos da Lei nº 14.133/2021.',
+                  fontSize: 8, color: '#78350f', lineHeight: 1.4 }
+              ],
+              fillColor: '#fef3c7',
+              margin: [14, 10, 14, 10]
+            }]]
+          },
+          layout: 'noBorders',
+          margin: [0, 0, 0, 12]
+        },
+
+        /* ---- Selo digital (compacto) ---- */
+        {
+          table: {
+            widths: ['*'],
+            body: [[{
+              stack: [
+                { text: '◆  SELO DIGITAL LICITAREQ',
+                  fontSize: 8, bold: true, alignment: 'center',
+                  color: '#4f46e5', margin: [0, 0, 0, 3] },
+                { text: 'Documento íntegro · Não adulterado · Rastreável',
+                  fontSize: 7, alignment: 'center',
+                  color: '#64748b', margin: [0, 3, 0, 0] },
+                { text: tag,
+                  fontSize: 7, alignment: 'center',
+                  color: '#94a3b8', margin: [0, 4, 0, 0] }
+              ],
+              fillColor: '#eef2ff',
+              margin: [14, 10, 14, 10]
+            }]]
+          },
+          layout: 'noBorders',
+          margin: [0, 0, 0, 0]
+        }
+      ]
+    }]
   };
 }
 
 function linhaMeta(chave, valor) {
   return [
-    { text: chave + ':', fontSize: 8.5, bold: true, color: '#334155',
-      fillColor: '#f1f5f9', margin: [10, 7, 10, 7] },
-    { text: valor || '—', fontSize: 8.5, color: '#0f172a',
-      margin: [10, 7, 10, 7] }
+    { text: chave + ':', fontSize: 8, bold: true, color: '#334155',
+      fillColor: '#f1f5f9', margin: [8, 5, 8, 5] },
+    { text: valor || '—', fontSize: 8, color: '#0f172a',
+      margin: [8, 5, 8, 5] }
   ];
 }
 
@@ -972,13 +891,9 @@ function secao(titulo, corpo) {
       { text: titulo, fontSize: 11, bold: true, color: '#1e1b4b',
         margin: [0, 12, 0, 10] },
       ...corpo,
-      {
-        canvas: [{
-          type: 'line', x1: 0, y1: 0, x2: 495, y2: 0,
-          lineWidth: 0.4, lineColor: '#e2e8f0'
-        }],
-        margin: [0, 10, 0, 4]
-      }
+      { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 515, y2: 0,
+                   lineWidth: 0.4, lineColor: '#e2e8f0' }],
+        margin: [0, 10, 0, 4] }
     ]
   };
 }
