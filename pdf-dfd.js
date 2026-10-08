@@ -1,13 +1,12 @@
 /* ============================================================
    LicitaReq — pdf-dfd.js
-   Módulo de geração de PDF (DFD)
-   v3.1 — Auditoria otimizada + Painel de Conformidade
+   v4.0 — Capa Executiva + Paginação Rigorosa em 4 Camadas
    ------------------------------------------------------------
-   • Painel de conformidade com pares "Chave: Valor" em linha única
-     (compatível com o extrator regex do LicitaAudit)
-   • Labels sem characterSpacing e sem uppercase forçado
-   • Nome do arquivo sem redundância (DFD_042_2026.pdf)
-   • Quebra de página obrigatória para a TAG de autenticação
+   • Página 1 ............ Capa Executiva / Termo de Abertura
+   • Páginas 2..N ........ Painel de Conformidade + Corpo Técnico
+   • Página N+1 .......... Aprovações e Validações (exclusiva)
+   • Página N+2 .......... TAG de Autenticação (exclusiva, final)
+   • Nome do arquivo limpo (DFD_042_2026.pdf)
    ============================================================ */
 
 /* --------------------------------------------------------------
@@ -90,21 +89,348 @@ function rotulo(grupo, valor) {
 
 /* ==============================================================
    NORMALIZAÇÃO DE VALOR MONETÁRIO
-   Converte qualquer entrada em "R$ 165.000,00" legível ao regex
    ============================================================== */
 function normalizarValorMonetario(v) {
   if (v == null || v === '') return '—';
   const s = String(v).trim();
-  // Se já tem "R$", mantém
   if (/^R\$/i.test(s)) return s;
-  // Se for só número com pontos/vírgula, prefixa
   return 'R$ ' + s;
 }
 
 /* ==============================================================
-   PAINEL DE CONFORMIDADE — Chave: Valor em linha única
-   Bloco que o LicitaAudit lê ANTES das seções numeradas
+   FUNÇÃO PRINCIPAL — Monta o docDefinition do pdfMake
    ============================================================== */
+function buildDfdPdfDefinition(dfd, org, logoDataUrl, opts = {}) {
+  const geradoEm = opts.geradoEm || new Date();
+  const tag      = opts.tag      || gerarTagAutenticacao(dfd, org);
+  const hash     = opts.hash     || gerarHashDocumento(dfd, org);
+  const versao   = opts.versao   || 'LicitaReq v4.0';
+
+  const aprovadores = Array.isArray(opts.aprovadores) ? opts.aprovadores : [];
+
+  /* ---------- Camada 1: CAPA EXECUTIVA ---------- */
+  const capa = montarCapaExecutiva(dfd, org, logoDataUrl, geradoEm);
+
+  /* ---------- Camada 2: CORPO TÉCNICO ---------- */
+  const corpoTecnico = montarCorpoTecnico(dfd, org);
+
+  /* ---------- Camada 3: PÁGINA DE APROVAÇÕES ---------- */
+  const paginaAprovacoes = montarPaginaAprovacoes(aprovadores);
+
+  /* ---------- Camada 4: PÁGINA DE AUTENTICAÇÃO ---------- */
+  const paginaAutenticacao = montarPaginaAutenticacao({
+    tag, hash, geradoEm, versao, org, dfd
+  });
+
+  /* ---------- Documento final ---------- */
+  return {
+    pageSize: 'A4',
+    pageMargins: [50, 60, 50, 70],
+    info: {
+      title:    ('DFD ' + (dfd.numero || '') + ' — ' + ((org && org.nome) || 'LicitaReq')).trim(),
+      author:   (org && org.nome) || 'LicitaReq',
+      subject:  'Documento de Formalização de Demanda — Lei nº 14.133/2021',
+      keywords: 'LicitaReq, DFD, LicitaAudit, ' + tag,
+      creator:  versao
+    },
+    header: function (currentPage) {
+      if (currentPage === 1) return { text: '' };
+      return {
+        margin: [50, 20, 50, 0],
+        columns: [
+          { text: (org && org.nome) || 'LicitaReq', fontSize: 8, color: '#94a3b8' },
+          { text: ('DFD ' + (dfd.numero || '')).trim(),
+            alignment: 'right', fontSize: 8, color: '#94a3b8' }
+        ]
+      };
+    },
+    footer: function (currentPage, pageCount) {
+      return {
+        margin: [50, 20, 50, 0],
+        columns: [
+          { text: 'LicitaReq · Documento Oficial · ' + formatarDataHora(geradoEm),
+            fontSize: 7.5, color: '#94a3b8' },
+          { text: 'Página ' + currentPage + ' de ' + pageCount,
+            alignment: 'right', fontSize: 7.5, color: '#94a3b8' }
+        ]
+      };
+    },
+    content: [
+      capa,
+      corpoTecnico,
+      paginaAprovacoes,
+      paginaAutenticacao
+    ],
+    defaultStyle: { fontSize: 9.5, color: '#0f172a', lineHeight: 1.35 }
+  };
+}
+
+/* ==============================================================
+   CAMADA 1 — CAPA EXECUTIVA / TERMO DE ABERTURA
+   (Página 1 exclusiva, com pageBreak: 'after' no final)
+   ============================================================== */
+function montarCapaExecutiva(dfd, org, logoDataUrl, geradoEm) {
+  return {
+    stack: [
+      /* ---- Faixa institucional no topo ---- */
+      {
+        table: {
+          widths: ['*'],
+          body: [[{
+            stack: [
+              { text: 'SISTEMA LICITAREQ', fontSize: 8, bold: true,
+                color: '#c7d2fe', alignment: 'center' },
+              { text: 'DOCUMENTO OFICIAL DE CONTRATAÇÃO PÚBLICA',
+                fontSize: 9, bold: true, color: '#ffffff',
+                alignment: 'center', margin: [0, 4, 0, 0] }
+            ],
+            fillColor: '#4f46e5',
+            margin: [0, 10, 0, 10]
+          }]]
+        },
+        layout: 'noBorders',
+        margin: [0, 0, 0, 30]
+      },
+
+      /* ---- Logo + Órgão ---- */
+      logoDataUrl
+        ? {
+            image: logoDataUrl,
+            fit: [110, 110],
+            alignment: 'center',
+            margin: [0, 0, 0, 16]
+          }
+        : { text: '', margin: [0, 0, 0, 30] },
+
+      {
+        text: (org && org.nome ? org.nome : 'ÓRGÃO / ENTIDADE').toUpperCase(),
+        fontSize: 15,
+        bold: true,
+        alignment: 'center',
+        color: '#1e1b4b',
+        margin: [0, 0, 0, 4]
+      },
+      {
+        text: [
+          org && org.sigla ? 'Sigla: ' + org.sigla : '',
+          org && org.cnpj  ? 'CNPJ: '  + org.cnpj  : ''
+        ].filter(Boolean).join(' · '),
+        fontSize: 8.5,
+        alignment: 'center',
+        color: '#64748b',
+        margin: [0, 0, 0, 2]
+      },
+      org && org.endereco
+        ? { text: org.endereco, fontSize: 8, alignment: 'center',
+            color: '#94a3b8', margin: [0, 0, 0, 2] }
+        : null,
+      org && (org.cidade || org.uf)
+        ? { text: [org.cidade, org.uf].filter(Boolean).join('/'),
+            fontSize: 8, alignment: 'center', color: '#94a3b8' }
+        : null,
+
+      { text: '', margin: [0, 0, 0, 26] },
+
+      /* ---- Título Principal ---- */
+      {
+        canvas: [{
+          type: 'line', x1: 0, y1: 0, x2: 495, y2: 0,
+          lineWidth: 1.2, lineColor: '#4f46e5'
+        }],
+        margin: [0, 0, 0, 18]
+      },
+      { text: 'DOCUMENTO DE FORMALIZAÇÃO DE DEMANDA',
+        fontSize: 18, bold: true, alignment: 'center',
+        color: '#1e1b4b', margin: [0, 0, 0, 6] },
+      { text: 'Lei nº 14.133/2021 · Art. 18, § 1º',
+        fontSize: 11, alignment: 'center', color: '#4f46e5',
+        margin: [0, 0, 0, 4] },
+      {
+        canvas: [{
+          type: 'line', x1: 0, y1: 0, x2: 495, y2: 0,
+          lineWidth: 1.2, lineColor: '#4f46e5'
+        }],
+        margin: [0, 18, 0, 24]
+      },
+
+      /* ---- Identificação Geral (Cards) ---- */
+      { text: 'IDENTIFICAÇÃO GERAL', fontSize: 10, bold: true,
+        color: '#4f46e5', alignment: 'center', margin: [0, 0, 0, 12] },
+
+      {
+        table: {
+          widths: ['*', '*'],
+          body: [
+            [
+              cartaoIdentificacao('Nº do DFD', dfd.numero || '—'),
+              cartaoIdentificacao('Data', formatarData(dfd.data) || formatarData(geradoEm))
+            ],
+            [
+              cartaoIdentificacao('Unidade Requisitante', dfd.unidade || '—'),
+              cartaoIdentificacao('Órgão / Entidade', dfd.orgao || (org && org.nome) || '—')
+            ],
+            [
+              cartaoIdentificacao('Responsável pela Demanda', dfd.responsavel || '—'),
+              cartaoIdentificacao('Cargo / Função', dfd.cargo || '—')
+            ]
+          ]
+        },
+        layout: layoutCartoes(),
+        margin: [0, 0, 0, 20]
+      },
+
+      /* ---- Destaque: Valor Estimado ---- */
+      {
+        table: {
+          widths: ['*'],
+          body: [[{
+            stack: [
+              { text: 'VALOR ESTIMADO DA CONTRATAÇÃO',
+                fontSize: 9, bold: true, alignment: 'center',
+                color: '#4f46e5', margin: [0, 0, 0, 6] },
+              { text: normalizarValorMonetario(dfd.valor),
+                fontSize: 22, bold: true, alignment: 'center',
+                color: '#1e1b4b', margin: [0, 0, 0, 4] },
+              { text: 'Estimativa baseada em: ' + rotulo('metodo', dfd.metodo),
+                fontSize: 8, alignment: 'center',
+                color: '#64748b' }
+            ],
+            fillColor: '#eef2ff',
+            margin: [20, 16, 20, 16]
+          }]]
+        },
+        layout: 'noBorders',
+        margin: [0, 0, 0, 24]
+      },
+
+      /* ---- Objeto Resumido ---- */
+      dfd.objeto
+        ? {
+            table: {
+              widths: ['*'],
+              body: [[{
+                stack: [
+                  { text: 'OBJETO DA CONTRATAÇÃO',
+                    fontSize: 8, bold: true, color: '#4f46e5',
+                    margin: [0, 0, 0, 6] },
+                  { text: dfd.objeto, fontSize: 10,
+                    color: '#0f172a', lineHeight: 1.5 }
+                ],
+                fillColor: '#f8fafc',
+                margin: [16, 14, 16, 14]
+              }]]
+            },
+            layout: 'noBorders',
+            margin: [0, 0, 0, 24]
+          }
+        : null,
+
+      /* ---- Nota de Apresentação Institucional ---- */
+      {
+        table: {
+          widths: ['*'],
+          body: [[{
+            stack: [
+              { text: 'NOTA DE APRESENTAÇÃO INSTITUCIONAL',
+                fontSize: 8, bold: true, color: '#334155',
+                alignment: 'center', margin: [0, 0, 0, 8] },
+              { text:
+                'O presente Documento de Formalização de Demanda (DFD) formaliza o início ' +
+                'do procedimento administrativo de contratação pública no âmbito deste órgão, ' +
+                'em conformidade com a Lei nº 14.133/2021, seu Art. 18, § 1º, e demais normas ' +
+                'correlatas. O documento é instruído com a identificação da necessidade, ' +
+                'a devida motivação administrativa, a estimativa de valor e o enquadramento ' +
+                'legal aplicável, servindo de base para as etapas subsequentes de planejamento ' +
+                'da contratação e elaboração do Estudo Técnico Preliminar (ETP) e do Termo ' +
+                'de Referência (TR).',
+                fontSize: 9, color: '#334155', lineHeight: 1.6, alignment: 'justify' },
+              { text:
+                'Este documento foi gerado eletronicamente pelo sistema LicitaReq, possui ' +
+                'TAG de autenticação única rastreável pelo LicitaAudit e está apto à auditoria ' +
+                'interna e aos órgãos de controle.',
+                fontSize: 8.5, italics: true, color: '#64748b',
+                lineHeight: 1.5, alignment: 'justify', margin: [0, 8, 0, 0] }
+            ],
+            fillColor: '#ffffff',
+            margin: [18, 16, 18, 16]
+          }]]
+        },
+        layout: layoutBordaFina(),
+        margin: [0, 0, 0, 24]
+      },
+
+      /* ---- Rodapé da Capa ---- */
+      {
+        text: 'Emitido em ' + formatarDataHora(geradoEm),
+        fontSize: 8, alignment: 'center',
+        color: '#94a3b8', margin: [0, 10, 0, 0]
+      },
+
+      /* ---- 🔒 QUEBRA DE PÁGINA APÓS A CAPA ---- */
+      { text: '', pageBreak: 'after' }
+    ]
+  };
+}
+
+/* Cartão pequeno de identificação (par label/valor) */
+function cartaoIdentificacao(label, valor) {
+  return {
+    stack: [
+      { text: label.toUpperCase(), fontSize: 7, bold: true,
+        color: '#64748b', margin: [0, 0, 0, 3] },
+      { text: valor || '—', fontSize: 9.5, bold: true,
+        color: '#0f172a', lineHeight: 1.4 }
+    ],
+    margin: [12, 10, 12, 10]
+  };
+}
+
+function layoutCartoes() {
+  return {
+    hLineColor: function () { return '#e2e8f0'; },
+    vLineColor: function () { return '#e2e8f0'; },
+    hLineWidth: function () { return 0.4; },
+    vLineWidth: function () { return 0.4; },
+    fillColor: function (i, node) {
+      return (i % 2 === 0) ? '#f8fafc' : '#ffffff';
+    },
+    paddingLeft:   function () { return 0; },
+    paddingRight:  function () { return 0; },
+    paddingTop:    function () { return 0; },
+    paddingBottom: function () { return 0; }
+  };
+}
+
+function layoutBordaFina() {
+  return {
+    hLineColor: function () { return '#4f46e5'; },
+    vLineColor: function () { return '#4f46e5'; },
+    hLineWidth: function () { return 0.6; },
+    vLineWidth: function () { return 0.6; },
+    paddingLeft:   function () { return 0; },
+    paddingRight:  function () { return 0; },
+    paddingTop:    function () { return 0; },
+    paddingBottom: function () { return 0; }
+  };
+}
+
+/* ==============================================================
+   CAMADA 2 — CORPO TÉCNICO (Painel + Seções 1 a 8)
+   Páginas 2 e seguintes, com fluxo natural
+   ============================================================== */
+function montarCorpoTecnico(dfd, org) {
+  return {
+    stack: [
+      /* ---- Painel de Conformidade (leitura LicitaAudit) ---- */
+      montarPainelConformidade(dfd, org),
+      { text: '', margin: [0, 10, 0, 0] },
+
+      /* ---- Seções Técnicas ---- */
+      ...montarSecoesTecnicas(dfd, org)
+    ]
+  };
+}
+
 function montarPainelConformidade(dfd, org) {
   const linhas = [
     ['Nº do DFD',                  dfd.numero        || '—'],
@@ -137,59 +463,31 @@ function montarPainelConformidade(dfd, org) {
 
   const body = linhas.map(function (par) {
     return [
-      {
-        text: par[0] + ':',
-        fontSize: 9,
-        bold: true,
-        color: '#1e1b4b',
-        // SEM characterSpacing — leitura regex limpa
-        margin: [8, 5, 8, 5]
-      },
-      {
-        text: par[1] || '—',
-        fontSize: 9,
-        color: '#0f172a',
-        margin: [8, 5, 8, 5]
-      }
+      { text: par[0] + ':', fontSize: 8.5, bold: true,
+        color: '#1e1b4b', margin: [8, 5, 8, 5] },
+      { text: par[1] || '—', fontSize: 8.5,
+        color: '#0f172a', margin: [8, 5, 8, 5] }
     ];
   });
 
   return {
-    unbreakable: true,
     stack: [
+      { text: 'PAINEL DE CONFORMIDADE — LEI Nº 14.133/2021',
+        fontSize: 10.5, bold: true, color: '#4f46e5',
+        alignment: 'center', margin: [0, 0, 0, 4] },
+      { text: 'Bloco de leitura automatizada para o LicitaAudit',
+        fontSize: 8, italics: true, color: '#64748b',
+        alignment: 'center', margin: [0, 0, 0, 10] },
       {
-        text: 'PAINEL DE CONFORMIDADE — LEI Nº 14.133/2021',
-        fontSize: 10.5,
-        bold: true,
-        color: '#4f46e5',
-        alignment: 'center',
-        margin: [0, 0, 0, 4]
-      },
-      {
-        text: 'Bloco de leitura automatizada para o LicitaAudit',
-        fontSize: 8,
-        italics: true,
-        color: '#64748b',
-        alignment: 'center',
-        margin: [0, 0, 0, 10]
-      },
-      {
-        table: {
-          widths: ['38%', '*'],
-          body: body
-        },
+        table: { widths: ['38%', '*'], body: body },
         layout: {
           hLineColor: function () { return '#e2e8f0'; },
           vLineColor: function () { return '#e2e8f0'; },
           hLineWidth: function (i, node) {
-            // linha superior e inferior mais fortes
             return (i === 0 || i === node.table.body.length) ? 0.8 : 0.3;
           },
           vLineWidth: function () { return 0.3; },
-          fillColor: function (i) {
-            // zebra striping leve
-            return i % 2 === 0 ? '#f8fafc' : null;
-          },
+          fillColor: function (i) { return i % 2 === 0 ? '#f8fafc' : null; },
           paddingLeft:   function () { return 4; },
           paddingRight:  function () { return 4; },
           paddingTop:    function () { return 0; },
@@ -207,63 +505,8 @@ function montarPainelConformidade(dfd, org) {
   };
 }
 
-/* ==============================================================
-   FUNÇÃO PRINCIPAL — Monta o docDefinition do pdfMake
-   ============================================================== */
-function buildDfdPdfDefinition(dfd, org, logoDataUrl, opts = {}) {
-  const geradoEm = opts.geradoEm || new Date();
-  const tag      = opts.tag      || gerarTagAutenticacao(dfd, org);
-  const hash     = opts.hash     || gerarHashDocumento(dfd, org);
-  const versao   = opts.versao   || 'LicitaReq v3.1';
-
-  const aprovadores = Array.isArray(opts.aprovadores) ? opts.aprovadores : [];
-
-  /* ---------- Cabeçalho institucional ---------- */
-  const cabecalho = {
-    columns: [
-      logoDataUrl
-        ? { width: 70, image: logoDataUrl, fit: [64, 64] }
-        : { width: 70, text: '' },
-      {
-        width: '*',
-        stack: [
-          { text: (org && org.nome ? org.nome : 'ÓRGÃO / ENTIDADE').toUpperCase(),
-            fontSize: 12, bold: true, color: '#0f172a' },
-          { text: [
-              org && org.sigla ? 'Sigla: ' + org.sigla : '',
-              org && org.cnpj  ? 'CNPJ: '  + org.cnpj  : '',
-              org && org.cidade && org.uf ? org.cidade + '/' + org.uf : ''
-            ].filter(Boolean).join(' · '),
-            fontSize: 8.5, color: '#475569', margin: [0, 2, 0, 0] },
-          org && org.endereco
-            ? { text: org.endereco, fontSize: 8, color: '#64748b', margin: [0, 1, 0, 0] }
-            : null
-        ].filter(Boolean)
-      }
-    ],
-    margin: [0, 0, 0, 14]
-  };
-
-  const linhaDivisoria = {
-    canvas: [{ type: 'line', x1: 0, y1: 0, x2: 495, y2: 0, lineWidth: 1, lineColor: '#4f46e5' }],
-    margin: [0, 0, 0, 16]
-  };
-
-  /* ---------- Título ---------- */
-  const titulo = {
-    stack: [
-      { text: 'DOCUMENTO DE FORMALIZAÇÃO DE DEMANDA',
-        fontSize: 14, bold: true, alignment: 'center', color: '#1e1b4b' },
-      { text: 'DFD — Lei nº 14.133/2021, Art. 18, § 1º',
-        fontSize: 9.5, alignment: 'center', color: '#4f46e5', margin: [0, 4, 0, 14] }
-    ]
-  };
-
-  /* ---------- PAINEL DE CONFORMIDADE (topo, para o LicitaAudit) ---------- */
-  const painelConformidade = montarPainelConformidade(dfd, org);
-
-  /* ---------- Blocos 1 a 8 ---------- */
-  const blocos = [
+function montarSecoesTecnicas(dfd, org) {
+  return [
     secao('1. Identificação', [
       parDuplo(
         campo('Nº do DFD / Expediente', dfd.numero),
@@ -288,10 +531,11 @@ function buildDfdPdfDefinition(dfd, org, logoDataUrl, opts = {}) {
 
     secao('3. Alinhamento ao Plano de Contratações Anual (PCA)', [
       parDuplo(
-        campo('Previsão no PCA',        rotulo('pca', dfd.pcaPrevisto)),
-        campo('Item / Código no PCA',   dfd.pcaItem)
+        campo('Previsão no PCA',      rotulo('pca', dfd.pcaPrevisto)),
+        campo('Item / Código no PCA', dfd.pcaItem)
       ),
-      campo('Justificativa do Alinhamento', dfd.pcaJustificativa, { full: true, bloco: true })
+      campo('Justificativa do Alinhamento', dfd.pcaJustificativa,
+            { full: true, bloco: true })
     ]),
 
     secao('4. Enquadramento Legal', [
@@ -344,82 +588,74 @@ function buildDfdPdfDefinition(dfd, org, logoDataUrl, opts = {}) {
             { full: true, bloco: true })
     ])
   ];
-
-  /* ---------- Bloco de assinaturas (dinâmico) ---------- */
-  const blocoAssinaturas = montarBlocoAprovadores(aprovadores);
-
-  /* ---------- Página exclusiva de autenticação ---------- */
-  const paginaAutenticacao = montarPaginaAutenticacao({
-    tag, hash, geradoEm, versao, org, dfd
-  });
-
-  /* ---------- Documento final ---------- */
-  return {
-    pageSize: 'A4',
-    pageMargins: [50, 60, 50, 70],
-    info: {
-      title:    ('DFD ' + (dfd.numero || '') + ' — ' + ((org && org.nome) || 'LicitaReq')).trim(),
-      author:   (org && org.nome) || 'LicitaReq',
-      subject:  'Documento de Formalização de Demanda — Lei nº 14.133/2021',
-      keywords: 'LicitaReq, DFD, LicitaAudit, ' + tag,
-      creator:  versao
-    },
-    header: function (currentPage) {
-      if (currentPage === 1) return { text: '' };
-      return {
-        margin: [50, 20, 50, 0],
-        columns: [
-          { text: (org && org.nome) || 'LicitaReq', fontSize: 8, color: '#94a3b8' },
-          { text: ('DFD ' + (dfd.numero || '')).trim(),
-            alignment: 'right', fontSize: 8, color: '#94a3b8' }
-        ]
-      };
-    },
-    footer: function (currentPage, pageCount) {
-      return {
-        margin: [50, 20, 50, 0],
-        columns: [
-          { text: 'LicitaReq · Documento Oficial · ' + formatarDataHora(geradoEm),
-            fontSize: 7.5, color: '#94a3b8' },
-          { text: 'Página ' + currentPage + ' de ' + pageCount,
-            alignment: 'right', fontSize: 7.5, color: '#94a3b8' }
-        ]
-      };
-    },
-    content: [
-      cabecalho,
-      linhaDivisoria,
-      titulo,
-      // ⭐ PAINEL DE CONFORMIDADE — topo da página 1
-      painelConformidade,
-      { text: '', margin: [0, 8, 0, 0] },
-      ...blocos,
-      blocoAssinaturas,
-      // 🔒 PÁGINA FINAL EXCLUSIVA — TAG DE AUTENTICAÇÃO
-      paginaAutenticacao
-    ],
-    defaultStyle: { fontSize: 9.5, color: '#0f172a', lineHeight: 1.35 }
-  };
 }
 
 /* ==============================================================
-   APROVADORES — grade 2 colunas com quebra limpa
+   CAMADA 3 — PÁGINA EXCLUSIVA DE APROVAÇÕES
+   (Quebra antes + Quebra depois — página inteira dedicada)
    ============================================================== */
-function montarBlocoAprovadores(aprovadores) {
+function montarPaginaAprovacoes(aprovadores) {
   aprovadores = aprovadores || [];
+
+  const cabeçalhoPagina = {
+    unbreakable: true,
+    stack: [
+      { text: 'APROVAÇÃO E VALIDAÇÃO', fontSize: 15, bold: true,
+        alignment: 'center', color: '#1e1b4b', margin: [0, 0, 0, 6] },
+      { text: 'Lei nº 14.133/2021 · Art. 18, § 1º',
+        fontSize: 9.5, alignment: 'center', color: '#4f46e5',
+        margin: [0, 0, 0, 10] },
+      {
+        canvas: [{
+          type: 'line', x1: 0, y1: 0, x2: 495, y2: 0,
+          lineWidth: 1.2, lineColor: '#4f46e5'
+        }],
+        margin: [0, 0, 0, 14]
+      },
+      {
+        text: 'Os responsáveis abaixo identificados aprovam e validam o presente ' +
+              'Documento de Formalização de Demanda, atestando a veracidade das ' +
+              'informações e a conformidade com a legislação vigente. O documento ' +
+              'deve ser assinado eletronicamente ou de próprio punho, no espaço ' +
+              'reservado para assinatura e/ou carimbo.',
+        fontSize: 9, color: '#334155', lineHeight: 1.55,
+        alignment: 'justify', margin: [0, 0, 0, 22]
+      }
+    ]
+  };
 
   if (!aprovadores.length) {
     return {
-      unbreakable: true,
+      pageBreak: 'before',
       stack: [
-        { text: 'APROVAÇÃO E VALIDAÇÃO', fontSize: 11, bold: true,
-          color: '#1e1b4b', margin: [0, 26, 0, 8] },
-        { text: 'Nenhum aprovador foi informado no momento da geração deste documento.',
-          fontSize: 9, italics: true, color: '#64748b' }
+        cabeçalhoPagina,
+        {
+          table: {
+            widths: ['*'],
+            body: [[{
+              stack: [
+                { text: '⚠', fontSize: 26, alignment: 'center',
+                  color: '#f59e0b', margin: [0, 0, 0, 8] },
+                { text: 'Nenhum aprovador ou validador foi informado',
+                  fontSize: 12, bold: true, alignment: 'center',
+                  color: '#78350f', margin: [0, 0, 0, 6] },
+                { text: 'Preencha o Bloco 7A (Aprovadores e Validadores) no formulário ' +
+                        'do LicitaReq antes de gerar o PDF para que esta página seja ' +
+                        'preenchida com os blocos de assinatura.',
+                  fontSize: 9, alignment: 'center',
+                  color: '#92400e', lineHeight: 1.55 }
+              ],
+              fillColor: '#fef3c7',
+              margin: [20, 20, 20, 20]
+            }]]
+          },
+          layout: 'noBorders'
+        }
       ]
     };
   }
 
+  /* Grade simétrica 2 colunas com blocos de assinatura */
   const linhas = chunk(aprovadores, 2).map(function (par, idx, arr) {
     return {
       columns: [
@@ -428,62 +664,97 @@ function montarBlocoAprovadores(aprovadores) {
           ? { width: '50%', stack: blocoAssinatura(par[1]) }
           : { width: '50%', text: '' }
       ],
-      columnGap: 24,
-      margin: [0, 0, 0, idx === arr.length - 1 ? 0 : 34]
+      columnGap: 30,
+      margin: [0, 0, 0, idx === arr.length - 1 ? 0 : 40]
     };
   });
 
   return {
+    pageBreak: 'before',
     stack: [
+      cabeçalhoPagina,
+      ...linhas,
+      /* Rodapé de fechamento da página */
       {
-        unbreakable: true,
         stack: [
-          { text: 'APROVAÇÃO E VALIDAÇÃO', fontSize: 11, bold: true,
-            color: '#1e1b4b', margin: [0, 26, 0, 4] },
-          { text: 'Assinam eletronicamente ou de próprio punho os responsáveis abaixo identificados.',
-            fontSize: 8.5, color: '#64748b', margin: [0, 0, 0, 22] }
+          {
+            canvas: [{
+              type: 'line', x1: 0, y1: 0, x2: 495, y2: 0,
+              lineWidth: 0.6, lineColor: '#cbd5e1'
+            }],
+            margin: [0, 40, 0, 12]
+          },
+          { text: 'Total de assinaturas nesta página: ' + aprovadores.length,
+            fontSize: 8, italics: true, alignment: 'center',
+            color: '#94a3b8' }
         ]
-      },
-      ...linhas
+      }
     ]
   };
 }
 
 function blocoAssinatura(p) {
   const linhas = [
-    { text: '', margin: [0, 42, 0, 0] },
+    /* Espaço em branco reservado para assinatura física */
+    { text: '', margin: [0, 50, 0, 0] },
+
+    /* Linha de assinatura */
     {
       canvas: [{
         type: 'line', x1: 0, y1: 0, x2: 215, y2: 0,
-        lineWidth: 0.8, lineColor: '#475569'
+        lineWidth: 0.9, lineColor: '#475569',
+        dash: { length: 3, space: 2 }   /* pontilhada p/ assinatura manual */
       }],
       margin: [0, 0, 0, 6]
     },
+
+    /* Rótulo de assinatura */
     { text: 'Assinatura / Carimbo', fontSize: 7.5, italics: true,
-      alignment: 'center', color: '#94a3b8', margin: [0, 0, 0, 8] },
-    { text: p.nome || '—', fontSize: 10.5, bold: true,
+      alignment: 'center', color: '#94a3b8', margin: [0, 0, 0, 10] },
+
+    /* Nome em destaque */
+    { text: p.nome || '—', fontSize: 11, bold: true,
       alignment: 'center', color: '#0f172a' }
   ];
 
   if (p.cargo) linhas.push({
     text: p.cargo, fontSize: 9, alignment: 'center',
-    color: '#334155', margin: [0, 2, 0, 0]
+    color: '#334155', margin: [0, 3, 0, 0]
   });
   if (p.orgao) linhas.push({
     text: p.orgao, fontSize: 8.5, alignment: 'center',
-    color: '#64748b', margin: [0, 1, 0, 0]
+    color: '#64748b', margin: [0, 2, 0, 0]
   });
   if (p.papel) linhas.push({
     text: rotulo('papel', p.papel).toUpperCase(),
     fontSize: 7.5, bold: true, alignment: 'center',
-    color: '#4f46e5', margin: [0, 6, 0, 0]
+    color: '#4f46e5', margin: [0, 8, 0, 0]
   });
 
-  return linhas;
+  /* Moldura suave em cada bloco para simetria visual */
+  return [{
+    table: {
+      widths: ['*'],
+      body: [[{
+        stack: linhas,
+        margin: [12, 8, 12, 12]
+      }]]
+    },
+    layout: {
+      hLineColor: function () { return '#e2e8f0'; },
+      vLineColor: function () { return '#e2e8f0'; },
+      hLineWidth: function () { return 0.4; },
+      vLineWidth: function () { return 0.4; },
+      paddingLeft:   function () { return 0; },
+      paddingRight:  function () { return 0; },
+      paddingTop:    function () { return 0; },
+      paddingBottom: function () { return 0; }
+    }
+  }];
 }
 
 /* ==============================================================
-   PÁGINA EXCLUSIVA DE AUTENTICAÇÃO
+   CAMADA 4 — PÁGINA FINAL EXCLUSIVA DE AUTENTICAÇÃO
    ============================================================== */
 function montarPaginaAutenticacao(ctx) {
   const tag      = ctx.tag;
@@ -497,14 +768,18 @@ function montarPaginaAutenticacao(ctx) {
     pageBreak: 'before',
     stack: [
       { text: '', margin: [0, 30, 0, 0] },
+
       { text: '🔐', fontSize: 44, alignment: 'center', margin: [0, 0, 0, 10] },
+
       { text: 'AUTENTICAÇÃO E RASTREABILIDADE',
         fontSize: 17, bold: true, alignment: 'center',
         color: '#4f46e5', margin: [0, 0, 0, 6] },
+
       { text: 'Documento Oficial LicitaReq · Integração LicitaAudit',
         fontSize: 10, alignment: 'center', color: '#64748b',
         margin: [0, 0, 0, 34] },
 
+      /* TAG principal */
       {
         table: {
           widths: ['*'],
@@ -525,6 +800,7 @@ function montarPaginaAutenticacao(ctx) {
         margin: [0, 0, 0, 26]
       },
 
+      /* Metadados */
       {
         table: {
           widths: ['35%', '*'],
@@ -541,6 +817,7 @@ function montarPaginaAutenticacao(ctx) {
         margin: [0, 0, 0, 26]
       },
 
+      /* Aviso legal */
       {
         table: {
           widths: ['*'],
@@ -564,6 +841,7 @@ function montarPaginaAutenticacao(ctx) {
         margin: [0, 0, 0, 26]
       },
 
+      /* Selo digital */
       {
         table: {
           widths: ['*'],
@@ -613,7 +891,7 @@ function layoutTabelaMeta() {
 }
 
 /* ==============================================================
-   HELPERS DE LAYOUT
+   HELPERS DE LAYOUT E FORMATAÇÃO
    ============================================================== */
 function secao(titulo, corpo) {
   return {
@@ -621,34 +899,27 @@ function secao(titulo, corpo) {
       { text: titulo, fontSize: 11, bold: true, color: '#1e1b4b',
         margin: [0, 12, 0, 10] },
       ...corpo,
-      { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 495, y2: 0,
-                   lineWidth: 0.4, lineColor: '#e2e8f0' }],
-        margin: [0, 10, 0, 4] }
+      {
+        canvas: [{
+          type: 'line', x1: 0, y1: 0, x2: 495, y2: 0,
+          lineWidth: 0.4, lineColor: '#e2e8f0'
+        }],
+        margin: [0, 10, 0, 4]
+      }
     ]
   };
 }
 
-/* --------------------------------------------------------------
-   CAMPO — agora com "Label: Valor" em parágrafos contíguos
-   Sem characterSpacing (preserva leitura regex)
-   -------------------------------------------------------------- */
 function campo(label, valor, options) {
   options = options || {};
   const bloco = options.bloco || false;
   return {
     full: options.full || false,
     stack: [
-      // Label legível: mantém case original (Title Case)
-      { text: label + ':',
-        fontSize: 8,
-        bold: true,
-        color: '#64748b',
-        margin: [0, 0, 0, 2] },
-      // Valor em texto contínuo — o extrator lê "Valor Estimado:\nR$ 165.000,00"
-      { text: valor || '—',
-        fontSize: bloco ? 9 : 9.5,
-        color: '#0f172a',
-        lineHeight: 1.4 }
+      { text: label + ':', fontSize: 8, bold: true,
+        color: '#64748b', margin: [0, 0, 0, 2] },
+      { text: valor || '—', fontSize: bloco ? 9 : 9.5,
+        color: '#0f172a', lineHeight: 1.4 }
     ],
     margin: [0, 0, 0, 10]
   };
@@ -673,9 +944,6 @@ function chunk(arr, size) {
   return out;
 }
 
-/* ==============================================================
-   HELPERS DE FORMATAÇÃO
-   ============================================================== */
 function formatarData(iso) {
   if (!iso) return '—';
   const p = String(iso).split('-');
