@@ -141,7 +141,7 @@ function criarEstadoDFD() {
     unidade: '',
     responsavel: '',
     cargo: '',
-    orgao: 'Universidade de Taubaté (UNITAU)',
+    orgao: '',
     objeto: '',
     justificativa: '',
     quantidades: '',
@@ -1258,18 +1258,18 @@ function gerarDFDPdf() {
     defaultStyle: { font: 'Roboto', fontSize: 9.5, color: '#1e293b', lineHeight: 1.4 },
 
     header: (currentPage) => currentPage === 1 ? {
-      margin: [40, 20, 40, 0],
-      columns: [
-        { text: 'UNIVERSIDADE DE TAUBATÉ — SISTEMA LICITAREQ', fontSize: 8, bold: true, color: '#4338ca' },
-        { text: 'DFD OFICIAL · Lei nº 14.133/2021', fontSize: 8, color: '#64748b', alignment: 'right' }
-      ]
-    } : {
-      margin: [40, 20, 40, 0],
-      columns: [
-        { text: `DFD ${numeroDFD}`, fontSize: 8, color: '#94a3b8' },
-        { text: 'UNITAU · LicitaReq', fontSize: 8, color: '#94a3b8', alignment: 'right' }
-      ]
-    },
+  margin: [40, 20, 40, 0],
+  columns: [
+    { text: 'SISTEMA LICITAREQ · DFD OFICIAL', fontSize: 8, bold: true, color: '#4338ca' },
+    { text: 'Lei nº 14.133/2021', fontSize: 8, color: '#64748b', alignment: 'right' }
+  ]
+} : {
+  margin: [40, 20, 40, 0],
+  columns: [
+    { text: `DFD ${numeroDFD}`, fontSize: 8, color: '#94a3b8' },
+    { text: dfd.orgao || 'LicitaReq', fontSize: 8, color: '#94a3b8', alignment: 'right' }
+  ]
+},
     footer: (currentPage, pageCount) => ({
       margin: [40, 20, 40, 0],
       columns: [
