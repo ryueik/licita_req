@@ -30,50 +30,115 @@
       <div class="brand__mark" aria-hidden="true">LR</div>
       <div class="brand__text">
         <h1 class="brand__title">LicitaReq</h1>
-        <p class="brand__subtitle">
+        <p class="brand__subtitle" id="brandSubtitle">
           Analisador e Triador de Requisitantes de Contratação Pública
         </p>
       </div>
     </div>
 
-    <button
-    id="btnConfigOrg"
-    class="btn btn--ghost btn--icon"
-    type="button"
-    aria-label="Configurar órgão"
-    title="Configurar órgão"
-  >
-    ⚙️ <span class="theme-label">Órgão</span>
-  </button>
+    <div class="header-actions">
+      <span class="chip chip--law" title="Base legal do motor de triagem">
+        <span aria-hidden="true">⚖</span>
+        <span class="chip__label">Lei nº 14.133/2021</span>
+      </span>
 
-  <button
-    id="themeToggle"
-    class="btn btn--ghost btn--icon"
-    type="button"
-    aria-pressed="true"
-    aria-label="Alternar para o tema claro"
-  >
-    <span class="theme-icon" aria-hidden="true">☀️</span>
-    <span class="theme-label">Modo claro</span>
-  </button>
-</div>
+      <button
+        id="btnConfigOrg"
+        class="btn btn--ghost btn--icon"
+        type="button"
+        aria-label="Configurar órgão"
+        title="Configurar dados do órgão"
+      >
+        <span aria-hidden="true">⚙️</span>
+        <span class="btn__label">Órgão</span>
+      </button>
+
+      <button
+        id="themeToggle"
+        class="btn btn--ghost btn--icon"
+        type="button"
+        aria-pressed="true"
+        aria-label="Alternar para o tema claro"
+      >
+        <span class="theme-icon" aria-hidden="true">☀️</span>
+        <span class="theme-label">Modo claro</span>
+      </button>
     </div>
   </header>
 
   <!-- ============================= MAIN ============================= -->
-  <main id="conteudo" class="workspace" role="main">
+  <main id="conteudo" class="main-content" role="main">
 
-    <!-- ============ DFD INTELIGENTE (MÓDULO REQUISITANTE) ============ -->
+    <!-- ============ GUIA RÁPIDO ============ -->
+    <section class="guide" aria-labelledby="guideTitle">
+      <header class="guide__head">
+        <h2 id="guideTitle" class="guide__title">
+          👋 Bem-vindo ao LicitaReq
+        </h2>
+        <p class="guide__subtitle">
+          Escolha um dos caminhos abaixo para começar. Todo o trabalho é salvo automaticamente.
+        </p>
+      </header>
+
+      <div class="guide__grid">
+        <article class="guide-card guide-card--primary">
+          <span class="guide-card__badge">Recomendado</span>
+          <div class="guide-card__icon" aria-hidden="true">📝</div>
+          <h3 class="guide-card__title">Criar o DFD oficial</h3>
+          <p class="guide-card__text">
+            Preencha os 8 blocos do formulário abaixo. O sistema mostra em tempo real
+            o que ainda falta. Ao final, gere o PDF pronto para auditoria.
+          </p>
+          <ol class="guide-card__steps">
+            <li>Preencha o formulário</li>
+            <li>Gere o PDF do DFD</li>
+            <li>Envie ao LicitaAudit</li>
+          </ol>
+        </article>
+
+        <article class="guide-card">
+          <div class="guide-card__icon" aria-hidden="true">🔍</div>
+          <h3 class="guide-card__title">Analisar uma solicitação pronta</h3>
+          <p class="guide-card__text">
+            Já tem um ofício, e-mail ou memorando? Cole o texto ou anexe o arquivo
+            e receba o enquadramento jurídico com pendências destacadas.
+          </p>
+          <ol class="guide-card__steps">
+            <li>Cole ou anexe o texto</li>
+            <li>Clique em Analisar</li>
+            <li>Veja o parecer técnico</li>
+          </ol>
+        </article>
+
+        <article class="guide-card">
+          <div class="guide-card__icon" aria-hidden="true">⚙️</div>
+          <h3 class="guide-card__title">Configurar o órgão</h3>
+          <p class="guide-card__text">
+            Antes de gerar PDFs, cadastre os dados do seu órgão. Eles aparecem
+            automaticamente em todos os documentos.
+          </p>
+          <ol class="guide-card__steps">
+            <li>Clique em "⚙️ Órgão"</li>
+            <li>Preencha os campos</li>
+            <li>Salve a configuração</li>
+          </ol>
+        </article>
+      </div>
+    </section>
+
+    <!-- ============ DFD (MÓDULO REQUISITANTE) ============ -->
     <section class="panel panel--dfd" aria-labelledby="titulo-dfd">
       <header class="panel__head">
-        <h2 id="titulo-dfd" class="panel__title">
-          <span class="step" aria-hidden="true">★</span>
-          Documento de Formalização de Demanda (DFD)
-        </h2>
-        <p class="panel__hint">
-          Preencha os dados abaixo para gerar o <strong>DFD oficial</strong> em PDF
-          rotulado para importação automática no <strong>LicitaAudit</strong>.
-        </p>
+        <div class="panel__head-icon" aria-hidden="true">📋</div>
+        <div class="panel__head-text">
+          <h2 id="titulo-dfd" class="panel__title">
+            Documento de Formalização de Demanda (DFD)
+          </h2>
+          <p class="panel__hint">
+            Preencha os campos abaixo. O indicador de prontidão mostra, em tempo real,
+            o quanto o documento já está aderente à Lei nº 14.133/2021.
+          </p>
+        </div>
       </header>
 
       <!-- Painel de Prontidão -->
@@ -82,7 +147,15 @@
           <span class="prontidao__label">Prontidão da Demanda</span>
           <span class="prontidao__value" id="prontidaoValor">0%</span>
         </div>
-        <div class="prontidao__bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="prontidaoBar" aria-label="Prontidão da demanda">
+        <div
+          class="prontidao__bar"
+          role="progressbar"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          aria-valuenow="0"
+          id="prontidaoBar"
+          aria-label="Prontidão da demanda"
+        >
           <div class="prontidao__fill" id="prontidaoFill" style="width:0%"></div>
         </div>
         <p class="prontidao__hint" id="prontidaoHint">
@@ -92,38 +165,51 @@
 
       <!-- Bloco 1: Identificação -->
       <fieldset class="dfd-fieldset">
-        <legend class="dfd-legend">1. Identificação</legend>
+        <legend class="dfd-legend">
+          <span class="dfd-legend__num">1</span>
+          <span class="dfd-legend__text">Identificação</span>
+        </legend>
+
         <div class="grid grid--2">
           <div class="field">
             <label class="field__label" for="dfdNumero">Nº do DFD / Expediente</label>
             <input id="dfdNumero" class="input" type="text" placeholder="Ex.: DFD 042/2026" />
           </div>
+
           <div class="field">
             <label class="field__label" for="dfdData">Data da formalização</label>
             <input id="dfdData" class="input" type="date" />
           </div>
+
           <div class="field">
             <label class="field__label" for="dfdUnidade">Unidade requisitante</label>
             <input id="dfdUnidade" class="input" type="text" placeholder="Ex.: Diretoria de Tecnologia da Informação" />
           </div>
+
           <div class="field">
             <label class="field__label" for="dfdResponsavel">Responsável pela demanda</label>
             <input id="dfdResponsavel" class="input" type="text" placeholder="Ex.: Maria Souza" />
           </div>
+
           <div class="field">
             <label class="field__label" for="dfdCargo">Cargo / Função</label>
             <input id="dfdCargo" class="input" type="text" placeholder="Ex.: Diretora de TI" />
           </div>
+
           <div class="field">
-  <label class="field__label" for="dfdOrgao">Órgão / Entidade</label>
-  <input id="dfdOrgao" class="input" type="text" placeholder="Ex.: Prefeitura Municipal, Universidade, Tribunal…" />
-</div>
+            <label class="field__label" for="dfdOrgao">Órgão / Entidade</label>
+            <input id="dfdOrgao" class="input" type="text" placeholder="Ex.: Prefeitura Municipal, Universidade, Tribunal…" />
+          </div>
         </div>
       </fieldset>
 
       <!-- Bloco 2: Objeto e Justificativa -->
       <fieldset class="dfd-fieldset">
-        <legend class="dfd-legend">2. Objeto e Justificativa (Art. 18, §1º, I e II)</legend>
+        <legend class="dfd-legend">
+          <span class="dfd-legend__num">2</span>
+          <span class="dfd-legend__text">Objeto e Justificativa</span>
+          <span class="dfd-legend__law">Art. 18, §1º, I e II</span>
+        </legend>
 
         <div class="field">
           <label class="field__label" for="dfdObjeto">Descrição resumida do objeto</label>
@@ -151,7 +237,12 @@
 
       <!-- Bloco 3: PCA -->
       <fieldset class="dfd-fieldset">
-        <legend class="dfd-legend">3. Alinhamento ao Plano de Contratações Anual — PCA (Art. 12, VII)</legend>
+        <legend class="dfd-legend">
+          <span class="dfd-legend__num">3</span>
+          <span class="dfd-legend__text">Alinhamento ao PCA</span>
+          <span class="dfd-legend__law">Art. 12, VII</span>
+        </legend>
+
         <div class="grid grid--2">
           <div class="field">
             <label class="field__label" for="dfdPcaPrevisto">Previsto no PCA?</label>
@@ -162,11 +253,13 @@
               <option value="revisao">Sim — em revisão do PCA</option>
             </select>
           </div>
+
           <div class="field">
             <label class="field__label" for="dfdPcaItem">Item / Código no PCA</label>
             <input id="dfdPcaItem" class="input" type="text" placeholder="Ex.: PCA-2026-ITEM-042" />
           </div>
         </div>
+
         <div class="field">
           <label class="field__label" for="dfdPcaJustificativa">Justificativa do alinhamento (opcional)</label>
           <textarea id="dfdPcaJustificativa" class="textarea" rows="3" placeholder="Caso não esteja prevista, justifique a inclusão extraordinária ou o alinhamento com as diretrizes do PCA…"></textarea>
@@ -175,7 +268,12 @@
 
       <!-- Bloco 4: Enquadramento -->
       <fieldset class="dfd-fieldset">
-        <legend class="dfd-legend">4. Enquadramento Legal (Arts. 28, 6º e 33)</legend>
+        <legend class="dfd-legend">
+          <span class="dfd-legend__num">4</span>
+          <span class="dfd-legend__text">Enquadramento Legal</span>
+          <span class="dfd-legend__law">Arts. 28, 6º e 33</span>
+        </legend>
+
         <div class="grid grid--2">
           <div class="field">
             <label class="field__label" for="dfdModalidade">Modalidade pretendida (Art. 28)</label>
@@ -190,6 +288,7 @@
               <option value="inexigibilidade">Inexigibilidade (Art. 74)</option>
             </select>
           </div>
+
           <div class="field">
             <label class="field__label" for="dfdNatureza">Natureza do objeto (Art. 6º)</label>
             <select id="dfdNatureza" class="input">
@@ -202,6 +301,7 @@
               <option value="alienacao">Alienação de bens / Concessão</option>
             </select>
           </div>
+
           <div class="field">
             <label class="field__label" for="dfdCriterio">Critério de julgamento (Art. 33)</label>
             <select id="dfdCriterio" class="input">
@@ -214,6 +314,7 @@
               <option value="maior-retorno">Maior retorno econômico</option>
             </select>
           </div>
+
           <div class="field">
             <label class="field__label" for="dfdRegime">Regime de execução (obras — Art. 46)</label>
             <select id="dfdRegime" class="input">
@@ -229,12 +330,18 @@
 
       <!-- Bloco 5: Orçamento -->
       <fieldset class="dfd-fieldset">
-        <legend class="dfd-legend">5. Estimativa Orçamentária (Arts. 23 e 150)</legend>
+        <legend class="dfd-legend">
+          <span class="dfd-legend__num">5</span>
+          <span class="dfd-legend__text">Estimativa Orçamentária</span>
+          <span class="dfd-legend__law">Arts. 23 e 150</span>
+        </legend>
+
         <div class="grid grid--2">
           <div class="field">
             <label class="field__label" for="dfdValor">Valor estimado (R$)</label>
             <input id="dfdValor" class="input" type="text" inputmode="decimal" placeholder="Ex.: 165.000,00" />
           </div>
+
           <div class="field">
             <label class="field__label" for="dfdMetodo">Método de estimativa</label>
             <select id="dfdMetodo" class="input">
@@ -246,10 +353,12 @@
               <option value="midia">Mídia especializada / sítios</option>
             </select>
           </div>
+
           <div class="field">
             <label class="field__label" for="dfdDotacao">Dotação orçamentária</label>
             <input id="dfdDotacao" class="input" type="text" placeholder="Ex.: PT 12.345.6789.0001 — ND 33.90.30" />
           </div>
+
           <div class="field">
             <label class="field__label" for="dfdFonte">Fonte de recurso</label>
             <input id="dfdFonte" class="input" type="text" placeholder="Ex.: 01 — Tesouro / 250 — Convênio" />
@@ -259,7 +368,12 @@
 
       <!-- Bloco 6: Parcelamento / Entrega -->
       <fieldset class="dfd-fieldset">
-        <legend class="dfd-legend">6. Parcelamento, Prazo e Entrega (Art. 47)</legend>
+        <legend class="dfd-legend">
+          <span class="dfd-legend__num">6</span>
+          <span class="dfd-legend__text">Parcelamento, Prazo e Entrega</span>
+          <span class="dfd-legend__law">Art. 47</span>
+        </legend>
+
         <div class="grid grid--2">
           <div class="field">
             <label class="field__label" for="dfdParcelamento">Decisão de parcelamento</label>
@@ -270,14 +384,17 @@
               <option value="lote-unico">Lote único (compatibilidade técnica)</option>
             </select>
           </div>
+
           <div class="field">
             <label class="field__label" for="dfdPrazo">Prazo de execução / vigência</label>
             <input id="dfdPrazo" class="input" type="text" placeholder="Ex.: 12 meses, contados da assinatura" />
           </div>
+
           <div class="field">
             <label class="field__label" for="dfdLocal">Local de entrega / prestação</label>
-            <input id="dfdLocal" class="input" type="text" placeholder="Ex.: Almoxarifado Central — Campus UNITAU" />
+            <input id="dfdLocal" class="input" type="text" placeholder="Ex.: Almoxarifado Central" />
           </div>
+
           <div class="field">
             <label class="field__label" for="dfdPagamento">Condições de pagamento</label>
             <select id="dfdPagamento" class="input">
@@ -292,20 +409,28 @@
 
       <!-- Bloco 7: Fiscalização -->
       <fieldset class="dfd-fieldset">
-        <legend class="dfd-legend">7. Fiscalização e Gestão Contratual (Art. 117)</legend>
+        <legend class="dfd-legend">
+          <span class="dfd-legend__num">7</span>
+          <span class="dfd-legend__text">Fiscalização e Gestão Contratual</span>
+          <span class="dfd-legend__law">Art. 117</span>
+        </legend>
+
         <div class="grid grid--2">
           <div class="field">
             <label class="field__label" for="dfdFiscalTitular">Fiscal titular</label>
             <input id="dfdFiscalTitular" class="input" type="text" placeholder="Ex.: João Silva — matrícula 12345" />
           </div>
+
           <div class="field">
             <label class="field__label" for="dfdFiscalSubstituto">Fiscal substituto</label>
             <input id="dfdFiscalSubstituto" class="input" type="text" placeholder="Ex.: Ana Souza — matrícula 67890" />
           </div>
+
           <div class="field">
             <label class="field__label" for="dfdGestor">Gestor do contrato</label>
             <input id="dfdGestor" class="input" type="text" placeholder="Ex.: Carlos Pereira — Divisão de Contratos" />
           </div>
+
           <div class="field">
             <label class="field__label" for="dfdVistoria">Vistoria técnica</label>
             <select id="dfdVistoria" class="input">
@@ -320,279 +445,328 @@
 
       <!-- Bloco 8: Observações -->
       <fieldset class="dfd-fieldset">
-        <legend class="dfd-legend">8. Observações Complementares</legend>
+        <legend class="dfd-legend">
+          <span class="dfd-legend__num">8</span>
+          <span class="dfd-legend__text">Observações Complementares</span>
+          <span class="dfd-legend__badge">Opcional</span>
+        </legend>
+
         <div class="field">
-          <label class="field__label" for="dfdObservacoes">Observações adicionais (opcional)</label>
+          <label class="field__label" for="dfdObservacoes">Observações adicionais</label>
           <textarea id="dfdObservacoes" class="textarea" rows="3" placeholder="Informações complementares relevantes para instrução do DFD…"></textarea>
         </div>
       </fieldset>
 
       <!-- Ações DFD -->
-      <div class="actions" role="group" aria-label="Ações do DFD">
+      <div class="actions actions--sticky" role="group" aria-label="Ações do DFD">
         <button id="btnDfdGerarPDF" class="btn btn--secondary" type="button">
-          📄 Gerar DFD em PDF (rotulado LicitaReq)
+          📄 Gerar DFD em PDF
         </button>
         <button id="btnDfdSalvarJSON" class="btn btn--primary" type="button">
           💾 Salvar DFD em JSON
         </button>
         <button id="btnDfdCarregarExemplo" class="btn btn--ghost" type="button">
-          Carregar exemplo
+          📋 Carregar exemplo
         </button>
         <button id="btnDfdLimpar" class="btn btn--ghost" type="button">
-          Limpar DFD
+          🗑 Limpar DFD
         </button>
       </div>
 
       <p class="dfd-tagline">
-        🏷️ <strong>Tag de autenticação:</strong>
-        <code>PREFIRO_TAG: LicitaReq_Documento_Oficial</code> — o PDF gerado é
-        reconhecido automaticamente pelo módulo de auditoria do <strong>LicitaAudit</strong>.
+        🏷️ <strong>Documento apto para auditoria.</strong> O PDF gerado contém a tag
+        <code>PREFIRO_TAG: LicitaReq_Documento_Oficial</code> e é reconhecido
+        automaticamente pelo <strong>LicitaAudit</strong>.
       </p>
     </section>
 
-    <!-- ------------------------- ENTRADA (TRIAGEM) ------------------------- -->
-    <section class="panel panel--input" aria-labelledby="titulo-entrada">
-      <header class="panel__head">
-        <h2 id="titulo-entrada" class="panel__title">
-          <span class="step" aria-hidden="true">1</span>
-          Entrada da solicitação (Triagem)
-        </h2>
-        <p class="panel__hint">
-          Envie o Ofício/e-mail do setor requisitante ou cole o texto diretamente no campo abaixo.
-        </p>
-      </header>
+    <!-- ============ WORKSPACE: TRIAGEM + DASHBOARD ============ -->
+    <div class="workspace-grid">
 
-      <div
-        id="dropzone"
-        class="dropzone"
-        tabindex="0"
-        role="button"
-        aria-describedby="dropzone-hint"
-        aria-label="Área de envio de arquivos. Pressione Enter ou Espaço para selecionar arquivos do computador."
-      >
-        <input
-          type="file"
-          id="fileInput"
-          class="sr-only"
-          accept=".pdf,.doc,.docx,.txt,.md,text/plain"
-          multiple
-          aria-hidden="true"
-          tabindex="-1"
-        />
-        <div class="dropzone__icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-            <polyline points="17 8 12 3 7 8" />
-            <line x1="12" y1="3" x2="12" y2="15" />
-          </svg>
+      <!-- TRIAGEM -->
+      <section class="panel panel--input" aria-labelledby="titulo-entrada">
+        <header class="panel__head">
+          <div class="panel__head-icon" aria-hidden="true">🔍</div>
+          <div class="panel__head-text">
+            <h2 id="titulo-entrada" class="panel__title">
+              Triagem de Solicitação
+            </h2>
+            <p class="panel__hint">
+              Tem um ofício, e-mail ou documento em mãos? Anexe o arquivo ou cole
+              o texto para receber o enquadramento jurídico preliminar.
+            </p>
+          </div>
+        </header>
+
+        <div
+          id="dropzone"
+          class="dropzone"
+          tabindex="0"
+          role="button"
+          aria-describedby="dropzone-hint"
+          aria-label="Área de envio de arquivos. Pressione Enter ou Espaço para selecionar arquivos do computador."
+        >
+          <input
+            type="file"
+            id="fileInput"
+            class="sr-only"
+            accept=".pdf,.doc,.docx,.txt,.md,text/plain"
+            multiple
+            aria-hidden="true"
+            tabindex="-1"
+          />
+          <div class="dropzone__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="17 8 12 3 7 8" />
+              <line x1="12" y1="3" x2="12" y2="15" />
+            </svg>
+          </div>
+          <p class="dropzone__title">
+            Arraste arquivos aqui ou <span class="link">clique para selecionar</span>
+          </p>
+          <p id="dropzone-hint" class="dropzone__hint">
+            Formatos aceitos: PDF, DOCX, DOC e TXT · até 10 MB por arquivo
+          </p>
         </div>
-        <p class="dropzone__title">
-          Arraste os arquivos aqui ou <span class="link">selecione do computador</span>
-        </p>
-        <p id="dropzone-hint" class="dropzone__hint">
-          Formatos aceitos: PDF, DOCX, DOC e TXT &middot; até 10&nbsp;MB por arquivo
-        </p>
-      </div>
 
-      <ul id="fileList" class="filelist" aria-live="polite" aria-label="Arquivos anexados"></ul>
+        <ul id="fileList" class="filelist" aria-live="polite" aria-label="Arquivos anexados"></ul>
 
-      <div class="divider" role="separator"><span>ou cole o texto</span></div>
+        <div class="divider" role="separator"><span>ou cole o texto</span></div>
 
-      <div class="field">
-        <label class="field__label" for="texto">Texto da solicitação</label>
-        <textarea
-          id="texto"
-          class="textarea"
-          rows="10"
-          placeholder="Cole aqui o e-mail, ofício, DFD ou documento de formalização da demanda enviado pela unidade requisitante…"
-          aria-describedby="charCount"
-        ></textarea>
-        <div class="counter" aria-live="off">
-          <span id="charCount">0</span> caracteres
-        </div>
-      </div>
-
-      <details class="accordion" open>
-        <summary class="accordion__summary" aria-expanded="true">
-          <span class="step step--sm" aria-hidden="true">2</span>
-          <span>Dados complementares</span>
-          <span class="accordion__hint">(opcional — melhora a precisão)</span>
-        </summary>
-
-        <div class="accordion__body grid grid--2">
-          <div class="field">
-            <label class="field__label" for="unidade">Unidade requisitante</label>
-            <input id="unidade" class="input" type="text" placeholder="Ex.: Coordenação de TI" autocomplete="organization" />
-          </div>
-          <div class="field">
-            <label class="field__label" for="processo">Nº do processo</label>
-            <input id="processo" class="input" type="text" placeholder="Ex.: 00000.000123/2025-10" />
-          </div>
-          <div class="field">
-            <label class="field__label" for="natureza">Natureza do objeto</label>
-            <select id="natureza" class="input">
-              <option value="auto">Detectar automaticamente</option>
-              <option value="bens">Aquisição de bens</option>
-              <option value="servicos">Serviços comuns</option>
-              <option value="obra">Obras e serviços de engenharia</option>
-              <option value="tecnicos">Serviços técnicos especializados</option>
-              <option value="tic">Tecnologia da Informação e Comunicação (TIC)</option>
-            </select>
-          </div>
-          <div class="field">
-            <label class="field__label" for="valor">Valor estimado (R$)</label>
-            <input id="valor" class="input" type="text" inputmode="decimal" placeholder="Ex.: 165.000,00" />
-          </div>
-          <div class="field">
-            <label class="field__label" for="orgao">Órgão / Entidade</label>
-            <input id="orgao" class="input" type="text" placeholder="Ex.: Prefeitura Municipal de…" autocomplete="organization" />
-          </div>
-          <div class="field">
-            <label class="field__label" for="responsavel">Responsável pela triagem</label>
-            <input id="responsavel" class="input" type="text" placeholder="Ex.: Maria Souza" autocomplete="name" />
-          </div>
-          <div class="field">
-            <label class="field__label" for="cargo">Cargo / Função</label>
-            <input id="cargo" class="input" type="text" placeholder="Ex.: Chefe da Divisão de Licitações" autocomplete="organization-title" />
+        <div class="field">
+          <label class="field__label" for="texto">Texto da solicitação</label>
+          <textarea
+            id="texto"
+            class="textarea"
+            rows="8"
+            placeholder="Cole aqui o e-mail, ofício, DFD ou documento de formalização da demanda enviado pela unidade requisitante…"
+            aria-describedby="charCount"
+          ></textarea>
+          <div class="counter" aria-live="off">
+            <span id="charCount">0</span> caracteres
           </div>
         </div>
-      </details>
 
-      <div class="actions" role="group" aria-label="Ações da análise">
-        <button id="btnAnalisar" class="btn btn--primary" type="button" aria-label="Analisar a solicitação de contratação">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <circle cx="11" cy="11" r="7" />
-            <line x1="21" y1="21" x2="16.65" y2="16.65" />
-          </svg>
-          Analisar solicitação
-        </button>
-        <button id="btnExemplo" class="btn btn--ghost" type="button">Carregar exemplo</button>
-        <button id="btnLimpar" class="btn btn--ghost" type="button">Limpar</button>
-      </div>
-    </section>
+        <details class="accordion">
+          <summary class="accordion__summary" aria-expanded="false">
+            <span class="accordion__icon" aria-hidden="true">🎯</span>
+            <span class="accordion__title">Dados complementares</span>
+            <span class="accordion__hint">(opcional — melhora a precisão da análise)</span>
+          </summary>
 
-    <!-- ------------------------- DASHBOARD ------------------------- -->
-    <section class="panel panel--result" aria-labelledby="titulo-resultado" role="region">
-      <header class="panel__head">
-        <h2 id="titulo-resultado" class="panel__title">
-          <span class="step" aria-hidden="true">3</span>
-          Dashboard de triagem
-        </h2>
-        <p class="panel__hint">
-          Resultado do enquadramento legal, motivação jurídica, inconformidades e minuta de devolutiva.
-        </p>
-      </header>
+          <div class="accordion__body grid grid--2">
+            <div class="field">
+              <label class="field__label" for="unidade">Unidade requisitante</label>
+              <input id="unidade" class="input" type="text" placeholder="Ex.: Coordenação de TI" />
+            </div>
 
-      <div id="emptyState" class="empty-state" role="status" aria-live="polite">
-        <div class="empty-state__icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" width="42" height="42" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-            <polyline points="14 2 14 8 20 8" />
-            <line x1="9" y1="13" x2="15" y2="13" />
-            <line x1="9" y1="17" x2="13" y2="17" />
-          </svg>
+            <div class="field">
+              <label class="field__label" for="processo">Nº do processo</label>
+              <input id="processo" class="input" type="text" placeholder="Ex.: 00000.000123/2025-10" />
+            </div>
+
+            <div class="field">
+              <label class="field__label" for="natureza">Natureza do objeto</label>
+              <select id="natureza" class="input">
+                <option value="auto">Detectar automaticamente</option>
+                <option value="bens">Aquisição de bens</option>
+                <option value="servicos">Serviços comuns</option>
+                <option value="obra">Obras e serviços de engenharia</option>
+                <option value="tecnicos">Serviços técnicos especializados</option>
+                <option value="tic">Tecnologia da Informação e Comunicação (TIC)</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label class="field__label" for="valor">Valor estimado (R$)</label>
+              <input id="valor" class="input" type="text" inputmode="decimal" placeholder="Ex.: 165.000,00" />
+            </div>
+
+            <div class="field">
+              <label class="field__label" for="orgao">Órgão / Entidade</label>
+              <input id="orgao" class="input" type="text" placeholder="Ex.: Prefeitura Municipal de…" />
+            </div>
+
+            <div class="field">
+              <label class="field__label" for="responsavel">Responsável pela triagem</label>
+              <input id="responsavel" class="input" type="text" placeholder="Ex.: Maria Souza" />
+            </div>
+
+            <div class="field">
+              <label class="field__label" for="cargo">Cargo / Função</label>
+              <input id="cargo" class="input" type="text" placeholder="Ex.: Chefe da Divisão de Licitações" />
+            </div>
+          </div>
+        </details>
+
+        <div class="actions" role="group" aria-label="Ações da análise">
+          <button id="btnAnalisar" class="btn btn--primary" type="button">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="11" cy="11" r="7" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+            Analisar solicitação
+          </button>
+          <button id="btnExemplo" class="btn btn--ghost" type="button">
+            📋 Carregar exemplo
+          </button>
+          <button id="btnLimpar" class="btn btn--ghost" type="button">
+            🗑 Limpar
+          </button>
         </div>
-        <p class="empty-state__title">Nenhuma análise realizada</p>
-        <p class="empty-state__text">
-          Insira o texto ou os arquivos da solicitação e clique em
-          <strong>Analisar solicitação</strong> para gerar o enquadramento,
-          a motivação jurídica, as pendências e a minuta de resposta oficial.
-        </p>
+      </section>
+
+      <!-- DASHBOARD -->
+      <section class="panel panel--result" aria-labelledby="titulo-resultado" role="region">
+        <header class="panel__head">
+          <div class="panel__head-icon" aria-hidden="true">📊</div>
+          <div class="panel__head-text">
+            <h2 id="titulo-resultado" class="panel__title">
+              Dashboard de Triagem
+            </h2>
+            <p class="panel__hint">
+              Enquadramento legal, motivação jurídica, inconformidades e minuta de
+              devolutiva oficial.
+            </p>
+          </div>
+        </header>
+
+        <div id="emptyState" class="empty-state" role="status" aria-live="polite">
+          <div class="empty-state__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="42" height="42" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+              <line x1="9" y1="13" x2="15" y2="13" />
+              <line x1="9" y1="17" x2="13" y2="17" />
+            </svg>
+          </div>
+          <p class="empty-state__title">Nenhuma análise realizada</p>
+          <p class="empty-state__text">
+            Preencha o formulário à esquerda e clique em
+            <strong>Analisar solicitação</strong> para gerar o enquadramento.
+          </p>
+        </div>
+
+        <article
+          id="resultado"
+          class="result"
+          role="region"
+          aria-live="polite"
+          aria-atomic="false"
+          aria-labelledby="titulo-resultado"
+          aria-describedby="resultado-status"
+          hidden
+        ></article>
+
+        <p id="resultado-status" class="sr-only" aria-live="polite" aria-atomic="true"></p>
+      </section>
+    </div>
+
+    <!-- ============ FOOTER INLINE ============ -->
+    <footer class="app-footer" role="contentinfo">
+      <div class="app-footer__grid">
+        <div class="app-footer__col">
+          <h4 class="app-footer__title">LicitaReq</h4>
+          <p class="app-footer__text">
+            Ferramenta de apoio à triagem de demandas de contratação pública.
+            Motor de regras baseado na <strong>Lei nº 14.133/2021</strong>.
+          </p>
+        </div>
+
+        <div class="app-footer__col">
+          <h4 class="app-footer__title">Aviso Importante</h4>
+          <p class="app-footer__text">
+            ⚠️ O resultado é um subsídio técnico automatizado e
+            <strong>não substitui</strong> o parecer da assessoria jurídica, do
+            controle interno ou da autoridade competente.
+          </p>
+        </div>
+
+        <div class="app-footer__col">
+          <h4 class="app-footer__title">Integração</h4>
+          <p class="app-footer__text">
+            Os PDFs gerados possuem a tag
+            <code>LicitaReq_Documento_Oficial</code> e são reconhecidos
+            automaticamente pelo <strong>LicitaAudit</strong>.
+          </p>
+        </div>
       </div>
 
-      <article
-        id="resultado"
-        class="result"
-        role="region"
-        aria-live="polite"
-        aria-atomic="false"
-        aria-labelledby="titulo-resultado"
-        aria-describedby="resultado-status"
-        hidden
-      ></article>
-
-      <p id="resultado-status" class="sr-only" aria-live="polite" aria-atomic="true"></p>
-    </section>
+      <p class="app-footer__bottom">
+        LicitaReq © 2026 · Todos os direitos reservados
+      </p>
+    </footer>
   </main>
 
-  <!-- Modal de Configuração do Órgão -->
-<div id="modalConfigOrg" class="modal is-hidden" role="dialog" aria-modal="true" aria-labelledby="modalConfigOrgTitulo">
-  <div class="modal__overlay" data-close-config-org></div>
-  <div class="modal__box modal__box--wide">
-    <header class="modal__head">
-      <h3 id="modalConfigOrgTitulo">⚙️ Configuração do Órgão</h3>
-      <button class="modal__close" type="button" data-close-config-org aria-label="Fechar">&times;</button>
-    </header>
-    <div class="modal__body">
-      <p style="font-size:.88rem;color:var(--text-soft);margin-bottom:20px;">
-        Estes dados aparecem nos PDFs gerados pelo sistema. Configure uma vez
-        e o LicitaReq utilizará automaticamente em todos os documentos.
-      </p>
+  <!-- ============ MODAL: CONFIGURAÇÃO DO ÓRGÃO ============ -->
+  <div id="modalConfigOrg" class="modal is-hidden" role="dialog" aria-modal="true" aria-labelledby="modalConfigOrgTitulo">
+    <div class="modal__overlay" data-close-config-org></div>
+    <div class="modal__box modal__box--wide">
+      <header class="modal__head">
+        <h3 id="modalConfigOrgTitulo">⚙️ Configuração do Órgão</h3>
+        <button class="modal__close" type="button" data-close-config-org aria-label="Fechar">&times;</button>
+      </header>
+      <div class="modal__body">
+        <p class="modal__intro">
+          Estes dados aparecem nos PDFs gerados pelo sistema. Configure uma vez
+          e o LicitaReq utilizará automaticamente em todos os documentos.
+        </p>
 
-      <div class="grid grid--2">
-        <div class="field">
-          <label class="field__label" for="orgNome">Nome completo do órgão</label>
-          <input id="orgNome" class="input" type="text" placeholder="Ex.: Prefeitura Municipal de..." />
+        <div class="grid grid--2">
+          <div class="field">
+            <label class="field__label" for="orgNome">Nome completo do órgão</label>
+            <input id="orgNome" class="input" type="text" placeholder="Ex.: Prefeitura Municipal de..." />
+          </div>
+          <div class="field">
+            <label class="field__label" for="orgSigla">Sigla</label>
+            <input id="orgSigla" class="input" type="text" placeholder="Ex.: PMT, TRT-15" />
+          </div>
+          <div class="field">
+            <label class="field__label" for="orgCnpj">CNPJ</label>
+            <input id="orgCnpj" class="input" type="text" placeholder="00.000.000/0000-00" />
+          </div>
+          <div class="field">
+            <label class="field__label" for="orgUf">UF</label>
+            <input id="orgUf" class="input" type="text" maxlength="2" placeholder="SP" />
+          </div>
+          <div class="field">
+            <label class="field__label" for="orgCidade">Cidade</label>
+            <input id="orgCidade" class="input" type="text" placeholder="Ex.: São Paulo" />
+          </div>
+          <div class="field">
+            <label class="field__label" for="orgEndereco">Endereço</label>
+            <input id="orgEndereco" class="input" type="text" placeholder="Ex.: Rua das Flores, 100" />
+          </div>
+          <div class="field">
+            <label class="field__label" for="orgUnidadePadrao">Unidade requisitante padrão</label>
+            <input id="orgUnidadePadrao" class="input" type="text" placeholder="Ex.: Diretoria de Tecnologia da Informação" />
+          </div>
+          <div class="field">
+            <label class="field__label" for="orgResponsavelPadrao">Responsável padrão</label>
+            <input id="orgResponsavelPadrao" class="input" type="text" placeholder="Ex.: Maria Souza" />
+          </div>
+          <div class="field">
+            <label class="field__label" for="orgCargoPadrao">Cargo padrão</label>
+            <input id="orgCargoPadrao" class="input" type="text" placeholder="Ex.: Diretor(a) de TI" />
+          </div>
+          <div class="field">
+            <label class="field__label" for="orgLogo">Logotipo (URL ou caminho)</label>
+            <input id="orgLogo" class="input" type="text" placeholder="https://… ou /img/logo.png" />
+          </div>
         </div>
-        <div class="field">
-          <label class="field__label" for="orgSigla">Sigla</label>
-          <input id="orgSigla" class="input" type="text" placeholder="Ex.: PMT, UNITAU, TRT-15" />
-        </div>
-        <div class="field">
-          <label class="field__label" for="orgCnpj">CNPJ</label>
-          <input id="orgCnpj" class="input" type="text" placeholder="00.000.000/0000-00" />
-        </div>
-        <div class="field">
-          <label class="field__label" for="orgUf">UF</label>
-          <input id="orgUf" class="input" type="text" maxlength="2" placeholder="SP" />
-        </div>
-        <div class="field">
-          <label class="field__label" for="orgCidade">Cidade</label>
-          <input id="orgCidade" class="input" type="text" placeholder="Ex.: São Paulo" />
-        </div>
-        <div class="field">
-          <label class="field__label" for="orgEndereco">Endereço</label>
-          <input id="orgEndereco" class="input" type="text" placeholder="Ex.: Rua das Flores, 100" />
-        </div>
-        <div class="field">
-          <label class="field__label" for="orgUnidadePadrao">Unidade requisitante padrão</label>
-          <input id="orgUnidadePadrao" class="input" type="text" placeholder="Ex.: Diretoria de Tecnologia da Informação" />
-        </div>
-        <div class="field">
-          <label class="field__label" for="orgResponsavelPadrao">Responsável padrão</label>
-          <input id="orgResponsavelPadrao" class="input" type="text" placeholder="Ex.: Maria Souza" />
-        </div>
-        <div class="field">
-          <label class="field__label" for="orgCargoPadrao">Cargo padrão</label>
-          <input id="orgCargoPadrao" class="input" type="text" placeholder="Ex.: Diretor(a) de TI" />
-        </div>
-        <div class="field">
-          <label class="field__label" for="orgLogo">Logotipo (URL ou caminho)</label>
-          <input id="orgLogo" class="input" type="text" placeholder="https://… ou /img/logo.png" />
-        </div>
-      </div>
 
-      <div class="actions" style="margin-top:24px;">
-        <button id="btnSalvarConfigOrg" class="btn btn--primary" type="button">💾 Salvar Configuração</button>
-        <button id="btnCancelarConfigOrg" class="btn btn--ghost" type="button">Cancelar</button>
+        <div class="actions" style="margin-top:24px;">
+          <button id="btnSalvarConfigOrg" class="btn btn--primary" type="button">
+            💾 Salvar Configuração
+          </button>
+          <button id="btnCancelarConfigOrg" class="btn btn--ghost" type="button">
+            Cancelar
+          </button>
+        </div>
       </div>
     </div>
   </div>
-</div>
-
-  <!-- ============================= FOOTER ============================= -->
-  <footer class="app-footer" role="contentinfo">
-    <p>
-      <strong>LicitaReq</strong> — ferramenta de apoio à triagem de demandas de
-      contratação pública. Motor de regras baseado na
-      <strong>Lei nº 14.133/2021</strong>.
-    </p>
-    <p class="app-footer__warn">
-      <span aria-hidden="true">⚠️</span>
-      O resultado é um subsídio técnico automatizado e <strong>não substitui</strong>
-      o parecer da assessoria jurídica, do controle interno ou da autoridade competente.
-    </p>
-  </footer>
 
   <div id="toast" class="toast" role="status" aria-live="polite" aria-atomic="true" hidden></div>
 
