@@ -1,12 +1,11 @@
 /* ============================================================
    LicitaReq — pdf-dfd.js
-   v4.3 — Autenticação em página única + margens finais
+   v4.4 — Correções cirúrgicas de layout
    ------------------------------------------------------------
-   • Página 1 ............ Capa Executiva / Termo de Abertura
-   • Páginas 2..N ........ Painel de Conformidade + Corpo Técnico
-   • Página N+1 .......... Aprovações e Validações (exclusiva)
-   • Página N+2 .......... TAG de Autenticação (exclusiva, 1 página)
-   • Nome do arquivo limpo (DFD_042_2026.pdf)
+   • Header limpo (sem "DFD DFD")
+   • Nota de Apresentação em página própria (isolada da capa)
+   • Seção 6 inquebrável (sem corte entre páginas)
+   • Autenticação em página única (mantida)
    ============================================================ */
 
 /* --------------------------------------------------------------
@@ -98,33 +97,69 @@ function normalizarValorMonetario(v) {
 }
 
 /* ==============================================================
+   ⭐ [FIX 1] HEADER LIMPO — sem "DFD DFD"
+   --------------------------------------------------------------
+   Recebe dfd.numero (ex.: "DFD 042/2026", "042/2026", "Requerimento 12")
+   e devolve um título padronizado:
+     "DFD 042/2026"       → "DFD · 042/2026"
+     "042/2026"           → "DFD · 042/2026"
+     "DFD-042/2026"       → "DFD · 042/2026"
+     "Requerimento 12"    → "Requerimento · 12"
+     ""                   → "Documento de Formalização de Demanda"
+   ============================================================== */
+function montarTituloCabecalho(dfd) {
+  const bruto = String((dfd && dfd.numero) || '').trim();
+  if (!bruto) return 'Documento de Formalização de Demanda';
+
+  // Detecta prefixo alfabético (DFD, OF, MEMO, Requerimento…)
+  const match = bruto.match(/^([A-Za-zÀ-ÿ]+)\s*[-–—\/]?\s*(.*)$/);
+  if (!match) return 'DFD · ' + bruto;
+
+  const prefixo = match[1].toUpperCase();
+  const resto   = (match[2] || '').trim();
+
+  // Se o prefixo já é "DFD" e há resto, retorna "DFD · <resto>"
+  if (prefixo === 'DFD') {
+    return resto ? ('DFD · ' + resto) : 'DFD';
+  }
+
+  // Siglas curtas (2-4 letras) → mantém em maiúsculas
+  if (prefixo.length <= 4) {
+    return resto ? (prefixo + ' · ' + resto) : prefixo;
+  }
+
+  // Palavras longas → Title Case
+  const titulo = prefixo.charAt(0) + prefixo.slice(1).toLowerCase();
+  return resto ? (titulo + ' · ' + resto) : titulo;
+}
+
+/* ==============================================================
    FUNÇÃO PRINCIPAL
    ============================================================== */
 function buildDfdPdfDefinition(dfd, org, logoDataUrl, opts = {}) {
   const geradoEm = opts.geradoEm || new Date();
   const tag      = opts.tag      || gerarTagAutenticacao(dfd, org);
   const hash     = opts.hash     || gerarHashDocumento(dfd, org);
-  const versao   = opts.versao   || 'LicitaReq v4.3';
+  const versao   = opts.versao   || 'LicitaReq v4.4';
 
   const aprovadores = Array.isArray(opts.aprovadores) ? opts.aprovadores : [];
 
-  const capa              = montarCapaExecutiva(dfd, org, logoDataUrl, geradoEm);
-  const corpoTecnico      = montarCorpoTecnico(dfd, org);
-  const paginasAprovacoes = montarPaginaAprovacoes(aprovadores);
+  const capa               = montarCapaExecutiva(dfd, org, logoDataUrl, geradoEm);
+  const notaApresentacao   = montarNotaApresentacao(geradoEm);   /* ⭐ [FIX 2] isolada */
+  const corpoTecnico       = montarCorpoTecnico(dfd, org);
+  const paginasAprovacoes  = montarPaginaAprovacoes(aprovadores);
   const paginaAutenticacao = montarPaginaAutenticacao({
     tag, hash, geradoEm, versao, org, dfd
   });
 
+  const tituloCabecalho = montarTituloCabecalho(dfd);   /* ⭐ [FIX 1] */
+
   return {
     pageSize: 'A4',
-
-    /* ⭐ Margens equilibradas:
-       - top  45 pt → header (quando há) + respiro
-       - bottom 50 pt → rodapé + 32 pt de folga do conteúdo */
     pageMargins: [40, 45, 40, 50],
 
     info: {
-      title:    ('DFD ' + (dfd.numero || '') + ' — ' + ((org && org.nome) || 'LicitaReq')).trim(),
+      title:    (tituloCabecalho + ' — ' + ((org && org.nome) || 'LicitaReq')).trim(),
       author:   (org && org.nome) || 'LicitaReq',
       subject:  'Documento de Formalização de Demanda — Lei nº 14.133/2021',
       keywords: 'LicitaReq, DFD, LicitaAudit, ' + tag,
@@ -137,14 +172,14 @@ function buildDfdPdfDefinition(dfd, org, logoDataUrl, opts = {}) {
       return {
         margin: [40, 14, 40, 0],
         columns: [
-          { text: (org && org.nome) || 'LicitaReq', fontSize: 8, color: '#94a3b8' },
-          { text: ('DFD ' + (dfd.numero || '')).trim(),
+          { text: (org && org.nome) || 'LicitaReq',
+            fontSize: 8, color: '#94a3b8' },
+          { text: tituloCabecalho,               /* ⭐ usa helper */
             alignment: 'right', fontSize: 8, color: '#94a3b8' }
         ]
       };
     },
 
-    /* ---- Footer ancorado no rodapé físico ---- */
     footer: function (currentPage, pageCount) {
       return {
         margin: [40, 6, 40, 0],
@@ -158,8 +193,9 @@ function buildDfdPdfDefinition(dfd, org, logoDataUrl, opts = {}) {
     },
 
     content: [
-      capa,
-      corpoTecnico,
+      capa,                 /* Página 1 */
+      notaApresentacao,     /* Página 2 (isolada) — ⭐ [FIX 2] */
+      corpoTecnico,         /* Páginas 3..N */
       ...(Array.isArray(paginasAprovacoes) ? paginasAprovacoes : [paginasAprovacoes]),
       paginaAutenticacao
     ],
@@ -169,7 +205,7 @@ function buildDfdPdfDefinition(dfd, org, logoDataUrl, opts = {}) {
 }
 
 /* ==============================================================
-   CAPA EXECUTIVA
+   CAPA EXECUTIVA (Página 1)
    ============================================================== */
 function montarCapaExecutiva(dfd, org, logoDataUrl, geradoEm) {
   return {
@@ -293,14 +329,51 @@ function montarCapaExecutiva(dfd, org, logoDataUrl, geradoEm) {
           }
         : null,
 
+      { text: 'Emitido em ' + formatarDataHora(geradoEm),
+        fontSize: 8, alignment: 'center', color: '#94a3b8',
+        margin: [0, 10, 0, 0] },
+
+      /* 🔒 QUEBRA APÓS A CAPA — a Nota de Apresentação inicia na página 2 */
+      { text: '', pageBreak: 'after' }
+    ]
+  };
+}
+
+/* ==============================================================
+   ⭐ [FIX 2] NOTA DE APRESENTAÇÃO — página própria (página 2)
+   --------------------------------------------------------------
+   Bloco separado, com pageBreak: 'before' garantindo isolamento.
+   Ao final, um pageBreak: 'after' empurra o corpo técnico para a pág. 3.
+   ============================================================== */
+function montarNotaApresentacao(geradoEm) {
+  return {
+    /* Força início em página nova (a capa já quebra com 'after',
+       mas 'before' aqui é redundância de segurança) */
+    pageBreak: 'before',
+    stack: [
+      { text: '', margin: [0, 20, 0, 0] },
+
+      { text: 'NOTA DE APRESENTAÇÃO INSTITUCIONAL',
+        fontSize: 14, bold: true, alignment: 'center',
+        color: '#1e1b4b', margin: [0, 0, 0, 6] },
+
+      { text: 'Termo de Abertura do Procedimento Administrativo',
+        fontSize: 9.5, alignment: 'center', color: '#4f46e5',
+        margin: [0, 0, 0, 12] },
+
+      { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 515, y2: 0,
+                   lineWidth: 1.2, lineColor: '#4f46e5' }],
+        margin: [0, 0, 0, 20] },
+
+      /* Bloco I — Contextualização */
       {
         table: {
           widths: ['*'],
           body: [[{
             stack: [
-              { text: 'NOTA DE APRESENTAÇÃO INSTITUCIONAL',
-                fontSize: 8, bold: true, color: '#334155',
-                alignment: 'center', margin: [0, 0, 0, 8] },
+              { text: 'I. CONTEXTUALIZAÇÃO',
+                fontSize: 9, bold: true, color: '#4f46e5',
+                margin: [0, 0, 0, 6] },
               { text:
                 'O presente Documento de Formalização de Demanda (DFD) formaliza o início ' +
                 'do procedimento administrativo de contratação pública no âmbito deste órgão, ' +
@@ -310,26 +383,89 @@ function montarCapaExecutiva(dfd, org, logoDataUrl, geradoEm) {
                 'legal aplicável, servindo de base para as etapas subsequentes de planejamento ' +
                 'da contratação e elaboração do Estudo Técnico Preliminar (ETP) e do Termo ' +
                 'de Referência (TR).',
-                fontSize: 9, color: '#334155', lineHeight: 1.6, alignment: 'justify' },
-              { text:
-                'Este documento foi gerado eletronicamente pelo sistema LicitaReq, possui ' +
-                'TAG de autenticação única rastreável pelo LicitaAudit e está apto à auditoria ' +
-                'interna e aos órgãos de controle.',
-                fontSize: 8.5, italics: true, color: '#64748b',
-                lineHeight: 1.5, alignment: 'justify', margin: [0, 8, 0, 0] }
+                fontSize: 10, color: '#334155', lineHeight: 1.7,
+                alignment: 'justify' }
             ],
             fillColor: '#ffffff',
-            margin: [18, 14, 18, 14]
+            margin: [20, 16, 20, 16]
           }]]
         },
         layout: layoutBordaFina(),
-        margin: [0, 12, 0, 18]
+        margin: [0, 0, 0, 16]
       },
 
-      { text: 'Emitido em ' + formatarDataHora(geradoEm),
-        fontSize: 8, alignment: 'center', color: '#94a3b8',
-        margin: [0, 10, 0, 0] },
+      /* Bloco II — Finalidade */
+      {
+        table: {
+          widths: ['*'],
+          body: [[{
+            stack: [
+              { text: 'II. FINALIDADE E FUNDAMENTAÇÃO LEGAL',
+                fontSize: 9, bold: true, color: '#4f46e5',
+                margin: [0, 0, 0, 6] },
+              { text:
+                'Este documento tem por finalidade instruir o processo administrativo ' +
+                'de contratação, garantindo a motivação e o planejamento previstos no ' +
+                'Art. 18 da Lei nº 14.133/2021. A instrução processual observa ainda os ' +
+                'princípios do Art. 5º da mesma lei — legalidade, impessoalidade, moralidade, ' +
+                'publicidade, eficiência, interesse público, motivação, segurança jurídica, ' +
+                'razoabilidade, competitividade e eficácia — bem como as diretrizes do ' +
+                'Art. 11 (objetivo, resultado pretendido, ciclo de vida do objeto).',
+                fontSize: 10, color: '#334155', lineHeight: 1.7,
+                alignment: 'justify' }
+            ],
+            fillColor: '#f8fafc',
+            margin: [20, 16, 20, 16]
+          }]]
+        },
+        layout: layoutBordaFina(),
+        margin: [0, 0, 0, 16]
+      },
 
+      /* Bloco III — Autenticidade */
+      {
+        table: {
+          widths: ['*'],
+          body: [[{
+            stack: [
+              { text: 'III. AUTENTICIDADE E RASTREABILIDADE',
+                fontSize: 9, bold: true, color: '#4f46e5',
+                margin: [0, 0, 0, 6] },
+              { text:
+                'Este documento foi gerado eletronicamente pelo sistema LicitaReq, possui ' +
+                'TAG de autenticação única rastreável pelo LicitaAudit e está apto à auditoria ' +
+                'interna e aos órgãos de controle. Sua validade jurídica está condicionada à ' +
+                'conferência pela assessoria jurídica, pelo controle interno e pela autoridade ' +
+                'competente, conforme preconiza a legislação vigente.',
+                fontSize: 10, color: '#334155', lineHeight: 1.7,
+                alignment: 'justify' }
+            ],
+            fillColor: '#eef2ff',
+            margin: [20, 16, 20, 16]
+          }]]
+        },
+        layout: {
+          hLineColor: function () { return '#c7d2fe'; },
+          vLineColor: function () { return '#c7d2fe'; },
+          hLineWidth: function () { return 0.6; },
+          vLineWidth: function () { return 0.6; },
+          paddingLeft:   function () { return 0; },
+          paddingRight:  function () { return 0; },
+          paddingTop:    function () { return 0; },
+          paddingBottom: function () { return 0; }
+        },
+        margin: [0, 0, 0, 24]
+      },
+
+      /* Bloco de encerramento */
+      { canvas: [{ type: 'line', x1: 150, y1: 0, x2: 365, y2: 0,
+                   lineWidth: 0.8, lineColor: '#cbd5e1' }],
+        margin: [0, 0, 0, 10] },
+      { text: 'Documento emitido em ' + formatarDataHora(geradoEm),
+        fontSize: 8.5, italics: true, alignment: 'center',
+        color: '#94a3b8' },
+
+      /* 🔒 QUEBRA APÓS A NOTA — corpo técnico inicia na página 3 */
       { text: '', pageBreak: 'after' }
     ]
   };
@@ -353,7 +489,7 @@ function layoutCartoes() {
     vLineColor: function () { return '#e2e8f0'; },
     hLineWidth: function () { return 0.4; },
     vLineWidth: function () { return 0.4; },
-    fillColor: function (i, node) {
+    fillColor: function (i) {
       return (i % 2 === 0) ? '#f8fafc' : '#ffffff';
     },
     paddingLeft:   function () { return 0; },
@@ -475,12 +611,14 @@ function montarSecoesTecnicas(dfd, org) {
         campo('Cargo / Função',           dfd.cargo)
       )
     ]),
+
     secao('2. Objeto e Justificativa', [
       campo('Descrição Resumida do Objeto', dfd.objeto, { full: true }),
       campo('Justificativa da Necessidade Pública (Fundamentada)', dfd.justificativa,
             { full: true, bloco: true }),
       campo('Estimativa de Quantidades', dfd.quantidades, { full: true })
     ]),
+
     secao('3. Alinhamento ao Plano de Contratações Anual (PCA)', [
       parDuplo(
         campo('Previsão no PCA',      rotulo('pca', dfd.pcaPrevisto)),
@@ -489,6 +627,7 @@ function montarSecoesTecnicas(dfd, org) {
       campo('Justificativa do Alinhamento', dfd.pcaJustificativa,
             { full: true, bloco: true })
     ]),
+
     secao('4. Enquadramento Legal', [
       parDuplo(
         campo('Modalidade Pretendida (Art. 28)', rotulo('modalidade', dfd.modalidade)),
@@ -499,6 +638,7 @@ function montarSecoesTecnicas(dfd, org) {
         campo('Regime de Execução (Art. 46)',     rotulo('regime',   dfd.regime))
       )
     ]),
+
     secao('5. Estimativa Orçamentária', [
       parDuplo(
         campo('Valor Estimado', normalizarValorMonetario(dfd.valor)),
@@ -509,6 +649,8 @@ function montarSecoesTecnicas(dfd, org) {
         campo('Fonte de Recurso',     dfd.fonte)
       )
     ]),
+
+    /* ⭐ [FIX 3] Seção 6 inquebrável — não corta entre páginas */
     secao('6. Parcelamento, Prazo e Entrega', [
       parDuplo(
         campo('Decisão de Parcelamento (Art. 47)', rotulo('parcelamento', dfd.parcelamento)),
@@ -518,7 +660,8 @@ function montarSecoesTecnicas(dfd, org) {
         campo('Local de Entrega / Prestação', dfd.local),
         campo('Condições de Pagamento',       rotulo('pagamento', dfd.pagamento))
       )
-    ]),
+    ], { unbreakable: true, pageBreakBefore: true }),   /* ← bloqueia quebra */
+
     secao('7. Fiscalização e Gestão Contratual (Art. 117)', [
       parDuplo(
         campo('Fiscal Titular',     dfd.fiscalTitular),
@@ -529,6 +672,7 @@ function montarSecoesTecnicas(dfd, org) {
         campo('Vistoria Técnica',   rotulo('vistoria', dfd.vistoria))
       )
     ]),
+
     secao('8. Observações Complementares', [
       campo('Observações Adicionais',
             dfd.observacoes || 'Sem observações adicionais.',
@@ -734,10 +878,7 @@ function blocoAssinatura(p) {
 }
 
 /* ==============================================================
-   PÁGINA FINAL — AUTENTICAÇÃO (compactada p/ 1 página única)
-   --------------------------------------------------------------
-   Altura estimada: ~480 pt (cabe folgado em 747 pt disponíveis)
-   O container externo recebe `unbreakable: true` para reforçar.
+   PÁGINA FINAL — AUTENTICAÇÃO (página única)
    ============================================================== */
 function montarPaginaAutenticacao(ctx) {
   const tag      = ctx.tag;
@@ -749,28 +890,18 @@ function montarPaginaAutenticacao(ctx) {
 
   return {
     pageBreak: 'before',
-    /* ⭐ unbreakable no nível do stack externo — impede quebra
-       caso o conteúdo seja menor que a página */
     stack: [{
       unbreakable: true,
       stack: [
-        /* Espaçador superior mínimo */
         { text: '', margin: [0, 4, 0, 0] },
-
-        /* Emoji compacto */
         { text: '🔐', fontSize: 28, alignment: 'center', margin: [0, 0, 0, 4] },
-
-        /* Título principal */
         { text: 'AUTENTICAÇÃO E RASTREABILIDADE',
           fontSize: 14, bold: true, alignment: 'center',
           color: '#4f46e5', margin: [0, 0, 0, 3] },
-
-        /* Subtítulo */
         { text: 'Documento Oficial LicitaReq · Integração LicitaAudit',
           fontSize: 8.5, alignment: 'center', color: '#64748b',
           margin: [0, 0, 0, 14] },
 
-        /* ---- TAG principal (compacta) ---- */
         {
           table: {
             widths: ['*'],
@@ -791,7 +922,6 @@ function montarPaginaAutenticacao(ctx) {
           margin: [0, 0, 0, 12]
         },
 
-        /* ---- Metadados (linhas compactas) ---- */
         {
           table: {
             widths: ['35%', '*'],
@@ -808,7 +938,6 @@ function montarPaginaAutenticacao(ctx) {
           margin: [0, 0, 0, 12]
         },
 
-        /* ---- Aviso legal (compacto) ---- */
         {
           table: {
             widths: ['*'],
@@ -832,7 +961,6 @@ function montarPaginaAutenticacao(ctx) {
           margin: [0, 0, 0, 12]
         },
 
-        /* ---- Selo digital (compacto) ---- */
         {
           table: {
             widths: ['*'],
@@ -883,10 +1011,16 @@ function layoutTabelaMeta() {
 }
 
 /* ==============================================================
-   HELPERS DE LAYOUT E FORMATAÇÃO
+   ⭐ [FIX 3] SECAO — agora aceita opts
+   --------------------------------------------------------------
+   opts.unbreakable      → envolve a seção em stack unbreakable
+   opts.pageBreakBefore  → insere { text: '', pageBreak: 'before' }
+                            como primeiro elemento do wrapper
    ============================================================== */
-function secao(titulo, corpo) {
-  return {
+function secao(titulo, corpo, opts) {
+  opts = opts || {};
+
+  const conteudoInterno = {
     stack: [
       { text: titulo, fontSize: 11, bold: true, color: '#1e1b4b',
         margin: [0, 12, 0, 10] },
@@ -896,6 +1030,22 @@ function secao(titulo, corpo) {
         margin: [0, 10, 0, 4] }
     ]
   };
+
+  /* Caso especial: unbreakable + pageBreakBefore → envelope completo */
+  if (opts.unbreakable) {
+    const stackExterno = [];
+    if (opts.pageBreakBefore) {
+      stackExterno.push({ text: '', pageBreak: 'before' });
+    }
+    stackExterno.push({
+      unbreakable: true,
+      stack: conteudoInterno.stack
+    });
+    return { stack: stackExterno };
+  }
+
+  /* Caso padrão */
+  return conteudoInterno;
 }
 
 function campo(label, valor, options) {
@@ -918,6 +1068,7 @@ function parDuplo(c1, c2) {
     return { stack: [c1, c2] };
   }
   return {
+    unbreakable: true,
     columns: [
       { width: '50%', stack: c1.stack },
       { width: '50%', stack: c2.stack }
@@ -977,6 +1128,7 @@ function hash32(str) {
    ============================================================== */
 window.LicitaReqPDF = {
   buildDfdPdfDefinition: buildDfdPdfDefinition,
+  montarTituloCabecalho: montarTituloCabecalho,   /* exposto para testes */
   ROTULOS: ROTULOS,
   rotulo: rotulo,
   normalizarValorMonetario: normalizarValorMonetario,
