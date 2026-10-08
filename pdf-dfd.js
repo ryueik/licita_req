@@ -1,14 +1,13 @@
 /* ============================================================
    LicitaReq — pdf-dfd.js
-   v4.1 — Capa Executiva + Paginação Rigorosa em 4 Camadas
+   v4.2 — Correção de rodapé + margens seguras
    ------------------------------------------------------------
    • Página 1 ............ Capa Executiva / Termo de Abertura
    • Páginas 2..N ........ Painel de Conformidade + Corpo Técnico
    • Página N+1 .......... Aprovações e Validações (exclusiva)
    • Página N+2 .......... TAG de Autenticação (exclusiva, final)
    • Nome do arquivo limpo (DFD_042_2026.pdf)
-   • Distribuição uniforme de signatários (nunca 1 isolado)
-   • Bloco de assinatura compacto (≈110 pt) + linha pontilhada
+   • Rodapé isolado — sem colisão com caixas de borda
    ============================================================ */
 
 /* --------------------------------------------------------------
@@ -106,7 +105,7 @@ function buildDfdPdfDefinition(dfd, org, logoDataUrl, opts = {}) {
   const geradoEm = opts.geradoEm || new Date();
   const tag      = opts.tag      || gerarTagAutenticacao(dfd, org);
   const hash     = opts.hash     || gerarHashDocumento(dfd, org);
-  const versao   = opts.versao   || 'LicitaReq v4.1';
+  const versao   = opts.versao   || 'LicitaReq v4.2';
 
   const aprovadores = Array.isArray(opts.aprovadores) ? opts.aprovadores : [];
 
@@ -127,7 +126,12 @@ function buildDfdPdfDefinition(dfd, org, logoDataUrl, opts = {}) {
   /* ---------- Documento final ---------- */
   return {
     pageSize: 'A4',
-    pageMargins: [50, 60, 50, 70],
+
+    /* ⭐ [AJUSTE 1] Bottom margin ampliada: 70 → 90
+       Dá 20 pt extras de respiro entre o conteúdo e o rodapé,
+       evitando colisão com caixas de borda (ex.: Nota de Apresentação). */
+    pageMargins: [50, 60, 50, 90],
+
     info: {
       title:    ('DFD ' + (dfd.numero || '') + ' — ' + ((org && org.nome) || 'LicitaReq')).trim(),
       author:   (org && org.nome) || 'LicitaReq',
@@ -146,9 +150,13 @@ function buildDfdPdfDefinition(dfd, org, logoDataUrl, opts = {}) {
         ]
       };
     },
+
+    /* ⭐ [AJUSTE 2] Rodapé com margem superior reduzida (20 → 8)
+       Como o bottom margin aumentou para 90 pt, o rodapé agora
+       fica bem ancorado no rodapé físico da página, longe do conteúdo. */
     footer: function (currentPage, pageCount) {
       return {
-        margin: [50, 20, 50, 0],
+        margin: [50, 8, 50, 0],
         columns: [
           { text: 'LicitaReq · Documento Oficial · ' + formatarDataHora(geradoEm),
             fontSize: 7.5, color: '#94a3b8' },
@@ -160,7 +168,6 @@ function buildDfdPdfDefinition(dfd, org, logoDataUrl, opts = {}) {
     content: [
       capa,
       corpoTecnico,
-      /* ⭐ Spread do array: 1 ou mais páginas de aprovação */
       ...(Array.isArray(paginasAprovacoes) ? paginasAprovacoes : [paginasAprovacoes]),
       paginaAutenticacao
     ],
@@ -170,7 +177,6 @@ function buildDfdPdfDefinition(dfd, org, logoDataUrl, opts = {}) {
 
 /* ==============================================================
    CAMADA 1 — CAPA EXECUTIVA / TERMO DE ABERTURA
-   (Página 1 exclusiva, com pageBreak: 'after' no final)
    ============================================================== */
 function montarCapaExecutiva(dfd, org, logoDataUrl, geradoEm) {
   return {
@@ -192,18 +198,18 @@ function montarCapaExecutiva(dfd, org, logoDataUrl, geradoEm) {
           }]]
         },
         layout: 'noBorders',
-        margin: [0, 0, 0, 30]
+        margin: [0, 0, 0, 26]
       },
 
       /* ---- Logo + Órgão ---- */
       logoDataUrl
         ? {
             image: logoDataUrl,
-            fit: [110, 110],
+            fit: [100, 100],
             alignment: 'center',
-            margin: [0, 0, 0, 16]
+            margin: [0, 0, 0, 14]
           }
-        : { text: '', margin: [0, 0, 0, 30] },
+        : { text: '', margin: [0, 0, 0, 26] },
 
       {
         text: (org && org.nome ? org.nome : 'ÓRGÃO / ENTIDADE').toUpperCase(),
@@ -232,7 +238,7 @@ function montarCapaExecutiva(dfd, org, logoDataUrl, geradoEm) {
             fontSize: 8, alignment: 'center', color: '#94a3b8' }
         : null,
 
-      { text: '', margin: [0, 0, 0, 26] },
+      { text: '', margin: [0, 0, 0, 22] },
 
       /* ---- Título Principal ---- */
       {
@@ -240,7 +246,7 @@ function montarCapaExecutiva(dfd, org, logoDataUrl, geradoEm) {
           type: 'line', x1: 0, y1: 0, x2: 495, y2: 0,
           lineWidth: 1.2, lineColor: '#4f46e5'
         }],
-        margin: [0, 0, 0, 18]
+        margin: [0, 0, 0, 16]
       },
       { text: 'DOCUMENTO DE FORMALIZAÇÃO DE DEMANDA',
         fontSize: 18, bold: true, alignment: 'center',
@@ -253,12 +259,12 @@ function montarCapaExecutiva(dfd, org, logoDataUrl, geradoEm) {
           type: 'line', x1: 0, y1: 0, x2: 495, y2: 0,
           lineWidth: 1.2, lineColor: '#4f46e5'
         }],
-        margin: [0, 18, 0, 24]
+        margin: [0, 16, 0, 20]
       },
 
       /* ---- Identificação Geral (Cards) ---- */
       { text: 'IDENTIFICAÇÃO GERAL', fontSize: 10, bold: true,
-        color: '#4f46e5', alignment: 'center', margin: [0, 0, 0, 12] },
+        color: '#4f46e5', alignment: 'center', margin: [0, 0, 0, 10] },
 
       {
         table: {
@@ -279,7 +285,7 @@ function montarCapaExecutiva(dfd, org, logoDataUrl, geradoEm) {
           ]
         },
         layout: layoutCartoes(),
-        margin: [0, 0, 0, 20]
+        margin: [0, 0, 0, 18]
       },
 
       /* ---- Destaque: Valor Estimado ---- */
@@ -299,11 +305,11 @@ function montarCapaExecutiva(dfd, org, logoDataUrl, geradoEm) {
                 color: '#64748b' }
             ],
             fillColor: '#eef2ff',
-            margin: [20, 16, 20, 16]
+            margin: [20, 14, 20, 14]
           }]]
         },
         layout: 'noBorders',
-        margin: [0, 0, 0, 24]
+        margin: [0, 0, 0, 20]
       },
 
       /* ---- Objeto Resumido ---- */
@@ -320,15 +326,18 @@ function montarCapaExecutiva(dfd, org, logoDataUrl, geradoEm) {
                     color: '#0f172a', lineHeight: 1.5 }
                 ],
                 fillColor: '#f8fafc',
-                margin: [16, 14, 16, 14]
+                margin: [16, 12, 16, 12]
               }]]
             },
             layout: 'noBorders',
-            margin: [0, 0, 0, 24]
+            margin: [0, 0, 0, 20]
           }
         : null,
 
-      /* ---- Nota de Apresentação Institucional ---- */
+      /* ---- Nota de Apresentação Institucional ----
+         ⭐ [AJUSTE 3] Margem vertical ampliada:
+            top   0 → 12 (afasta do bloco do Objeto)
+            bottom 24 → 18 (garante respiro antes do pageBreak) */
       {
         table: {
           widths: ['*'],
@@ -355,11 +364,11 @@ function montarCapaExecutiva(dfd, org, logoDataUrl, geradoEm) {
                 lineHeight: 1.5, alignment: 'justify', margin: [0, 8, 0, 0] }
             ],
             fillColor: '#ffffff',
-            margin: [18, 16, 18, 16]
+            margin: [18, 14, 18, 14]
           }]]
         },
         layout: layoutBordaFina(),
-        margin: [0, 0, 0, 24]
+        margin: [0, 12, 0, 18]
       },
 
       /* ---- Rodapé da Capa ---- */
@@ -384,7 +393,7 @@ function cartaoIdentificacao(label, valor) {
       { text: valor || '—', fontSize: 9.5, bold: true,
         color: '#0f172a', lineHeight: 1.4 }
     ],
-    margin: [12, 10, 12, 10]
+    margin: [12, 9, 12, 9]
   };
 }
 
@@ -418,17 +427,13 @@ function layoutBordaFina() {
 }
 
 /* ==============================================================
-   CAMADA 2 — CORPO TÉCNICO (Painel + Seções 1 a 8)
-   Páginas 2 e seguintes, com fluxo natural
+   CAMADA 2 — CORPO TÉCNICO
    ============================================================== */
 function montarCorpoTecnico(dfd, org) {
   return {
     stack: [
-      /* ---- Painel de Conformidade (leitura LicitaAudit) ---- */
       montarPainelConformidade(dfd, org),
       { text: '', margin: [0, 10, 0, 0] },
-
-      /* ---- Seções Técnicas ---- */
       ...montarSecoesTecnicas(dfd, org)
     ]
   };
@@ -594,17 +599,11 @@ function montarSecoesTecnicas(dfd, org) {
 }
 
 /* ==============================================================
-   CAMADA 3 — PÁGINAS DE APROVAÇÕES (distribuição uniforme)
-   --------------------------------------------------------------
-   • Retorna SEMPRE um array de páginas.
-   • Distribui os signatários uniformemente entre páginas quando
-     ultrapassam o limite de 6 por página.
-   • Cada linha (par de signatários) é unbreakable via wrapper stack.
+   CAMADA 3 — PÁGINAS DE APROVAÇÕES
    ============================================================== */
 function montarPaginaAprovacoes(aprovadores) {
   aprovadores = aprovadores || [];
 
-  /* ---- Estado vazio: uma única página com aviso ---- */
   if (!aprovadores.length) {
     return [{
       pageBreak: 'before',
@@ -637,11 +636,9 @@ function montarPaginaAprovacoes(aprovadores) {
     }];
   }
 
-  /* ---- Distribuição uniforme ---- */
-  const MAX_POR_PAGINA = 6;   /* = 3 linhas × 2 colunas */
+  const MAX_POR_PAGINA = 6;
   const grupos = distribuirAprovadores(aprovadores, MAX_POR_PAGINA);
 
-  /* ---- Monta uma página para cada grupo ---- */
   return grupos.map(function (grupo, idx) {
     const ehPrimeira = idx === 0;
     const ehUltima   = idx === grupos.length - 1;
@@ -666,12 +663,6 @@ function montarPaginaAprovacoes(aprovadores) {
   });
 }
 
-/* --------------------------------------------------------------
-   Distribui uniformemente N itens em P páginas equilibradas.
-   Ex.: 7 itens, máx=6  → [4, 3]
-        8 itens, máx=6  → [4, 4]
-        13 itens, máx=6 → [5, 4, 4]
-   -------------------------------------------------------------- */
 function distribuirAprovadores(aprovadores, maxPorPagina) {
   const n = aprovadores.length;
   if (n <= maxPorPagina) return [aprovadores];
@@ -690,10 +681,6 @@ function distribuirAprovadores(aprovadores, maxPorPagina) {
   return paginas;
 }
 
-/* --------------------------------------------------------------
-   Cabeçalho de cada página de aprovações.
-   Mostra o texto introdutório completo apenas na 1ª página.
-   -------------------------------------------------------------- */
 function montarCabecalhoAprovacoes(ehPrimeira, pagina, totalPaginas, totalSignatarios, nestaGrupo) {
   const stack = [
     { text: 'APROVAÇÃO E VALIDAÇÃO',
@@ -716,7 +703,6 @@ function montarCabecalhoAprovacoes(ehPrimeira, pagina, totalPaginas, totalSignat
     }
   ];
 
-  /* Indicador de página quando há múltiplas */
   if (totalPaginas > 1) {
     stack.push({
       text: 'Página ' + pagina + ' de ' + totalPaginas +
@@ -729,7 +715,6 @@ function montarCabecalhoAprovacoes(ehPrimeira, pagina, totalPaginas, totalSignat
     });
   }
 
-  /* Texto introdutório completo apenas na primeira página */
   if (ehPrimeira) {
     stack.push({
       text: 'Os responsáveis abaixo identificados aprovam e validam o presente ' +
@@ -745,18 +730,9 @@ function montarCabecalhoAprovacoes(ehPrimeira, pagina, totalPaginas, totalSignat
     });
   }
 
-  return {
-    unbreakable: true,
-    stack: stack
-  };
+  return { unbreakable: true, stack: stack };
 }
 
-/* --------------------------------------------------------------
-   Monta as linhas (2 colunas) do grupo.
-   ⭐ Cada linha é envolvida em um `stack` com `unbreakable: true`
-   porque o pdfMake SÓ respeita `unbreakable` em nós do tipo `stack`,
-   não em `columns` diretamente.
-   -------------------------------------------------------------- */
 function montarLinhasAprovadores(grupo) {
   const linhas = chunk(grupo, 2);
   const ultimoIdx = linhas.length - 1;
@@ -765,7 +741,6 @@ function montarLinhasAprovadores(grupo) {
     const margemInferior = idx === ultimoIdx ? 0 : 22;
 
     return {
-      /* ⭐ Wrapper stack com unbreakable=true — este SIM é respeitado */
       stack: [{
         unbreakable: true,
         columns: [
@@ -781,9 +756,6 @@ function montarLinhasAprovadores(grupo) {
   });
 }
 
-/* --------------------------------------------------------------
-   Rodapé da última página de aprovações.
-   -------------------------------------------------------------- */
 function montarRodapeAprovacoes(total, totalPaginas) {
   return {
     unbreakable: true,
@@ -793,7 +765,7 @@ function montarRodapeAprovacoes(total, totalPaginas) {
           type: 'line', x1: 0, y1: 0, x2: 495, y2: 0,
           lineWidth: 0.6, lineColor: '#cbd5e1'
         }],
-        margin: [0, 32, 0, 10]
+        margin: [0, 30, 0, 10]
       },
       {
         text: 'Total de assinaturas: ' + total +
@@ -807,16 +779,9 @@ function montarRodapeAprovacoes(total, totalPaginas) {
   };
 }
 
-/* --------------------------------------------------------------
-   Bloco individual de assinatura — versão compacta (v4.1)
-   Altura total ≈ 110 pt por bloco (antes ≈ 160 pt)
-   -------------------------------------------------------------- */
 function blocoAssinatura(p) {
   const linhas = [
-    /* Espaço reservado para assinatura manuscrita/carimbo */
     { text: '', margin: [0, 32, 0, 0] },
-
-    /* Linha pontilhada de assinatura */
     {
       canvas: [{
         type: 'line', x1: 0, y1: 0, x2: 215, y2: 0,
@@ -825,13 +790,9 @@ function blocoAssinatura(p) {
       }],
       margin: [0, 0, 0, 5]
     },
-
-    /* Rótulo "Assinatura / Carimbo" */
     { text: 'Assinatura / Carimbo',
       fontSize: 7, italics: true, alignment: 'center',
       color: '#94a3b8', margin: [0, 0, 0, 8] },
-
-    /* Nome em destaque */
     { text: p.nome || '—',
       fontSize: 10.5, bold: true, alignment: 'center',
       color: '#0f172a' }
@@ -856,7 +817,7 @@ function blocoAssinatura(p) {
       widths: ['*'],
       body: [[{
         stack: linhas,
-        margin: [12, 8, 12, 10]     /* padding interno compacto */
+        margin: [12, 8, 12, 10]
       }]]
     },
     layout: {
@@ -887,18 +848,14 @@ function montarPaginaAutenticacao(ctx) {
     pageBreak: 'before',
     stack: [
       { text: '', margin: [0, 30, 0, 0] },
-
       { text: '🔐', fontSize: 44, alignment: 'center', margin: [0, 0, 0, 10] },
-
       { text: 'AUTENTICAÇÃO E RASTREABILIDADE',
         fontSize: 17, bold: true, alignment: 'center',
         color: '#4f46e5', margin: [0, 0, 0, 6] },
-
       { text: 'Documento Oficial LicitaReq · Integração LicitaAudit',
         fontSize: 10, alignment: 'center', color: '#64748b',
         margin: [0, 0, 0, 34] },
 
-      /* TAG principal */
       {
         table: {
           widths: ['*'],
@@ -919,7 +876,6 @@ function montarPaginaAutenticacao(ctx) {
         margin: [0, 0, 0, 26]
       },
 
-      /* Metadados */
       {
         table: {
           widths: ['35%', '*'],
@@ -936,7 +892,6 @@ function montarPaginaAutenticacao(ctx) {
         margin: [0, 0, 0, 26]
       },
 
-      /* Aviso legal */
       {
         table: {
           widths: ['*'],
@@ -960,7 +915,6 @@ function montarPaginaAutenticacao(ctx) {
         margin: [0, 0, 0, 26]
       },
 
-      /* Selo digital */
       {
         table: {
           widths: ['*'],
