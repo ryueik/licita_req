@@ -1758,4 +1758,201 @@ function bindEventosGlobais() {
   $('#btnDfdLimpar')?.addEventListener('click', limparDFD);
 
   // Config órgão
-  $('#btnConfigOrg
+  $('#btnConfigOrg')?.addEventListener('click', abrirModalConfigOrg);
+  $('#btnSalvarConfigOrg')?.addEventListener('click', salvarFormConfigOrg);
+  $('#btnCancelarConfigOrg')?.addEventListener('click', fecharModalConfigOrg);
+  $$('[data-close-config-org]').forEach(el => el.addEventListener('click', fecharModalConfigOrg));
+
+  // Bind dos campos do DFD para prontidão em tempo real
+  DFD_FIELDS.forEach(f => {
+    const el = $(DFD_INPUTS[f]);
+    if (!el) return;
+    el.addEventListener('input', renderProntidaoDFD);
+    el.addEventListener('change', renderProntidaoDFD);
+  });
+
+  // Contador da justificativa
+  const justEl = $('#dfdJustificativa');
+  const justCount = $('#dfdJustCount');
+  if (justEl && justCount) {
+    const upd = () => { justCount.textContent = justEl.value.length; };
+    justEl.addEventListener('input', upd);
+    upd();
+  }
+
+  // Contador de texto da triagem
+  $('#texto')?.addEventListener('input', atualizarContador);
+
+  // ARIA expand do accordion
+  document.querySelectorAll('details.accordion').forEach(det => {
+    const summary = det.querySelector('summary');
+    if (!summary) return;
+    summary.setAttribute('aria-expanded', String(det.open));
+    det.addEventListener('toggle', () => summary.setAttribute('aria-expanded', String(det.open)));
+  });
+
+  // Atalho Ctrl+Enter
+  document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      analisar();
+    }
+    if (e.key === 'Escape') fecharModalConfigOrg();
+  });
+}
+
+function carregarExemplo() {
+  const unidadeInput = $('#unidade');
+  const processoInput = $('#processo');
+  const orgaoInput = $('#orgao');
+  const respInput = $('#responsavel');
+  const cargoInput = $('#cargo');
+  const naturezaSel = $('#natureza');
+  const valorInput = $('#valor');
+  const textoEl = $('#texto');
+  if (!textoEl) return;
+
+  if (unidadeInput) unidadeInput.value = '';
+  if (processoInput) processoInput.value = '';
+  if (orgaoInput) orgaoInput.value = ORG.nome || '';
+  if (respInput) respInput.value = ORG.responsavelPadrao || '';
+  if (cargoInput) cargoInput.value = ORG.cargoPadrao || '';
+  if (naturezaSel) naturezaSel.value = 'auto';
+  if (valorInput) valorInput.value = '';
+
+  textoEl.value =
+`DIRETORIA DE TECNOLOGIA DA INFORMAÇÃO
+Memorando nº 042/2026
+
+De: Setor Requisitante / TI
+Para: Divisão de Licitações
+Assunto: Consultoria Especializada em Arquitetura de Nuvem --- 1
+
+1. Solicitamos a contratação da empresa TechCloud Soluções Avançadas Ltda.
+para prestação de serviços de consultoria especializada em arquitetura de
+nuvem, incluindo migração de workloads e otimização de custos em ambiente
+multicloud.
+
+2. Justifica-se a presente demanda em razão da necessidade de modernização
+da infraestrutura tecnológica desta Diretoria.
+
+3. O valor estimado da contratação é de R$ 85.000,00 (oitenta e cinco mil
+reais), conforme pesquisa de preços realizada junto a fornecedores do ramo.
+
+4. Informamos que há dotação orçamentária específica prevista na Lei
+Orçamentária Anual para o exercício corrente.
+
+5. O prazo de execução dos serviços é de 6 (seis) meses.
+
+6. O fiscal do contrato será designado por portaria específica.
+
+Atenciosamente,
+Diretoria de Tecnologia da Informação`;
+
+  atualizarContador();
+  showToast('Exemplo carregado.', 'success');
+}
+
+function limparTudo() {
+  const ids = ['#texto', '#unidade', '#processo', '#valor', '#orgao', '#responsavel', '#cargo'];
+  ids.forEach(id => { const el = $(id); if (el) el.value = ''; });
+  const naturezaSel = $('#natureza');
+  if (naturezaSel) naturezaSel.value = 'auto';
+
+  state.arquivos = [];
+  state.resultado = null;
+  renderFileList();
+  atualizarContador();
+
+  const emptyState = $('#emptyState');
+  const resultado = $('#resultado');
+  if (emptyState) { emptyState.hidden = false; emptyState.style.display = ''; }
+  if (resultado) { resultado.hidden = true; resultado.style.display = 'none'; resultado.innerHTML = ''; }
+  const status = $('#resultado-status');
+  if (status) status.textContent = '';
+
+  showToast('Formulário limpo.', 'success');
+}
+
+function carregarExemploDFD() {
+  const exemplo = {
+    numero: 'DFD 042/2026',
+    data: new Date().toISOString().slice(0, 10),
+    unidade: 'Diretoria de Tecnologia da Informação',
+    responsavel: ORG.responsavelPadrao || 'Maria Souza',
+    cargo: ORG.cargoPadrao || 'Diretora de TI',
+    orgao: ORG.nome || '',
+    objeto: 'Aquisição de Workstations e Notebooks para modernização do parque tecnológico',
+    justificativa: 'A presente demanda visa modernizar o parque tecnológico da instituição, garantindo a continuidade, a segurança e a eficiência dos serviços prestados. O parque atual apresenta obsolescência técnica, com equipamentos fora do período de garantia e com desempenho insuficiente para as demandas atuais. A renovação contribuirá diretamente para a melhoria do desempenho dos serviços de TI, redução de custos com manutenção corretiva e adequação às normas de segurança da informação.',
+    quantidades: '30 (trinta) workstations e 20 (vinte) notebooks',
+    pcaPrevisto: 'sim',
+    pcaItem: 'PCA-2026-ITEM-042',
+    pcaJustificativa: 'A contratação está expressamente prevista no Plano de Contratações Anual de 2026, no item 042, vinculada à ação de modernização da infraestrutura de TI.',
+    modalidade: 'pregao',
+    natureza: 'bens',
+    criterio: 'menor-preco',
+    regime: '',
+    valor: '165.000,00',
+    metodo: 'painel-precos',
+    dotacao: 'PT 12.345.6789.0001 — ND 33.90.30',
+    fonte: '01 — Tesouro',
+    parcelamento: 'parcelado',
+    prazo: '12 meses, contados da assinatura do contrato',
+    local: 'Almoxarifado Central',
+    pagamento: '30-dias',
+    fiscalTitular: 'João Silva — matrícula 12345',
+    fiscalSubstituto: 'Ana Souza — matrícula 67890',
+    gestor: 'Carlos Pereira — Divisão de Contratos',
+    vistoria: 'declaracao-substituicao',
+    observacoes: 'Os equipamentos deverão ser entregues com garantia de 36 meses on-site. Treinamento operacional incluído para equipe de TI.'
+  };
+  preencherDFDFormulario(exemplo);
+  state.dfd = exemplo;
+  renderProntidaoDFD();
+  showToast('Exemplo de DFD carregado.', 'success');
+}
+
+function limparDFD() {
+  if (!confirm('Limpar todos os campos do DFD?')) return;
+  const vazio = criarEstadoDFD();
+  preencherDFDFormulario(vazio);
+  state.dfd = vazio;
+  renderProntidaoDFD();
+  showToast('Formulário DFD limpo.', 'success');
+}
+
+function bootstrap() {
+  initTema();
+  initDropzone();
+
+  // Aplica config do órgão no header e no formulário
+  aplicarOrgNoHeader();
+  aplicarOrgNoFormulario();
+
+  // Inicializa estado do DFD
+  state.dfd = criarEstadoDFD();
+  preencherDFDFormulario(state.dfd);
+  renderProntidaoDFD();
+
+  renderFileList();
+  atualizarContador();
+
+  const emptyState = $('#emptyState');
+  const resultado = $('#resultado');
+  if (emptyState) { emptyState.hidden = false; emptyState.style.display = ''; }
+  if (resultado) { resultado.hidden = true; resultado.style.display = 'none'; }
+
+  bindEventosGlobais();
+
+  console.info(
+    '%cLicitaReq',
+    'background:#4338ca;color:#fff;padding:2px 8px;border-radius:4px;font-weight:700',
+    '· v2.0.1 · Multi-órgão dinâmico · Lei 14.133/2021'
+  );
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', bootstrap);
+} else {
+  bootstrap();
+}
