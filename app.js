@@ -1,12 +1,12 @@
 /* ============================================================
-   LicitaReq — app.js (v1.3)
+   LicitaReq — app.js (v1.4)
    Motor de triagem + Módulo DFD Inteligente (Lei nº 14.133/2021)
    ------------------------------------------------------------
-   Novidades v1.3:
-     - Painel DFD com formulário completo
-     - Indicador de Prontidão em tempo real
-     - Gerador de PDF DFD rotulado para LicitaAudit
-     - Persistência local (JSON) do DFD
+   Correções desta versão:
+     • Removido "UNITAU" como valor padrão do órgão
+     • PDF DFD usa o órgão digitado pelo usuário (ou vazio)
+     • Header/footer do PDF genéricos (SISTEMA LICITAREQ)
+     • Campo "Órgão / Entidade" começa vazio no formulário
    ============================================================ */
 'use strict';
 
@@ -141,7 +141,7 @@ function criarEstadoDFD() {
     unidade: '',
     responsavel: '',
     cargo: '',
-    orgao: '',
+    orgao: '',                     /* ← campo começa vazio */
     objeto: '',
     justificativa: '',
     quantidades: '',
@@ -514,7 +514,7 @@ function extrairMetadados(texto) {
   const mValor = t.match(/R\$\s*([\d]{1,3}(?:\.\d{3})*(?:,\d{1,2})?)/i);
   if (mValor) { raw.valorTexto = `R$ ${mValor[1]}`; raw.valor = parseValorBR(mValor[1]); }
 
-  const mProc = t.match(/\b(memorando|of[íi]cio|processo|requerimento|expediente|dfd|documento\s+de\s+formaliza[çc][ãa]o)\s*(?:n[º°.]?|n[úu]mero)?\s*([\d][\d.\/\-\w]*)/i);
+  const mProc = t.match(/\b(memorando|of[íi]cio|processo|requerimento|expediente|dfd|documento\s+de\s+formaliza[çc][aã]o)\s*(?:n[º°.]?|n[úu]mero)?\s*([\d][\d.\/\-\w]*)/i);
   if (mProc) raw.processo = `${mProc[1]} nº ${mProc[2]}`.replace(/\s+/g, ' ');
 
   const mUnidadeRotulo = t.match(/(?:[àa]\s+unidade\s+requisitante|unidade\s+requisitante|setor\s+requisitante|remetente|origem|de)\s*[:\-–—]\s*([^\n]{3,90})/i);
@@ -1026,7 +1026,6 @@ function gerarPDFDevolutiva() {
    ★★★ MÓDULO DFD INTELIGENTE ★★★
    ============================================================ */
 
-/* Mapeamento de campos do formulário */
 const DFD_FIELDS = [
   'numero', 'data', 'unidade', 'responsavel', 'cargo', 'orgao',
   'objeto', 'justificativa', 'quantidades',
@@ -1050,7 +1049,6 @@ const DFD_INPUTS = {
   observacoes: '#dfdObservacoes'
 };
 
-/* --- Leitura do formulário --- */
 function lerDFDFormulario() {
   const dfd = {};
   DFD_FIELDS.forEach(f => {
@@ -1060,7 +1058,6 @@ function lerDFDFormulario() {
   return dfd;
 }
 
-/* --- Preenchimento do formulário --- */
 function preencherDFDFormulario(dfd) {
   DFD_FIELDS.forEach(f => {
     const el = $(DFD_INPUTS[f]);
@@ -1108,18 +1105,6 @@ function calcularProntidaoDFD() {
 
   const pct = Math.round((obtido / total) * 100);
   const nivel = pct >= 90 ? 'alto' : pct >= 60 ? 'medio' : 'baixo';
-
-  /* Campos sensíveis por modalidade */
-  if (dfd.modalidade === 'concorrencia' && !dfd.regime && dfd.natureza === 'obras') {
-    faltantes.push('Regime de execução (obras)');
-  }
-  if (dfd.natureza === 'obras' && !dfd.metodo) {
-    faltantes.push('Referência SINAPI/SICRO');
-  }
-  if (dfd.modalidade === 'inexigibilidade' && !dfd.justificativa.includes('notória')) {
-    // apenas hint
-  }
-
   return { pct, nivel, faltantes };
 }
 
@@ -1143,9 +1128,7 @@ function renderProntidaoDFD() {
   }
 }
 
-/* --- Bind do formulário --- */
 function bindFormDFD() {
-  /* Atualiza prontidão ao digitar/mudar */
   DFD_FIELDS.forEach(f => {
     const el = $(DFD_INPUTS[f]);
     if (!el) return;
@@ -1153,7 +1136,6 @@ function bindFormDFD() {
     el.addEventListener('change', () => { state.dfd = lerDFDFormulario(); renderProntidaoDFD(); });
   });
 
-  /* Contador da justificativa */
   const justEl = $('#dfdJustificativa');
   const justCount = $('#dfdJustCount');
   if (justEl && justCount) {
@@ -1162,14 +1144,12 @@ function bindFormDFD() {
     upd();
   }
 
-  /* Botões */
   $('#btnDfdGerarPDF')?.addEventListener('click', gerarDFDPdf);
   $('#btnDfdSalvarJSON')?.addEventListener('click', salvarDFDJSON);
   $('#btnDfdCarregarExemplo')?.addEventListener('click', carregarExemploDFD);
   $('#btnDfdLimpar')?.addEventListener('click', limparDFD);
 }
 
-/* --- Validação para PDF --- */
 function validarDFDParaPDF(dfd) {
   const erros = [];
   if (!dfd.objeto || dfd.objeto.length < 15) erros.push('Objeto deve ter pelo menos 15 caracteres.');
@@ -1185,7 +1165,7 @@ function validarDFDParaPDF(dfd) {
 }
 
 /* ============================================================
-   ★ GERADOR DO PDF DFD ROTULADO PARA LICITAAUDIT ★
+   ★ GERADOR DO PDF DFD (SEM UNITAU COMO PADRÃO) ★
    ============================================================ */
 function gerarDFDPdf() {
   const dfd = lerDFDFormulario();
@@ -1197,7 +1177,6 @@ function gerarDFDPdf() {
   }
   if (!window.pdfMake) { showToast('pdfMake não carregado.', 'error'); return; }
 
-  /* Determina modalidade/natureza/critério legíveis */
   const LBL_MOD = {
     pregao:'Pregão Eletrônico', concorrencia:'Concorrência', concurso:'Concurso',
     leilao:'Leilão', dialogo:'Diálogo Competitivo',
@@ -1250,26 +1229,26 @@ function gerarDFDPdf() {
     : new Date().toLocaleDateString('pt-BR', { day:'2-digit', month:'long', year:'numeric' });
 
   const numeroDFD = dfd.numero || `DFD-${Date.now().toString().slice(-6)}`;
+  const orgaoTxt = dfd.orgao || '';   /* ← usa o valor digitado (ou vazio) */
 
-  /* ---------- PDF DEFINITION ---------- */
   const docDefinition = {
     pageSize: 'A4',
     pageMargins: [40, 50, 40, 50],
     defaultStyle: { font: 'Roboto', fontSize: 9.5, color: '#1e293b', lineHeight: 1.4 },
 
     header: (currentPage) => currentPage === 1 ? {
-  margin: [40, 20, 40, 0],
-  columns: [
-    { text: 'SISTEMA LICITAREQ · DFD OFICIAL', fontSize: 8, bold: true, color: '#4338ca' },
-    { text: 'Lei nº 14.133/2021', fontSize: 8, color: '#64748b', alignment: 'right' }
-  ]
-} : {
-  margin: [40, 20, 40, 0],
-  columns: [
-    { text: `DFD ${numeroDFD}`, fontSize: 8, color: '#94a3b8' },
-    { text: dfd.orgao || 'LicitaReq', fontSize: 8, color: '#94a3b8', alignment: 'right' }
-  ]
-},
+      margin: [40, 20, 40, 0],
+      columns: [
+        { text: 'SISTEMA LICITAREQ · DFD OFICIAL', fontSize: 8, bold: true, color: '#4338ca' },
+        { text: 'Lei nº 14.133/2021', fontSize: 8, color: '#64748b', alignment: 'right' }
+      ]
+    } : {
+      margin: [40, 20, 40, 0],
+      columns: [
+        { text: `DFD ${numeroDFD}`, fontSize: 8, color: '#94a3b8' },
+        { text: orgaoTxt || 'LicitaReq', fontSize: 8, color: '#94a3b8', alignment: 'right' }
+      ]
+    },
     footer: (currentPage, pageCount) => ({
       margin: [40, 20, 40, 0],
       columns: [
@@ -1279,7 +1258,6 @@ function gerarDFDPdf() {
     }),
 
     content: [
-      /* ---------- CAPA ---------- */
       {
         table: { widths: ['*'], body: [[{
           text: 'DOCUMENTO DE FORMALIZAÇÃO DE DEMANDA (DFD)',
@@ -1292,13 +1270,12 @@ function gerarDFDPdf() {
         fontSize: 9, alignment: 'center', color: '#64748b', margin: [0, 0, 0, 16]
       },
 
-      /* ---------- IDENTIFICAÇÃO ---------- */
       { text: '1. IDENTIFICAÇÃO', style: 'sectionTitle' },
       {
         table: {
           widths: ['32%', '68%'],
           body: [
-            [ { text: 'Órgão / Entidade', style: 'metaLabel' }, { text: dfd.orgao || 'Universidade de Taubaté (UNITAU)', style: 'metaValue' } ],
+            [ { text: 'Órgão / Entidade', style: 'metaLabel' }, { text: orgaoTxt || '________________________', style: 'metaValue' } ],
             [ { text: 'Unidade Requisitante', style: 'metaLabel' }, { text: dfd.unidade || '—', style: 'metaValue' } ],
             [ { text: 'Responsável', style: 'metaLabel' }, { text: (dfd.responsavel || '—') + (dfd.cargo ? ' — ' + dfd.cargo : ''), style: 'metaValue' } ],
             [ { text: 'Nº do DFD', style: 'metaLabel' }, { text: numeroDFD, style: 'metaValue' } ]
@@ -1312,7 +1289,6 @@ function gerarDFDPdf() {
         margin: [0, 0, 0, 16]
       },
 
-      /* ---------- OBJETO E JUSTIFICATIVA ---------- */
       { text: '2. OBJETO E JUSTIFICATIVA (Art. 18, §1º, I e II)', style: 'sectionTitle' },
       { text: 'Objeto:', style: 'miniLabel' },
       { text: dfd.objeto, fontSize: 10, color: '#0f172a', margin: [0, 3, 0, 8] },
@@ -1321,7 +1297,6 @@ function gerarDFDPdf() {
       dfd.quantidades ? { text: 'Estimativa de quantidades:', style: 'miniLabel' } : { text: '' },
       dfd.quantidades ? { text: dfd.quantidades, fontSize: 9.5, color: '#334155', margin: [0, 3, 0, 12], alignment: 'justify' } : { text: '' },
 
-      /* ---------- PCA ---------- */
       { text: '3. ALINHAMENTO AO PLANO DE CONTRATAÇÕES ANUAL — PCA (Art. 12, VII)', style: 'sectionTitle' },
       { text: [
         { text: 'Situação: ', bold: true, color: '#475569' },
@@ -1332,7 +1307,6 @@ function gerarDFDPdf() {
         ? { text: dfd.pcaJustificativa, fontSize: 9, color: '#475569', italics: true, margin: [0, 0, 0, 12], alignment: 'justify' }
         : { text: '', margin: [0, 0, 0, 12] },
 
-      /* ---------- ENQUADRAMENTO ---------- */
       { text: '4. ENQUADRAMENTO LEGAL (Arts. 28, 6º e 33)', style: 'sectionTitle' },
       {
         table: {
@@ -1358,7 +1332,6 @@ function gerarDFDPdf() {
         margin: [0, 0, 0, 16]
       },
 
-      /* ---------- ORÇAMENTO ---------- */
       { text: '5. ESTIMATIVA ORÇAMENTÁRIA (Arts. 23 e 150)', style: 'sectionTitle' },
       {
         table: {
@@ -1378,7 +1351,6 @@ function gerarDFDPdf() {
         margin: [0, 0, 0, 16]
       },
 
-      /* ---------- PARCELAMENTO / ENTREGA ---------- */
       { text: '6. PARCELAMENTO, PRAZO E ENTREGA (Art. 47)', style: 'sectionTitle' },
       {
         table: {
@@ -1398,7 +1370,6 @@ function gerarDFDPdf() {
         margin: [0, 0, 0, 16]
       },
 
-      /* ---------- FISCALIZAÇÃO ---------- */
       { text: '7. FISCALIZAÇÃO E GESTÃO CONTRATUAL (Art. 117)', style: 'sectionTitle' },
       {
         table: {
@@ -1418,11 +1389,9 @@ function gerarDFDPdf() {
         margin: [0, 0, 0, 16]
       },
 
-      /* ---------- OBSERVAÇÕES ---------- */
       dfd.observacoes ? { text: '8. OBSERVAÇÕES COMPLEMENTARES', style: 'sectionTitle' } : { text: '' },
       dfd.observacoes ? { text: dfd.observacoes, fontSize: 9, color: '#334155', margin: [0, 0, 0, 16], alignment: 'justify' } : { text: '' },
 
-      /* ---------- ASSINATURA ---------- */
       { text: '9. APROVAÇÃO E VALIDAÇÃO', style: 'sectionTitle' },
       {
         table: { widths: ['*'], body: [[{
@@ -1431,7 +1400,7 @@ function gerarDFDPdf() {
             { canvas: [{ type: 'line', x1: 130, y1: 0, x2: 385, y2: 0, lineWidth: 0.8, lineColor: '#334155' }] },
             { text: dfd.responsavel || '______________________________', fontSize: 10, bold: true, alignment: 'center', margin: [0, 6, 0, 2] },
             { text: dfd.cargo || 'Responsável pela Demanda', fontSize: 9, alignment: 'center', color: '#475569' },
-            { text: dfd.orgao || 'Universidade de Taubaté (UNITAU)', fontSize: 8.5, alignment: 'center', color: '#64748b', italics: true, margin: [0, 2, 0, 20] },
+            { text: orgaoTxt || '______________________________', fontSize: 8.5, alignment: 'center', color: '#64748b', italics: true, margin: [0, 2, 0, 20] },
             { canvas: [{ type: 'line', x1: 130, y1: 0, x2: 385, y2: 0, lineWidth: 0.8, lineColor: '#334155' }] },
             { text: '________________________________', fontSize: 10, bold: true, alignment: 'center', margin: [0, 6, 0, 2] },
             { text: 'ORDENADOR DE DESPESAS', fontSize: 9, alignment: 'center', color: '#475569' },
@@ -1442,7 +1411,6 @@ function gerarDFDPdf() {
         margin: [0, 0, 0, 20]
       },
 
-      /* ---------- TAG DE AUTENTICAÇÃO (reconhecida pelo LicitaAudit) ---------- */
       {
         table: { widths: ['*'], body: [[{
           stack: [
@@ -1486,7 +1454,7 @@ function salvarDFDJSON() {
   const dfd = lerDFDFormulario();
   const payload = {
     ferramenta: 'LicitaReq',
-    versao: '1.3.0',
+    versao: '1.4.0',
     tipo: 'DFD',
     tag: TAG_LICITAREQ_PDF,
     exportadoEm: new Date().toISOString(),
@@ -1512,9 +1480,9 @@ function carregarExemploDFD() {
     unidade: 'Diretoria de Tecnologia da Informação (TI)',
     responsavel: 'Maria Souza',
     cargo: 'Diretora de Tecnologia da Informação',
-    orgao: 'Universidade de Taubaté (UNITAU)',
+    orgao: '',   /* ← agora vazio — usuário preenche */
     objeto: 'Aquisição de Workstations e Notebooks para modernização do parque tecnológico',
-    justificativa: 'A presente demanda visa modernizar o parque tecnológico da UNITAU, garantindo a continuidade, a segurança e a eficiência dos serviços prestados à comunidade acadêmica. O parque atual apresenta obsolescência técnica, com equipamentos fora do período de garantia e com desempenho insuficiente para as demandas atuais de pesquisa, ensino e extensão. A renovação contribuirá diretamente para a melhoria do desempenho dos serviços de TI, redução de custos com manutenção corretiva e adequação às normas de segurança da informação.',
+    justificativa: 'A presente demanda visa modernizar o parque tecnológico da instituição, garantindo a continuidade, a segurança e a eficiência dos serviços prestados à comunidade acadêmica. O parque atual apresenta obsolescência técnica, com equipamentos fora do período de garantia e com desempenho insuficiente para as demandas atuais de pesquisa, ensino e extensão. A renovação contribuirá diretamente para a melhoria do desempenho dos serviços de TI, redução de custos com manutenção corretiva e adequação às normas de segurança da informação.',
     quantidades: '30 (trinta) workstations e 20 (vinte) notebooks',
     pcaPrevisto: 'sim',
     pcaItem: 'PCA-2026-ITEM-042',
@@ -1529,7 +1497,7 @@ function carregarExemploDFD() {
     fonte: '01 — Tesouro',
     parcelamento: 'parcelado',
     prazo: '12 meses, contados da assinatura do contrato',
-    local: 'Almoxarifado Central — Campus UNITAU',
+    local: 'Almoxarifado Central — Campus Sede',
     pagamento: '30-dias',
     fiscalTitular: 'João Silva — matrícula 12345',
     fiscalSubstituto: 'Ana Souza — matrícula 67890',
@@ -1633,7 +1601,6 @@ function init() {
   initDropzone();
   renderFileList();
 
-  /* Inicializa DFD */
   bindFormDFD();
   preencherDFDFormulario(state.dfd);
   renderProntidaoDFD();
