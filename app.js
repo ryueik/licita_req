@@ -1,22 +1,14 @@
 /* ============================================================
-   LicitaReq — app.js (v2.0)
+   LicitaReq — app.js (v2.0.1)
    ------------------------------------------------------------
    Motor de triagem + Módulo DFD Inteligente
    Base legal: Lei nº 14.133/2021
    ------------------------------------------------------------
-   Arquitetura:
-     §1  Configuração Multi-Órgão (dinâmica)
-     §2  Constantes e palavras-chave
-     §3  Estado global
-     §4  Utilitários e validação
-     §5  Tema
-     §6  Módulo de configuração do órgão
-     §7  Upload e parsing
-     §8  Análise jurídica
-     §9  DFD Inteligente
-     §10 Geração de PDFs
-     §11 Renderização
-     §12 Eventos e bootstrap
+   Correções v2.0.1:
+     • gerarDFDPdf(): PDF_PALETTE (P) agora é declarado no topo
+       da função (evita TDZ / ReferenceError).
+     • gerarDFDPdf(): removida chave `content:` aninhada dentro
+       do array `content` (SyntaxError) — blocos unificados.
    ============================================================ */
 'use strict';
 
@@ -26,16 +18,12 @@
 
 /** Estrutura padrão do órgão. Editável via modal de Configurações. */
 const ORG_DEFAULT = Object.freeze({
-  nome: '',
-  sigla: '',
-  cnpj: '',
-  endereco: '',
-  cidade: '',
-  uf: '',
-  logo: '',              // data URL opcional
-  unidadePadrao: '',
-  responsavelPadrao: '',
-  cargoPadrao: '',
+  nome: '', sigla: '', cnpj: '',
+  endereco: '', cidade: '', uf: '',
+  logo: '',              // ← Data URL da imagem (data:image/png;base64,...)
+  logoNome: '',          // ← Nome do arquivo original (exibição)
+  logoBytes: 0,          // ← Tamanho em bytes (exibição)
+  unidadePadrao: '', responsavelPadrao: '', cargoPadrao: '',
 });
 
 const ORG_STORAGE_KEY = 'licitareq:org';
@@ -62,6 +50,143 @@ function salvarOrgConfig(cfg) {
     console.warn('[LicitaReq] Falha ao salvar configuração:', err);
     return false;
   }
+}
+
+/* ============================================================
+   MÓDULO DE UPLOAD DE LOGO
+   ============================================================ */
+
+/** Lê o arquivo de imagem como Data URL. */
+function lerLogoComoDataURL(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => resolve(e.target?.result || '');
+    reader.onerror = () => reject(reader.error || new Error('Falha ao ler imagem.'));
+    reader.readAsDataURL(file);
+  });
+}
+
+/** Atualiza a UI do dropzone de logo com base no estado atual de ORG. */
+function renderLogoPreview() {
+  const dropzone    = $('#logoDropzone');
+  const preview     = $('#logoPreview');
+  const previewImg  = $('#logoPreviewImg');
+  const previewName = $('#logoPreviewName');
+  const previewSize = $('#logoPreviewSize');
+  const empty       = $('#logoDropzoneEmpty');
+  if (!dropzone || !preview || !empty) return;
+
+  const temLogo = !!ORG.logo;
+
+  if (temLogo) {
+    preview.hidden = false;
+    empty.hidden = true;
+    if (previewImg) previewImg.src = ORG.logo;
+    if (previewName) previewName.textContent = ORG.logoNome || 'logomarca';
+    if (previewSize) previewSize.textContent = formatBytes(ORG.logoBytes || 0);
+  } else {
+    preview.hidden = true;
+    empty.hidden = false;
+  }
+}
+
+/** Processa um arquivo de imagem selecionado / dropado. */
+async function processarLogoFile(file) {
+  if (!file) return;
+  if (!file.type.startsWith('image/')) {
+    showToast('Envie um arquivo de imagem (PNG, JPG, SVG ou WebP).', 'error');
+    return;
+  }
+  const MAX = 2 * 1024 * 1024;
+  if (file.size > MAX) {
+    showToast(`Imagem excede 2 MB (${formatBytes(file.size)}).`, 'error');
+    return;
+  }
+  try {
+    const dataURL = await lerLogoComoDataURL(file);
+    ORG.logo = dataURL;
+    ORG.logoNome = file.name;
+    ORG.logoBytes = file.size;
+    renderLogoPreview();
+    aplicarLogoNoHeader();
+    showToast(`Logomarca "${file.name}" carregada.`, 'success');
+  } catch (err) {
+    console.error('[LicitaReq] Erro ao ler logo:', err);
+    showToast('Não foi possível carregar a imagem.', 'error');
+  }
+}
+
+/** Remove a logo atual. */
+function removerLogo() {
+  ORG.logo = '';
+  ORG.logoNome = '';
+  ORG.logoBytes = 0;
+  renderLogoPreview();
+  aplicarLogoNoHeader();
+  showToast('Logomarca removida.', 'success');
+}
+
+/** Coloca a logo (ou a sigla LR) no quadrado do header. */
+function aplicarLogoNoHeader() {
+  const mark = $('#brandMark');
+  if (!mark) return;
+
+  if (ORG.logo) {
+    mark.classList.add('has-logo');
+    mark.innerHTML = `<img src="${ORG.logo}" alt="Logomarca do órgão" />`;
+  } else {
+    mark.classList.remove('has-logo');
+    mark.textContent = 'LR';
+  }
+}
+
+/** Configura os eventos do dropzone de logo. */
+function initLogoDropzone() {
+  const dropzone = $('#logoDropzone');
+  const input    = $('#logoInput');
+  const btnRem   = $('#btnRemoverLogo');
+  if (!dropzone || !input) return;
+
+  dropzone.addEventListener('click', (e) => {
+    if (e.target.closest('#btnRemoverLogo')) return; // não abre o seletor ao remover
+    input.click();
+  });
+
+  dropzone.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      input.click();
+    }
+  });
+
+  input.addEventListener('change', (e) => {
+    const f = e.target.files?.[0];
+    if (f) processarLogoFile(f);
+    e.target.value = '';
+  });
+
+  ['dragenter', 'dragover'].forEach(evt =>
+    dropzone.addEventListener(evt, (e) => {
+      e.preventDefault(); e.stopPropagation();
+      dropzone.classList.add('is-dragover');
+    })
+  );
+  ['dragleave', 'drop'].forEach(evt =>
+    dropzone.addEventListener(evt, (e) => {
+      e.preventDefault(); e.stopPropagation();
+      if (evt === 'dragleave' && dropzone.contains(e.relatedTarget)) return;
+      dropzone.classList.remove('is-dragover');
+    })
+  );
+  dropzone.addEventListener('drop', (e) => {
+    const f = e.dataTransfer?.files?.[0];
+    if (f) processarLogoFile(f);
+  });
+
+  btnRem?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    removerLogo();
+  });
 }
 
 /** Órgão ativo em runtime. */
@@ -315,21 +440,17 @@ function abrirModalConfigOrg() {
   const modal = $('#modalConfigOrg');
   if (!modal) return;
   const campos = {
-    '#orgNome': 'nome',
-    '#orgSigla': 'sigla',
-    '#orgCnpj': 'cnpj',
-    '#orgEndereco': 'endereco',
-    '#orgCidade': 'cidade',
-    '#orgUf': 'uf',
+    '#orgNome': 'nome', '#orgSigla': 'sigla', '#orgCnpj': 'cnpj',
+    '#orgEndereco': 'endereco', '#orgCidade': 'cidade', '#orgUf': 'uf',
     '#orgUnidadePadrao': 'unidadePadrao',
     '#orgResponsavelPadrao': 'responsavelPadrao',
     '#orgCargoPadrao': 'cargoPadrao',
-    '#orgLogo': 'logo'
   };
   Object.entries(campos).forEach(([sel, key]) => {
     const el = $(sel);
     if (el) el.value = ORG[key] || '';
   });
+  renderLogoPreview();
   modal.classList.remove('is-hidden');
 }
 
@@ -342,21 +463,25 @@ function fecharModalConfigOrg() {
 /** Lê os campos do modal, salva e atualiza estado. */
 function salvarFormConfigOrg() {
   const novo = {
-    nome:               $('#orgNome')?.value.trim()               || '',
-    sigla:              $('#orgSigla')?.value.trim()              || '',
-    cnpj:               $('#orgCnpj')?.value.trim()               || '',
-    endereco:           $('#orgEndereco')?.value.trim()           || '',
-    cidade:             $('#orgCidade')?.value.trim()             || '',
-    uf:                 $('#orgUf')?.value.trim().toUpperCase()   || '',
-    logo:               $('#orgLogo')?.value                     || '',
-    unidadePadrao:      $('#orgUnidadePadrao')?.value.trim()      || '',
-    responsavelPadrao:  $('#orgResponsavelPadrao')?.value.trim()  || '',
-    cargoPadrao:        $('#orgCargoPadrao')?.value.trim()        || '',
+    nome: $('#orgNome')?.value.trim() || '',
+    sigla: $('#orgSigla')?.value.trim() || '',
+    cnpj: $('#orgCnpj')?.value.trim() || '',
+    endereco: $('#orgEndereco')?.value.trim() || '',
+    cidade: $('#orgCidade')?.value.trim() || '',
+    uf: $('#orgUf')?.value.trim().toUpperCase() || '',
+    unidadePadrao: $('#orgUnidadePadrao')?.value.trim() || '',
+    responsavelPadrao: $('#orgResponsavelPadrao')?.value.trim() || '',
+    cargoPadrao: $('#orgCargoPadrao')?.value.trim() || '',
+    // Logo continua vindo do estado atual (upload é assíncrono)
+    logo: ORG.logo,
+    logoNome: ORG.logoNome,
+    logoBytes: ORG.logoBytes,
   };
   ORG = novo;
   if (salvarOrgConfig(novo)) {
     showToast('Configuração do órgão salva.', 'success');
     aplicarOrgNoFormulario();
+    aplicarLogoNoHeader();
     fecharModalConfigOrg();
   } else {
     showToast('Não foi possível salvar a configuração.', 'error');
@@ -948,7 +1073,7 @@ function salvarDFDJSON() {
   const dfd = lerDFDFormulario();
   const payload = {
     ferramenta: 'LicitaReq',
-    versao: '2.0.0',
+    versao: '2.0.1',
     tipo: 'DFD',
     tag: TAG_LICITAREQ_PDF,
     exportadoEm: new Date().toISOString(),
@@ -1007,6 +1132,9 @@ function gerarDFDPdf() {
   }
   if (!window.pdfMake) { showToast('pdfMake não carregado.', 'error'); return; }
 
+  /* ---------- Paleta (declarada ANTES de qualquer uso) ---------- */
+  const P = PDF_PALETTE;
+
   const LBL_MOD = { pregao:'Pregão Eletrônico', concorrencia:'Concorrência', concurso:'Concurso', leilao:'Leilão', dialogo:'Diálogo Competitivo', dispensa:'Dispensa de Licitação', inexigibilidade:'Inexigibilidade de Licitação' };
   const LBL_NAT = { bens:'Bens comuns', 'servicos-comuns':'Serviços comuns', 'servicos-especiais':'Serviços especiais', obras:'Obras e serviços de engenharia', intelectual:'Serviços técnicos intelectuais', alienacao:'Alienação de bens / Concessão' };
   const LBL_CRIT = { 'menor-preco':'Menor preço', 'maior-desconto':'Maior desconto', 'melhor-tecnica':'Melhor técnica ou conteúdo artístico', 'tecnica-preco':'Técnica e preço', 'maior-lance':'Maior lance', 'maior-retorno':'Maior retorno econômico' };
@@ -1014,6 +1142,28 @@ function gerarDFDPdf() {
   const LBL_PARC = { parcelado:'Parcelado em lotes (Art. 47)', indivisivel:'Indivisível (Art. 47)', 'lote-unico':'Lote único por compatibilidade técnica (Art. 47)' };
   const LBL_PGTO = { '30-dias':'Até 30 dias após NF e aceite (Art. 141)', 'parcelado-mensal':'Mensal, mediante medição', 'entrega-unica':'Pagamento único contra entrega' };
   const LBL_VIST = { dispensada:'Dispensada (não aplicável)', 'declaracao-substituicao':'Declaração em substituição (Art. 63)', obrigatoria:'Obrigatória (com justificativa técnica)' };
+
+  /* ---------- Logo no cabeçalho do PDF ---------- */
+  const logoDisponivel = !!ORG.logo;
+  const alturaLogo = 44;   // pontos
+
+  const colunaLogo = logoDisponivel
+    ? {
+        width: 60,
+        image: ORG.logo,
+        fit: [alturaLogo * 1.4, alturaLogo],
+      }
+    : {
+        width: 55,
+        table: {
+          body: [[{
+            text: (ORG.sigla || 'LR').slice(0, 3).toUpperCase(),
+            color: 'white', bold: true, fontSize: 20, alignment: 'center',
+            fillColor: P.primaria, margin: [0, 8, 0, 8]
+          }]]
+        },
+        layout: 'noBorders'
+      };
 
   const modalidadeTxt = LBL_MOD[dfd.modalidade] || dfd.modalidade;
   const naturezaTxt   = LBL_NAT[dfd.natureza] || dfd.natureza;
@@ -1030,8 +1180,6 @@ function gerarDFDPdf() {
 
   const numeroDFD = dfd.numero || `DFD-${Date.now().toString().slice(-6)}`;
   const orgaoTxt = dfd.orgao || ORG.nome || '';
-
-  const P = PDF_PALETTE;
 
   const docDefinition = {
     pageSize: 'A4',
@@ -1060,12 +1208,21 @@ function gerarDFDPdf() {
     }),
 
     content: [
-      { table: { widths: ['*'], body: [[{
-        text: 'DOCUMENTO DE FORMALIZAÇÃO DE DEMANDA (DFD)',
-        fillColor: P.primaria, color: '#fff', fontSize: 13, bold: true, alignment: 'center', margin: [0, 10, 0, 10]
-      }]] }, layout: 'noBorders', margin: [0, 0, 0, 4] },
-      { text: `Nº ${numeroDFD}  ·  ${dataFmt}`, fontSize: 9, alignment: 'center', color: P.textoMuted, margin: [0, 0, 0, 16] },
+      /* ---------- Cabeçalho com logo ---------- */
+      { columns: [
+          colunaLogo,
+          { width: '*', stack: [
+            { text: orgaoTxt || 'ÓRGÃO / ENTIDADE PÚBLICA', fontSize: 13, bold: true, color: P.texto },
+            { text: 'SISTEMA DE TRIAGEM DE CONTRATAÇÕES PÚBLICAS', fontSize: 8.5, color: P.textoMuted, characterSpacing: 0.5 },
+            { text: 'Lei nº 14.133/2021  ·  Decreto nº 11.871/2024', fontSize: 8, color: P.textoDim, italics: true }
+          ], margin: [14, 4, 0, 0] }
+        ]
+      },
+      { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 515, y2: 0, lineWidth: 1.5, lineColor: P.primaria }], margin: [0, 12, 0, 0] },
+      { text: 'DOCUMENTO DE FORMALIZAÇÃO DE DEMANDA (DFD)', fontSize: 12, bold: true, alignment: 'center', color: P.primaria, margin: [0, 16, 0, 2] },
+      { text: `Nº ${numeroDFD}  ·  ${dataFmt}`, fontSize: 9, alignment: 'center', color: P.textoMuted, margin: [0, 0, 0, 18] },
 
+      /* ---------- 1. IDENTIFICAÇÃO ---------- */
       { text: '1. IDENTIFICAÇÃO', style: 'sectionTitle' },
       { table: {
         widths: ['32%', '68%'],
@@ -1077,6 +1234,7 @@ function gerarDFDPdf() {
         ]
       }, layout: { hLineWidth: () => 0.5, vLineWidth: () => 0, hLineColor: () => P.borda, paddingTop: () => 6, paddingBottom: () => 6, paddingLeft: () => 10, paddingRight: () => 10, fillColor: (i) => i % 2 === 0 ? P.zebra : null }, margin: [0, 0, 0, 16] },
 
+      /* ---------- 2. OBJETO E JUSTIFICATIVA ---------- */
       { text: '2. OBJETO E JUSTIFICATIVA (Art. 18, §1º, I e II)', style: 'sectionTitle' },
       { text: 'Objeto:', style: 'miniLabel' },
       { text: dfd.objeto, fontSize: 10, color: P.texto, margin: [0, 3, 0, 8] },
@@ -1085,6 +1243,7 @@ function gerarDFDPdf() {
       dfd.quantidades ? { text: 'Estimativa de quantidades:', style: 'miniLabel' } : { text: '' },
       dfd.quantidades ? { text: dfd.quantidades, fontSize: 9.5, color: P.texto, margin: [0, 3, 0, 12], alignment: 'justify' } : { text: '' },
 
+      /* ---------- 3. PCA ---------- */
       { text: '3. ALINHAMENTO AO PLANO DE CONTRATAÇÕES ANUAL — PCA (Art. 12, VII)', style: 'sectionTitle' },
       { text: [
         { text: 'Situação: ', bold: true, color: P.textoMuted },
@@ -1095,6 +1254,7 @@ function gerarDFDPdf() {
         ? { text: dfd.pcaJustificativa, fontSize: 9, color: P.textoMuted, italics: true, margin: [0, 0, 0, 12], alignment: 'justify' }
         : { text: '', margin: [0, 0, 0, 12] },
 
+      /* ---------- 4. ENQUADRAMENTO LEGAL ---------- */
       { text: '4. ENQUADRAMENTO LEGAL (Arts. 28, 6º e 33)', style: 'sectionTitle' },
       { table: {
         widths: ['50%', '50%'],
@@ -1108,6 +1268,7 @@ function gerarDFDPdf() {
         ]
       }, layout: { hLineWidth: () => 0.5, vLineWidth: () => 0.5, hLineColor: () => P.borda, vLineColor: () => P.borda, paddingTop: () => 6, paddingBottom: () => 6, paddingLeft: () => 8, paddingRight: () => 8 }, margin: [0, 0, 0, 16] },
 
+      /* ---------- 5. ESTIMATIVA ORÇAMENTÁRIA ---------- */
       { text: '5. ESTIMATIVA ORÇAMENTÁRIA (Arts. 23 e 150)', style: 'sectionTitle' },
       { table: {
         widths: ['32%', '68%'],
@@ -1119,6 +1280,7 @@ function gerarDFDPdf() {
         ]
       }, layout: { hLineWidth: () => 0.5, vLineWidth: () => 0, hLineColor: () => P.borda, paddingTop: () => 6, paddingBottom: () => 6, paddingLeft: () => 10, paddingRight: () => 10, fillColor: (i) => i % 2 === 0 ? P.zebra : null }, margin: [0, 0, 0, 16] },
 
+      /* ---------- 6. PARCELAMENTO / PRAZO / ENTREGA ---------- */
       { text: '6. PARCELAMENTO, PRAZO E ENTREGA (Art. 47)', style: 'sectionTitle' },
       { table: {
         widths: ['32%', '68%'],
@@ -1130,6 +1292,7 @@ function gerarDFDPdf() {
         ]
       }, layout: { hLineWidth: () => 0.5, vLineWidth: () => 0, hLineColor: () => P.borda, paddingTop: () => 6, paddingBottom: () => 6, paddingLeft: () => 10, paddingRight: () => 10, fillColor: (i) => i % 2 === 0 ? P.zebra : null }, margin: [0, 0, 0, 16] },
 
+      /* ---------- 7. FISCALIZAÇÃO ---------- */
       { text: '7. FISCALIZAÇÃO E GESTÃO CONTRATUAL (Art. 117)', style: 'sectionTitle' },
       { table: {
         widths: ['32%', '68%'],
@@ -1141,11 +1304,13 @@ function gerarDFDPdf() {
         ]
       }, layout: { hLineWidth: () => 0.5, vLineWidth: () => 0, hLineColor: () => P.borda, paddingTop: () => 6, paddingBottom: () => 6, paddingLeft: () => 10, paddingRight: () => 10, fillColor: (i) => i % 2 === 0 ? P.zebra : null }, margin: [0, 0, 0, 16] },
 
+      /* ---------- 8. OBSERVAÇÕES (opcional) ---------- */
       ...(dfd.observacoes ? [
         { text: '8. OBSERVAÇÕES COMPLEMENTARES', style: 'sectionTitle' },
         { text: dfd.observacoes, fontSize: 9, color: P.texto, margin: [0, 0, 0, 16], alignment: 'justify' }
       ] : []),
 
+      /* ---------- 9. APROVAÇÃO ---------- */
       { text: '9. APROVAÇÃO E VALIDAÇÃO', style: 'sectionTitle' },
       { table: { widths: ['*'], body: [[{ stack: [
         { text: ' ', margin: [0, 18, 0, 0] },
@@ -1159,6 +1324,7 @@ function gerarDFDPdf() {
         { text: 'Aprovação institucional — LicitaReq', fontSize: 8.5, alignment: 'center', color: P.textoMuted, italics: true, margin: [0, 2, 0, 0] }
       ], margin: [0, 6, 0, 6] }]] }, layout: 'noBorders', margin: [0, 0, 0, 20] },
 
+      /* ---------- TAG DE AUTENTICAÇÃO ---------- */
       { table: { widths: ['*'], body: [[{ stack: [
         { text: 'TAG DE AUTENTICAÇÃO E INTEROPERABILIDADE', fontSize: 7.5, bold: true, color: P.primaria, alignment: 'center', characterSpacing: 0.6 },
         { text: TAG_LICITAREQ_PDF, fontSize: 8.5, bold: true, color: P.primaria, alignment: 'center', margin: [0, 4, 0, 4] },
@@ -1192,11 +1358,12 @@ function gerarPDFDevolutiva() {
   if (!r) { showToast('Realize uma análise antes de exportar.', 'error'); return; }
   if (!window.pdfMake) { showToast('pdfMake não carregado.', 'error'); return; }
 
+  const P = PDF_PALETTE;
+
   const d = r.dataAnalise || new Date();
   const dataFmt = d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
   const numeroDespacho = String(Math.floor(Math.random() * 900) + 100) + '/' + d.getFullYear();
   const orgao = (r.extra.orgao || ORG.nome || 'ÓRGÃO PÚBLICO').toUpperCase();
-  const P = PDF_PALETTE;
 
   const pendentes = r.requisitos.filter(x => !x.conforme);
   const pendenciasBody = pendentes.length === 0
@@ -1591,201 +1758,4 @@ function bindEventosGlobais() {
   $('#btnDfdLimpar')?.addEventListener('click', limparDFD);
 
   // Config órgão
-  $('#btnConfigOrg')?.addEventListener('click', abrirModalConfigOrg);
-  $('#btnSalvarConfigOrg')?.addEventListener('click', salvarFormConfigOrg);
-  $('#btnCancelarConfigOrg')?.addEventListener('click', fecharModalConfigOrg);
-  $$('[data-close-config-org]').forEach(el => el.addEventListener('click', fecharModalConfigOrg));
-
-  // Bind dos campos do DFD para prontidão em tempo real
-  DFD_FIELDS.forEach(f => {
-    const el = $(DFD_INPUTS[f]);
-    if (!el) return;
-    el.addEventListener('input', renderProntidaoDFD);
-    el.addEventListener('change', renderProntidaoDFD);
-  });
-
-  // Contador da justificativa
-  const justEl = $('#dfdJustificativa');
-  const justCount = $('#dfdJustCount');
-  if (justEl && justCount) {
-    const upd = () => { justCount.textContent = justEl.value.length; };
-    justEl.addEventListener('input', upd);
-    upd();
-  }
-
-  // Contador de texto da triagem
-  $('#texto')?.addEventListener('input', atualizarContador);
-
-  // ARIA expand do accordion
-  document.querySelectorAll('details.accordion').forEach(det => {
-    const summary = det.querySelector('summary');
-    if (!summary) return;
-    summary.setAttribute('aria-expanded', String(det.open));
-    det.addEventListener('toggle', () => summary.setAttribute('aria-expanded', String(det.open)));
-  });
-
-  // Atalho Ctrl+Enter
-  document.addEventListener('keydown', (e) => {
-    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-      e.preventDefault();
-      analisar();
-    }
-    if (e.key === 'Escape') fecharModalConfigOrg();
-  });
-}
-
-function carregarExemplo() {
-  const unidadeInput = $('#unidade');
-  const processoInput = $('#processo');
-  const orgaoInput = $('#orgao');
-  const respInput = $('#responsavel');
-  const cargoInput = $('#cargo');
-  const naturezaSel = $('#natureza');
-  const valorInput = $('#valor');
-  const textoEl = $('#texto');
-  if (!textoEl) return;
-
-  if (unidadeInput) unidadeInput.value = '';
-  if (processoInput) processoInput.value = '';
-  if (orgaoInput) orgaoInput.value = ORG.nome || '';
-  if (respInput) respInput.value = ORG.responsavelPadrao || '';
-  if (cargoInput) cargoInput.value = ORG.cargoPadrao || '';
-  if (naturezaSel) naturezaSel.value = 'auto';
-  if (valorInput) valorInput.value = '';
-
-  textoEl.value =
-`DIRETORIA DE TECNOLOGIA DA INFORMAÇÃO
-Memorando nº 042/2026
-
-De: Setor Requisitante / TI
-Para: Divisão de Licitações
-Assunto: Consultoria Especializada em Arquitetura de Nuvem --- 1
-
-1. Solicitamos a contratação da empresa TechCloud Soluções Avançadas Ltda.
-para prestação de serviços de consultoria especializada em arquitetura de
-nuvem, incluindo migração de workloads e otimização de custos em ambiente
-multicloud.
-
-2. Justifica-se a presente demanda em razão da necessidade de modernização
-da infraestrutura tecnológica desta Diretoria.
-
-3. O valor estimado da contratação é de R$ 85.000,00 (oitenta e cinco mil
-reais), conforme pesquisa de preços realizada junto a fornecedores do ramo.
-
-4. Informamos que há dotação orçamentária específica prevista na Lei
-Orçamentária Anual para o exercício corrente.
-
-5. O prazo de execução dos serviços é de 6 (seis) meses.
-
-6. O fiscal do contrato será designado por portaria específica.
-
-Atenciosamente,
-Diretoria de Tecnologia da Informação`;
-
-  atualizarContador();
-  showToast('Exemplo carregado.', 'success');
-}
-
-function limparTudo() {
-  const ids = ['#texto', '#unidade', '#processo', '#valor', '#orgao', '#responsavel', '#cargo'];
-  ids.forEach(id => { const el = $(id); if (el) el.value = ''; });
-  const naturezaSel = $('#natureza');
-  if (naturezaSel) naturezaSel.value = 'auto';
-
-  state.arquivos = [];
-  state.resultado = null;
-  renderFileList();
-  atualizarContador();
-
-  const emptyState = $('#emptyState');
-  const resultado = $('#resultado');
-  if (emptyState) { emptyState.hidden = false; emptyState.style.display = ''; }
-  if (resultado) { resultado.hidden = true; resultado.style.display = 'none'; resultado.innerHTML = ''; }
-  const status = $('#resultado-status');
-  if (status) status.textContent = '';
-
-  showToast('Formulário limpo.', 'success');
-}
-
-function carregarExemploDFD() {
-  const exemplo = {
-    numero: 'DFD 042/2026',
-    data: new Date().toISOString().slice(0, 10),
-    unidade: 'Diretoria de Tecnologia da Informação',
-    responsavel: ORG.responsavelPadrao || 'Maria Souza',
-    cargo: ORG.cargoPadrao || 'Diretora de TI',
-    orgao: ORG.nome || '',
-    objeto: 'Aquisição de Workstations e Notebooks para modernização do parque tecnológico',
-    justificativa: 'A presente demanda visa modernizar o parque tecnológico da instituição, garantindo a continuidade, a segurança e a eficiência dos serviços prestados. O parque atual apresenta obsolescência técnica, com equipamentos fora do período de garantia e com desempenho insuficiente para as demandas atuais. A renovação contribuirá diretamente para a melhoria do desempenho dos serviços de TI, redução de custos com manutenção corretiva e adequação às normas de segurança da informação.',
-    quantidades: '30 (trinta) workstations e 20 (vinte) notebooks',
-    pcaPrevisto: 'sim',
-    pcaItem: 'PCA-2026-ITEM-042',
-    pcaJustificativa: 'A contratação está expressamente prevista no Plano de Contratações Anual de 2026, no item 042, vinculada à ação de modernização da infraestrutura de TI.',
-    modalidade: 'pregao',
-    natureza: 'bens',
-    criterio: 'menor-preco',
-    regime: '',
-    valor: '165.000,00',
-    metodo: 'painel-precos',
-    dotacao: 'PT 12.345.6789.0001 — ND 33.90.30',
-    fonte: '01 — Tesouro',
-    parcelamento: 'parcelado',
-    prazo: '12 meses, contados da assinatura do contrato',
-    local: 'Almoxarifado Central',
-    pagamento: '30-dias',
-    fiscalTitular: 'João Silva — matrícula 12345',
-    fiscalSubstituto: 'Ana Souza — matrícula 67890',
-    gestor: 'Carlos Pereira — Divisão de Contratos',
-    vistoria: 'declaracao-substituicao',
-    observacoes: 'Os equipamentos deverão ser entregues com garantia de 36 meses on-site. Treinamento operacional incluído para equipe de TI.'
-  };
-  preencherDFDFormulario(exemplo);
-  state.dfd = exemplo;
-  renderProntidaoDFD();
-  showToast('Exemplo de DFD carregado.', 'success');
-}
-
-function limparDFD() {
-  if (!confirm('Limpar todos os campos do DFD?')) return;
-  const vazio = criarEstadoDFD();
-  preencherDFDFormulario(vazio);
-  state.dfd = vazio;
-  renderProntidaoDFD();
-  showToast('Formulário DFD limpo.', 'success');
-}
-
-function bootstrap() {
-  initTema();
-  initDropzone();
-
-  // Aplica config do órgão no header e no formulário
-  aplicarOrgNoHeader();
-  aplicarOrgNoFormulario();
-
-  // Inicializa estado do DFD
-  state.dfd = criarEstadoDFD();
-  preencherDFDFormulario(state.dfd);
-  renderProntidaoDFD();
-
-  renderFileList();
-  atualizarContador();
-
-  const emptyState = $('#emptyState');
-  const resultado = $('#resultado');
-  if (emptyState) { emptyState.hidden = false; emptyState.style.display = ''; }
-  if (resultado) { resultado.hidden = true; resultado.style.display = 'none'; }
-
-  bindEventosGlobais();
-
-  console.info(
-    '%cLicitaReq',
-    'background:#4338ca;color:#fff;padding:2px 8px;border-radius:4px;font-weight:700',
-    '· v2.0 · Multi-órgão dinâmico · Lei 14.133/2021'
-  );
-}
-
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', bootstrap);
-} else {
-  bootstrap();
-}
+  $('#btnConfigOrg
