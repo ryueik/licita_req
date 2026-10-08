@@ -1,12 +1,14 @@
 /* ============================================================
    LicitaReq — pdf-dfd.js
-   v4.0 — Capa Executiva + Paginação Rigorosa em 4 Camadas
+   v4.1 — Capa Executiva + Paginação Rigorosa em 4 Camadas
    ------------------------------------------------------------
    • Página 1 ............ Capa Executiva / Termo de Abertura
    • Páginas 2..N ........ Painel de Conformidade + Corpo Técnico
    • Página N+1 .......... Aprovações e Validações (exclusiva)
    • Página N+2 .......... TAG de Autenticação (exclusiva, final)
    • Nome do arquivo limpo (DFD_042_2026.pdf)
+   • Distribuição uniforme de signatários (nunca 1 isolado)
+   • Bloco de assinatura compacto (≈110 pt) + linha pontilhada
    ============================================================ */
 
 /* --------------------------------------------------------------
@@ -104,7 +106,7 @@ function buildDfdPdfDefinition(dfd, org, logoDataUrl, opts = {}) {
   const geradoEm = opts.geradoEm || new Date();
   const tag      = opts.tag      || gerarTagAutenticacao(dfd, org);
   const hash     = opts.hash     || gerarHashDocumento(dfd, org);
-  const versao   = opts.versao   || 'LicitaReq v4.0';
+  const versao   = opts.versao   || 'LicitaReq v4.1';
 
   const aprovadores = Array.isArray(opts.aprovadores) ? opts.aprovadores : [];
 
@@ -114,8 +116,8 @@ function buildDfdPdfDefinition(dfd, org, logoDataUrl, opts = {}) {
   /* ---------- Camada 2: CORPO TÉCNICO ---------- */
   const corpoTecnico = montarCorpoTecnico(dfd, org);
 
-  /* ---------- Camada 3: PÁGINA DE APROVAÇÕES ---------- */
-  const paginaAprovacoes = montarPaginaAprovacoes(aprovadores);
+  /* ---------- Camada 3: PÁGINAS DE APROVAÇÕES (array) ---------- */
+  const paginasAprovacoes = montarPaginaAprovacoes(aprovadores);
 
   /* ---------- Camada 4: PÁGINA DE AUTENTICAÇÃO ---------- */
   const paginaAutenticacao = montarPaginaAutenticacao({
@@ -158,7 +160,8 @@ function buildDfdPdfDefinition(dfd, org, logoDataUrl, opts = {}) {
     content: [
       capa,
       corpoTecnico,
-      paginaAprovacoes,
+      /* ⭐ Spread do array: 1 ou mais páginas de aprovação */
+      ...(Array.isArray(paginasAprovacoes) ? paginasAprovacoes : [paginasAprovacoes]),
       paginaAutenticacao
     ],
     defaultStyle: { fontSize: 9.5, color: '#0f172a', lineHeight: 1.35 }
@@ -591,44 +594,22 @@ function montarSecoesTecnicas(dfd, org) {
 }
 
 /* ==============================================================
-   CAMADA 3 — PÁGINA EXCLUSIVA DE APROVAÇÕES
-   (Quebra antes + Quebra depois — página inteira dedicada)
+   CAMADA 3 — PÁGINAS DE APROVAÇÕES (distribuição uniforme)
+   --------------------------------------------------------------
+   • Retorna SEMPRE um array de páginas.
+   • Distribui os signatários uniformemente entre páginas quando
+     ultrapassam o limite de 6 por página.
+   • Cada linha (par de signatários) é unbreakable via wrapper stack.
    ============================================================== */
 function montarPaginaAprovacoes(aprovadores) {
   aprovadores = aprovadores || [];
 
-  const cabeçalhoPagina = {
-    unbreakable: true,
-    stack: [
-      { text: 'APROVAÇÃO E VALIDAÇÃO', fontSize: 15, bold: true,
-        alignment: 'center', color: '#1e1b4b', margin: [0, 0, 0, 6] },
-      { text: 'Lei nº 14.133/2021 · Art. 18, § 1º',
-        fontSize: 9.5, alignment: 'center', color: '#4f46e5',
-        margin: [0, 0, 0, 10] },
-      {
-        canvas: [{
-          type: 'line', x1: 0, y1: 0, x2: 495, y2: 0,
-          lineWidth: 1.2, lineColor: '#4f46e5'
-        }],
-        margin: [0, 0, 0, 14]
-      },
-      {
-        text: 'Os responsáveis abaixo identificados aprovam e validam o presente ' +
-              'Documento de Formalização de Demanda, atestando a veracidade das ' +
-              'informações e a conformidade com a legislação vigente. O documento ' +
-              'deve ser assinado eletronicamente ou de próprio punho, no espaço ' +
-              'reservado para assinatura e/ou carimbo.',
-        fontSize: 9, color: '#334155', lineHeight: 1.55,
-        alignment: 'justify', margin: [0, 0, 0, 22]
-      }
-    ]
-  };
-
+  /* ---- Estado vazio: uma única página com aviso ---- */
   if (!aprovadores.length) {
-    return {
+    return [{
       pageBreak: 'before',
       stack: [
-        cabeçalhoPagina,
+        montarCabecalhoAprovacoes(true, 1, 1, 0, 0),
         {
           table: {
             widths: ['*'],
@@ -639,9 +620,10 @@ function montarPaginaAprovacoes(aprovadores) {
                 { text: 'Nenhum aprovador ou validador foi informado',
                   fontSize: 12, bold: true, alignment: 'center',
                   color: '#78350f', margin: [0, 0, 0, 6] },
-                { text: 'Preencha o Bloco 7A (Aprovadores e Validadores) no formulário ' +
-                        'do LicitaReq antes de gerar o PDF para que esta página seja ' +
-                        'preenchida com os blocos de assinatura.',
+                { text:
+                  'Preencha o Bloco 7A (Aprovadores e Validadores) no formulário ' +
+                  'do LicitaReq antes de gerar o PDF para que esta página seja ' +
+                  'preenchida com os blocos de assinatura.',
                   fontSize: 9, alignment: 'center',
                   color: '#92400e', lineHeight: 1.55 }
               ],
@@ -652,92 +634,229 @@ function montarPaginaAprovacoes(aprovadores) {
           layout: 'noBorders'
         }
       ]
-    };
+    }];
   }
 
-  /* Grade simétrica 2 colunas com blocos de assinatura */
-  const linhas = chunk(aprovadores, 2).map(function (par, idx, arr) {
+  /* ---- Distribuição uniforme ---- */
+  const MAX_POR_PAGINA = 6;   /* = 3 linhas × 2 colunas */
+  const grupos = distribuirAprovadores(aprovadores, MAX_POR_PAGINA);
+
+  /* ---- Monta uma página para cada grupo ---- */
+  return grupos.map(function (grupo, idx) {
+    const ehPrimeira = idx === 0;
+    const ehUltima   = idx === grupos.length - 1;
+    const linhas     = montarLinhasAprovadores(grupo);
+
     return {
-      columns: [
-        { width: '50%', stack: blocoAssinatura(par[0]) },
-        par[1]
-          ? { width: '50%', stack: blocoAssinatura(par[1]) }
-          : { width: '50%', text: '' }
-      ],
-      columnGap: 30,
-      margin: [0, 0, 0, idx === arr.length - 1 ? 0 : 40]
+      pageBreak: 'before',
+      stack: [
+        montarCabecalhoAprovacoes(
+          ehPrimeira,
+          idx + 1,
+          grupos.length,
+          aprovadores.length,
+          grupo.length
+        ),
+        ...linhas,
+        ehUltima
+          ? montarRodapeAprovacoes(aprovadores.length, grupos.length)
+          : { text: '', margin: [0, 20, 0, 0] }
+      ]
     };
   });
+}
+
+/* --------------------------------------------------------------
+   Distribui uniformemente N itens em P páginas equilibradas.
+   Ex.: 7 itens, máx=6  → [4, 3]
+        8 itens, máx=6  → [4, 4]
+        13 itens, máx=6 → [5, 4, 4]
+   -------------------------------------------------------------- */
+function distribuirAprovadores(aprovadores, maxPorPagina) {
+  const n = aprovadores.length;
+  if (n <= maxPorPagina) return [aprovadores];
+
+  const numPaginas = Math.ceil(n / maxPorPagina);
+  const base  = Math.floor(n / numPaginas);
+  const resto = n % numPaginas;
+
+  const paginas = [];
+  let idx = 0;
+  for (let i = 0; i < numPaginas; i++) {
+    const tam = base + (i < resto ? 1 : 0);
+    paginas.push(aprovadores.slice(idx, idx + tam));
+    idx += tam;
+  }
+  return paginas;
+}
+
+/* --------------------------------------------------------------
+   Cabeçalho de cada página de aprovações.
+   Mostra o texto introdutório completo apenas na 1ª página.
+   -------------------------------------------------------------- */
+function montarCabecalhoAprovacoes(ehPrimeira, pagina, totalPaginas, totalSignatarios, nestaGrupo) {
+  const stack = [
+    { text: 'APROVAÇÃO E VALIDAÇÃO',
+      fontSize: ehPrimeira ? 15 : 13,
+      bold: true,
+      alignment: 'center',
+      color: '#1e1b4b',
+      margin: [0, 0, 0, 4] },
+    { text: 'Lei nº 14.133/2021 · Art. 18, § 1º',
+      fontSize: 9,
+      alignment: 'center',
+      color: '#4f46e5',
+      margin: [0, 0, 0, 8] },
+    {
+      canvas: [{
+        type: 'line', x1: 0, y1: 0, x2: 495, y2: 0,
+        lineWidth: 1.2, lineColor: '#4f46e5'
+      }],
+      margin: [0, 0, 0, 10]
+    }
+  ];
+
+  /* Indicador de página quando há múltiplas */
+  if (totalPaginas > 1) {
+    stack.push({
+      text: 'Página ' + pagina + ' de ' + totalPaginas +
+            ' · ' + nestaGrupo + ' de ' + totalSignatarios + ' assinaturas',
+      fontSize: 8,
+      italics: true,
+      alignment: 'center',
+      color: '#94a3b8',
+      margin: [0, 0, 0, 10]
+    });
+  }
+
+  /* Texto introdutório completo apenas na primeira página */
+  if (ehPrimeira) {
+    stack.push({
+      text: 'Os responsáveis abaixo identificados aprovam e validam o presente ' +
+            'Documento de Formalização de Demanda, atestando a veracidade das ' +
+            'informações e a conformidade com a legislação vigente. O documento ' +
+            'deve ser assinado eletronicamente ou de próprio punho, no espaço ' +
+            'reservado para assinatura e/ou carimbo.',
+      fontSize: 9,
+      color: '#334155',
+      lineHeight: 1.5,
+      alignment: 'justify',
+      margin: [0, 0, 0, 18]
+    });
+  }
 
   return {
-    pageBreak: 'before',
+    unbreakable: true,
+    stack: stack
+  };
+}
+
+/* --------------------------------------------------------------
+   Monta as linhas (2 colunas) do grupo.
+   ⭐ Cada linha é envolvida em um `stack` com `unbreakable: true`
+   porque o pdfMake SÓ respeita `unbreakable` em nós do tipo `stack`,
+   não em `columns` diretamente.
+   -------------------------------------------------------------- */
+function montarLinhasAprovadores(grupo) {
+  const linhas = chunk(grupo, 2);
+  const ultimoIdx = linhas.length - 1;
+
+  return linhas.map(function (par, idx) {
+    const margemInferior = idx === ultimoIdx ? 0 : 22;
+
+    return {
+      /* ⭐ Wrapper stack com unbreakable=true — este SIM é respeitado */
+      stack: [{
+        unbreakable: true,
+        columns: [
+          { width: '50%', stack: blocoAssinatura(par[0]) },
+          par[1]
+            ? { width: '50%', stack: blocoAssinatura(par[1]) }
+            : { width: '50%', text: '' }
+        ],
+        columnGap: 26
+      }],
+      margin: [0, 0, 0, margemInferior]
+    };
+  });
+}
+
+/* --------------------------------------------------------------
+   Rodapé da última página de aprovações.
+   -------------------------------------------------------------- */
+function montarRodapeAprovacoes(total, totalPaginas) {
+  return {
+    unbreakable: true,
     stack: [
-      cabeçalhoPagina,
-      ...linhas,
-      /* Rodapé de fechamento da página */
       {
-        stack: [
-          {
-            canvas: [{
-              type: 'line', x1: 0, y1: 0, x2: 495, y2: 0,
-              lineWidth: 0.6, lineColor: '#cbd5e1'
-            }],
-            margin: [0, 40, 0, 12]
-          },
-          { text: 'Total de assinaturas nesta página: ' + aprovadores.length,
-            fontSize: 8, italics: true, alignment: 'center',
-            color: '#94a3b8' }
-        ]
+        canvas: [{
+          type: 'line', x1: 0, y1: 0, x2: 495, y2: 0,
+          lineWidth: 0.6, lineColor: '#cbd5e1'
+        }],
+        margin: [0, 32, 0, 10]
+      },
+      {
+        text: 'Total de assinaturas: ' + total +
+              (totalPaginas > 1 ? ' · distribuídas em ' + totalPaginas + ' páginas' : ''),
+        fontSize: 8,
+        italics: true,
+        alignment: 'center',
+        color: '#94a3b8'
       }
     ]
   };
 }
 
+/* --------------------------------------------------------------
+   Bloco individual de assinatura — versão compacta (v4.1)
+   Altura total ≈ 110 pt por bloco (antes ≈ 160 pt)
+   -------------------------------------------------------------- */
 function blocoAssinatura(p) {
   const linhas = [
-    /* Espaço em branco reservado para assinatura física */
-    { text: '', margin: [0, 50, 0, 0] },
+    /* Espaço reservado para assinatura manuscrita/carimbo */
+    { text: '', margin: [0, 32, 0, 0] },
 
-    /* Linha de assinatura */
+    /* Linha pontilhada de assinatura */
     {
       canvas: [{
         type: 'line', x1: 0, y1: 0, x2: 215, y2: 0,
         lineWidth: 0.9, lineColor: '#475569',
-        dash: { length: 3, space: 2 }   /* pontilhada p/ assinatura manual */
+        dash: { length: 3, space: 2 }
       }],
-      margin: [0, 0, 0, 6]
+      margin: [0, 0, 0, 5]
     },
 
-    /* Rótulo de assinatura */
-    { text: 'Assinatura / Carimbo', fontSize: 7.5, italics: true,
-      alignment: 'center', color: '#94a3b8', margin: [0, 0, 0, 10] },
+    /* Rótulo "Assinatura / Carimbo" */
+    { text: 'Assinatura / Carimbo',
+      fontSize: 7, italics: true, alignment: 'center',
+      color: '#94a3b8', margin: [0, 0, 0, 8] },
 
     /* Nome em destaque */
-    { text: p.nome || '—', fontSize: 11, bold: true,
-      alignment: 'center', color: '#0f172a' }
+    { text: p.nome || '—',
+      fontSize: 10.5, bold: true, alignment: 'center',
+      color: '#0f172a' }
   ];
 
   if (p.cargo) linhas.push({
-    text: p.cargo, fontSize: 9, alignment: 'center',
-    color: '#334155', margin: [0, 3, 0, 0]
+    text: p.cargo, fontSize: 8.5, alignment: 'center',
+    color: '#334155', margin: [0, 2, 0, 0]
   });
   if (p.orgao) linhas.push({
-    text: p.orgao, fontSize: 8.5, alignment: 'center',
+    text: p.orgao, fontSize: 8, alignment: 'center',
     color: '#64748b', margin: [0, 2, 0, 0]
   });
   if (p.papel) linhas.push({
     text: rotulo('papel', p.papel).toUpperCase(),
-    fontSize: 7.5, bold: true, alignment: 'center',
-    color: '#4f46e5', margin: [0, 8, 0, 0]
+    fontSize: 7, bold: true, alignment: 'center',
+    color: '#4f46e5', margin: [0, 6, 0, 0]
   });
 
-  /* Moldura suave em cada bloco para simetria visual */
   return [{
     table: {
       widths: ['*'],
       body: [[{
         stack: linhas,
-        margin: [12, 8, 12, 12]
+        margin: [12, 8, 12, 10]     /* padding interno compacto */
       }]]
     },
     layout: {
