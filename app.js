@@ -3,17 +3,38 @@
    ------------------------------------------------------------
    Motor de triagem + Módulo DFD Inteligente
    Base legal: Lei nº 14.133/2021
-   ------------------------------------------------------------
-   Correções v2.0.1:
-     • gerarDFDPdf(): PDF_PALETTE (P) agora é declarado no topo
-       da função (evita TDZ / ReferenceError).
-     • gerarDFDPdf(): removida chave `content:` aninhada dentro
-       do array `content` (SyntaxError) — blocos unificados.
+
+   Arquitetura (§):
+     §1  Configuração Multi-Órgão (dinâmica)
+     §2  Constantes e palavras-chave
+     §3  Estado global
+     §4  Utilitários e validação
+     §5  Tema
+     §6  Módulo de configuração do órgão
+     §7  Upload e parsing
+     §8  Análise jurídica
+     §9  DFD Inteligente
+     §10 Geração de PDFs
+     §11 Renderização
+     §12 Eventos e bootstrap
+
+   Changelog:
+     2.0.1 → fix: PDF_PALETTE (P) declarado no topo de gerarDFDPdf (TDZ)
+             fix: content duplicado em docDefinition unificado
+             fix: initLogoDropzone() agora é chamado em bootstrap()
    ============================================================ */
 'use strict';
 
 /* ============================================================
    §1 CONFIGURAÇÃO MULTI-ÓRGÃO
+   ------------------------------------------------------------
+   • ORG_DEFAULT ......... estrutura padrão congelada
+   • carregarOrgConfig ... lê do localStorage (com fallback)
+   • salvarOrgConfig ..... grava no localStorage
+   • ORG ................. órgão ativo em runtime
+   • Upload de logo ...... lerLogoComoDataURL / renderLogoPreview /
+                            processarLogoFile / removerLogo /
+                            aplicarLogoNoHeader / initLogoDropzone
    ============================================================ */
 
 /** Estrutura padrão do órgão. Editável via modal de Configurações. */
@@ -52,9 +73,7 @@ function salvarOrgConfig(cfg) {
   }
 }
 
-/* ============================================================
-   MÓDULO DE UPLOAD DE LOGO
-   ============================================================ */
+/* -------------------- Upload de logo -------------------- */
 
 /** Lê o arquivo de imagem como Data URL. */
 function lerLogoComoDataURL(file) {
@@ -194,6 +213,10 @@ let ORG = carregarOrgConfig();
 
 /* ============================================================
    §2 CONSTANTES E PALAVRAS-CHAVE
+   ------------------------------------------------------------
+   • Limites de dispensa (Lei 14.133/2021)
+   • Tag de autenticação para o LicitaAudit
+   • KEYWORDS: dicionário de termos por categoria
    ============================================================ */
 
 const LIMITE_DISPENSA_BENS_SERVICOS = 50000.00;
@@ -296,6 +319,9 @@ const KEYWORDS = Object.freeze({
 
 /* ============================================================
    §3 ESTADO GLOBAL
+   ------------------------------------------------------------
+   • state ............. arquivos anexados + resultado da triagem
+   • criarEstadoDFD .... fábrica de objeto DFD vazio
    ============================================================ */
 
 const state = {
@@ -341,6 +367,15 @@ function criarEstadoDFD() {
 
 /* ============================================================
    §4 UTILITÁRIOS E VALIDAÇÃO
+   ------------------------------------------------------------
+   • $ / $$ ............ seletores curtos
+   • showToast ......... notificação temporária
+   • formatBytes ....... B / KB / MB / GB
+   • escapeHtml ........ proteção XSS
+   • parseValorBR ...... "R$ 1.234,56" → 1234.56
+   • formatarValorBR ... 1234.56 → "R$ 1.234,56"
+   • truncarNome ....... nome de arquivo preservando extensão
+   • temConteudo ....... string não vazia
    ============================================================ */
 
 const $ = (sel, ctx = document) => ctx.querySelector(sel);
@@ -403,6 +438,9 @@ function temConteudo(v) {
 
 /* ============================================================
    §5 TEMA
+   ------------------------------------------------------------
+   • aplicarTema ...... troca data-theme + ícones + persistência
+   • initTema ......... lê preferência salva e aplica no boot
    ============================================================ */
 
 function aplicarTema(tema) {
@@ -433,6 +471,12 @@ function initTema() {
 
 /* ============================================================
    §6 MÓDULO DE CONFIGURAÇÃO DO ÓRGÃO
+   ------------------------------------------------------------
+   • abrirModalConfigOrg ....... abre modal com dados atuais
+   • fecharModalConfigOrg ...... fecha modal
+   • salvarFormConfigOrg ....... lê, salva, atualiza ORG + UI
+   • aplicarOrgNoFormulario .... preenche campos vazios do DFD
+   • aplicarOrgNoHeader ........ atualiza subtítulo do header
    ============================================================ */
 
 /** Abre o modal de configuração com os dados atuais preenchidos. */
@@ -522,6 +566,13 @@ function aplicarOrgNoHeader() {
 
 /* ============================================================
    §7 UPLOAD E PARSING
+   ------------------------------------------------------------
+   • initDropzone ........ configura dropzone de arquivos da triagem
+   • processarArquivos ... loop + extração de texto + toast
+   • extrairTexto ........ roteia por extensão (txt/pdf/docx)
+   • extrairPdf .......... usa PDF.js
+   • extrairDocx ......... usa Mammoth.js
+   • renderFileList ...... renderiza lista de arquivos anexados
    ============================================================ */
 
 function initDropzone() {
@@ -655,6 +706,23 @@ function renderFileList() {
 
 /* ============================================================
    §8 ANÁLISE JURÍDICA
+   ------------------------------------------------------------
+   Detectores:
+     • detectarEmpresaDirecionada
+     • detectarAlienacao
+     • detectarInexigibilidade
+     • detectarEmergencia
+     • detectarObraEngenharia
+     • detectarServicoIntelectual
+   Metadados:
+     • limparMetadados / extrairMetadados
+     • contemScore / detectarNatureza
+   Decisão:
+     • determinarModalidadeEJustificativa
+     • REQUISITOS (checklist) + analisarRequisitos
+     • calcularScore / gerarParecer
+   Execução:
+     • analisar() — função principal chamada pela UI
    ============================================================ */
 
 /** Detecta empresas explicitamente citadas no texto. */
@@ -954,6 +1022,16 @@ function analisar() {
 
 /* ============================================================
    §9 DFD INTELIGENTE
+   ------------------------------------------------------------
+   • DFD_FIELDS ......... lista de campos do estado DFD
+   • DFD_INPUTS ......... mapa campo → seletor DOM
+   • DFD_REGRA_PRONTIDAO  pesos do indicador de prontidão
+   • lerDFDFormulario ... DOM → objeto
+   • preencherDFDFormulario ... objeto → DOM
+   • calcularProntidaoDFD ... cálculo puro
+   • renderProntidaoDFD ..... atualiza UI de prontidão
+   • validarDFDParaPDF ...... bloqueia geração com pendências
+   • salvarDFDJSON .......... exporta DFD em JSON
    ============================================================ */
 
 const DFD_FIELDS = [
@@ -1096,6 +1174,11 @@ function salvarDFDJSON() {
 
 /* ============================================================
    §10 GERAÇÃO DE PDFs
+   ------------------------------------------------------------
+   • PDF_PALETTE ......... cores compartilhadas pelos PDFs
+   • LABELS_NATUREZA ..... rótulos legíveis
+   • gerarDFDPdf ......... PDF institucional do DFD
+   • gerarPDFDevolutiva .. PDF da minuta de triagem
    ============================================================ */
 
 const PDF_PALETTE = Object.freeze({
@@ -1478,6 +1561,12 @@ function gerarPDFDevolutiva() {
 
 /* ============================================================
    §11 RENDERIZAÇÃO
+   ------------------------------------------------------------
+   • renderResultado .... monta o dashboard de triagem no DOM
+   • gerarMinutaTexto ... monta a minuta de devolutiva em texto
+   • copiarTexto ........ clipboard com fallback
+   • baixarTxt .......... download de arquivo .txt
+   • imprimirMinuta ..... abre janela e dispara window.print()
    ============================================================ */
 
 function renderResultado() {
@@ -1734,6 +1823,14 @@ function imprimirMinuta(texto) {
 
 /* ============================================================
    §12 EVENTOS E BOOTSTRAP
+   ------------------------------------------------------------
+   • atualizarContador ...... contador de caracteres da triagem
+   • bindEventosGlobais ..... registra todos os listeners
+   • carregarExemplo ........ exemplo pronto de triagem
+   • limparTudo ............. reset da triagem
+   • carregarExemploDFD ..... exemplo pronto de DFD
+   • limparDFD .............. reset do DFD
+   • bootstrap .............. inicialização da aplicação
    ============================================================ */
 
 function atualizarContador() {
@@ -1924,6 +2021,7 @@ function limparDFD() {
 function bootstrap() {
   initTema();
   initDropzone();
+  initLogoDropzone();          // ← FIX: sem isto, o bloco de logo fica inerte
 
   // Aplica config do órgão no header e no formulário
   aplicarOrgNoHeader();
