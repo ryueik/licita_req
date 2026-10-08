@@ -1,11 +1,11 @@
 /* ============================================================
-   LicitaReq — style.css (v1.2)
+   LicitaReq — style.css (v1.3)
    Dark Dashboard nativo · Glassmorphism · WCAG 2.1 AA
-   Correções:
-     - Scroll INDEPENDENTE por painel (body fixo em 100vh)
-     - Estilos .motivacao-grid / .motivacao-item
-     - Contraste de alertas no tema claro
-     - Botão .btn--secondary (exportar PDF)
+   Novidades:
+     - Painel DFD Inteligente (.panel--dfd)
+     - Indicador de Prontidão (.prontidao)
+     - Fieldset/legend estilizados
+     - Tag de autenticação do PDF
    ============================================================ */
 
 /* -------------------- RESET -------------------- */
@@ -277,6 +277,12 @@ a:focus-visible {
   align-items: stretch;
 }
 
+/* O painel DFD ocupa uma linha toda */
+.panel--dfd {
+  grid-column: 1 / -1;
+  max-height: none;
+}
+
 @media (max-width: 1080px) {
   body {
     display: block;
@@ -349,6 +355,101 @@ a:focus-visible {
   box-shadow: 0 4px 14px -4px var(--brand-glow);
 }
 .step--sm { width: 22px; height: 22px; font-size: .72rem; border-radius: 7px; }
+
+/* ============================================================
+   MÓDULO DFD — Formulário Institucional
+   ============================================================ */
+.dfd-fieldset {
+  margin: 0 0 var(--space-5);
+  padding: var(--space-4) var(--space-5) var(--space-5);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-subtle);
+  min-width: 0;
+}
+.dfd-legend {
+  padding: 4px 10px;
+  font-size: .82rem;
+  font-weight: 800;
+  color: var(--brand-400);
+  letter-spacing: .02em;
+  text-transform: uppercase;
+  border-radius: 6px;
+  background: var(--brand-soft);
+  border: 1px solid var(--border-glow);
+}
+
+.dfd-tagline {
+  margin-top: var(--space-4);
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  background: var(--bg-subtle);
+  border: 1px dashed var(--border-strong);
+  font-size: .82rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+.dfd-tagline code {
+  font-family: var(--font-mono);
+  font-size: .78rem;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--brand-soft);
+  color: var(--brand-400);
+  border: 1px solid var(--border-glow);
+}
+
+/* -------------------- PRONTIDÃO -------------------- */
+.prontidao {
+  margin-bottom: var(--space-5);
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.10), rgba(56, 189, 248, 0.06));
+  border: 1px solid var(--border-glow);
+  box-shadow: var(--shadow-sm);
+}
+.prontidao__head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: 8px;
+}
+.prontidao__label {
+  font-size: .78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--brand-400);
+}
+.prontidao__value {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  transition: color .3s ease;
+}
+.prontidao__bar {
+  width: 100%;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--bg-app);
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+.prontidao__fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--danger), var(--warning), var(--success));
+  transition: width .5s cubic-bezier(.4,0,.2,1);
+}
+.prontidao__hint {
+  margin-top: 8px;
+  font-size: .78rem;
+  color: var(--text-soft);
+  line-height: 1.5;
+}
+.prontidao[data-nivel="baixo"]  .prontidao__value { color: var(--danger); }
+.prontidao[data-nivel="medio"]  .prontidao__value { color: var(--warning); }
+.prontidao[data-nivel="alto"]   .prontidao__value { color: var(--success); }
 
 /* -------------------- DROPZONE -------------------- */
 .dropzone {
@@ -455,7 +556,8 @@ a:focus-visible {
 }
 
 /* -------------------- CAMPOS -------------------- */
-.field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.field { display: flex; flex-direction: column; gap: 6px; min-width: 0; margin-bottom: var(--space-3); }
+.field:last-child { margin-bottom: 0; }
 .field__label { font-size: .8rem; font-weight: 600; color: var(--text-muted); }
 .input, .textarea, select.input {
   width: 100%;
@@ -475,7 +577,7 @@ a:focus-visible {
   box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.20);
 }
 .textarea {
-  resize: vertical; min-height: 160px;
+  resize: vertical; min-height: 120px;
   line-height: 1.6; font-family: var(--font-sans);
 }
 .counter { text-align: right; font-size: .72rem; color: var(--text-soft); }
@@ -531,7 +633,6 @@ a:focus-visible {
 .btn--primary:active { transform: translateY(0); }
 .btn--primary:disabled { opacity: .55; cursor: not-allowed; transform: none; }
 
-/* 🔧 NOVO: botão secundário para exportação em PDF */
 .btn--secondary {
   background: linear-gradient(135deg, #10b981, #059669);
   color: #ffffff;
@@ -591,7 +692,6 @@ a:focus-visible {
   to   { opacity: 1; transform: translateY(0); }
 }
 
-/* -------------------- Veredicto -------------------- */
 .verdict {
   display: grid; gap: 16px;
   padding: 22px;
@@ -634,7 +734,6 @@ a:focus-visible {
   word-break: break-word;
 }
 
-/* 🔧 FIX OVERFLOW */
 .card-modalidade,
 .badge-modalidade,
 .resultado-card,
@@ -660,7 +759,6 @@ a:focus-visible {
   hyphens: auto;
 }
 
-/* -------------------- Badges -------------------- */
 .badge {
   display: inline-flex; align-items: center; gap: 6px;
   padding: 6px 12px; border-radius: 999px;
@@ -675,38 +773,12 @@ a:focus-visible {
   text-align: left;
   line-height: 1.35;
 }
-.badge--success {
-  background: var(--success-bg);
-  color: var(--success);
-  border-color: var(--success-brd);
-  box-shadow: 0 0 12px -4px rgba(16, 185, 129, 0.6);
-}
-.badge--info {
-  background: var(--info-bg);
-  color: var(--info);
-  border-color: var(--info-brd);
-  box-shadow: 0 0 12px -4px rgba(14, 165, 233, 0.6);
-}
-.badge--warning {
-  background: var(--warning-bg);
-  color: var(--warning);
-  border-color: var(--warning-brd);
-  box-shadow: 0 0 12px -4px rgba(245, 158, 11, 0.6);
-}
-.badge--danger {
-  background: var(--danger-bg);
-  color: var(--danger);
-  border-color: var(--danger-brd);
-  box-shadow: 0 0 12px -4px rgba(239, 68, 68, 0.6);
-}
-.badge--brand {
-  background: var(--brand-soft);
-  color: var(--brand-400);
-  border-color: var(--border-glow);
-  box-shadow: 0 0 12px -4px var(--brand-glow);
-}
+.badge--success { background: var(--success-bg); color: var(--success); border-color: var(--success-brd); }
+.badge--info    { background: var(--info-bg);    color: var(--info);    border-color: var(--info-brd);    }
+.badge--warning { background: var(--warning-bg); color: var(--warning); border-color: var(--warning-brd); }
+.badge--danger  { background: var(--danger-bg);  color: var(--danger);  border-color: var(--danger-brd);  }
+.badge--brand   { background: var(--brand-soft); color: var(--brand-400); border-color: var(--border-glow); }
 
-/* -------------------- Grid de células -------------------- */
 .verdict__grid {
   display: grid; gap: 12px;
   grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
@@ -736,7 +808,6 @@ a:focus-visible {
   max-width: 100%;
 }
 
-/* -------------------- Score -------------------- */
 .score { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .score__bar {
   flex: 1; height: 8px; border-radius: 999px;
@@ -754,7 +825,6 @@ a:focus-visible {
   flex: 0 0 auto;
 }
 
-/* -------------------- Seções -------------------- */
 .section {
   padding: 20px;
   border-radius: var(--radius-lg);
@@ -779,16 +849,12 @@ a:focus-visible {
   flex: 0 0 auto;
 }
 
-/* -------------------- Motivação jurídica -------------------- */
 .motivacao { padding-bottom: 18px; }
-
 .motivacao-grid {
-  display: grid;
-  gap: 12px;
+  display: grid; gap: 12px;
   grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
   min-width: 0;
 }
-
 .motivacao-item {
   padding: 12px 14px;
   border-radius: var(--radius-md);
@@ -798,9 +864,7 @@ a:focus-visible {
   overflow-wrap: anywhere;
   word-break: break-word;
 }
-
 .motivacao-item--full { grid-column: 1 / -1; }
-
 .motivacao-item dt {
   font-size: .68rem;
   text-transform: uppercase;
@@ -809,7 +873,6 @@ a:focus-visible {
   font-weight: 800;
   margin-bottom: 6px;
 }
-
 .motivacao-item dd {
   margin: 0;
   font-size: .88rem;
@@ -818,12 +881,8 @@ a:focus-visible {
   overflow-wrap: anywhere;
   word-break: break-word;
 }
+@media (max-width: 720px) { .motivacao-item--full { grid-column: auto; } }
 
-@media (max-width: 720px) {
-  .motivacao-item--full { grid-column: auto; }
-}
-
-/* -------------------- Checklist -------------------- */
 .req-table { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .req-row {
   display: grid;
@@ -881,7 +940,6 @@ a:focus-visible {
 .sev--baixa { background: var(--info-bg);    color: var(--info);    border-color: var(--info-brd); }
 .sev--ok    { background: var(--success-bg); color: var(--success); border-color: var(--success-brd); }
 
-/* -------------------- Alertas -------------------- */
 .alerts { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 .alert {
   display: flex; gap: 10px; align-items: flex-start;
@@ -911,7 +969,6 @@ a:focus-visible {
   word-break: break-word;
 }
 
-/* -------------------- Minuta -------------------- */
 .minuta {
   position: relative;
   background: #050914;
@@ -938,7 +995,6 @@ a:focus-visible {
   margin-top: 12px; flex-wrap: wrap;
 }
 
-/* -------------------- FOOTER -------------------- */
 .app-footer {
   max-width: 1600px; margin: 0 auto;
   padding: 16px clamp(16px, 3vw, 40px) 20px;
@@ -949,7 +1005,6 @@ a:focus-visible {
 }
 .app-footer__warn { color: var(--text-muted); font-size: .74rem; }
 
-/* -------------------- TOAST -------------------- */
 .toast {
   position: fixed; bottom: 24px; left: 50%;
   transform: translateX(-50%) translateY(20px);
@@ -967,7 +1022,6 @@ a:focus-visible {
 .toast--success { background: var(--success-bg); border-color: var(--success-brd); color: var(--success-fg); }
 .toast--error   { background: var(--danger-bg);  border-color: var(--danger-brd);  color: var(--danger-fg);  }
 
-/* -------------------- SCROLLBAR GLOBAL -------------------- */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
@@ -976,7 +1030,6 @@ a:focus-visible {
 }
 ::-webkit-scrollbar-thumb:hover { background: var(--brand-400); background-clip: content-box; }
 
-/* -------------------- RESPONSIVO -------------------- */
 @media (max-width: 720px) {
   body { font-size: 14.5px; }
   .brand__subtitle { max-width: 46vw; }
@@ -990,7 +1043,6 @@ a:focus-visible {
   .badge { font-size: .72rem; padding: 5px 10px; }
 }
 
-/* -------------------- MOTION SAFE -------------------- */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: .001ms !important;
@@ -998,7 +1050,6 @@ a:focus-visible {
   }
 }
 
-/* -------------------- HIGH CONTRAST -------------------- */
 @media (prefers-contrast: more) {
   :root, [data-theme="dark"] {
     --border: #64748b;
