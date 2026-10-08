@@ -17,7 +17,6 @@
   <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin />
   <link rel="stylesheet" href="style.css" />
 
-  <!-- ===================== pdfMake (geração de PDF client-side) ===================== -->
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
 </head>
@@ -57,12 +56,299 @@
   <!-- ============================= MAIN ============================= -->
   <main id="conteudo" class="workspace" role="main">
 
-    <!-- ------------------------- ENTRADA ------------------------- -->
+    <!-- ============ DFD INTELIGENTE (MÓDULO REQUISITANTE) ============ -->
+    <section class="panel panel--dfd" aria-labelledby="titulo-dfd">
+      <header class="panel__head">
+        <h2 id="titulo-dfd" class="panel__title">
+          <span class="step" aria-hidden="true">★</span>
+          Documento de Formalização de Demanda (DFD)
+        </h2>
+        <p class="panel__hint">
+          Preencha os dados abaixo para gerar o <strong>DFD oficial</strong> em PDF
+          rotulado para importação automática no <strong>LicitaAudit</strong>.
+        </p>
+      </header>
+
+      <!-- Painel de Prontidão -->
+      <div class="prontidao" role="region" aria-label="Indicador de prontidão da demanda">
+        <div class="prontidao__head">
+          <span class="prontidao__label">Prontidão da Demanda</span>
+          <span class="prontidao__value" id="prontidaoValor">0%</span>
+        </div>
+        <div class="prontidao__bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="prontidaoBar" aria-label="Prontidão da demanda">
+          <div class="prontidao__fill" id="prontidaoFill" style="width:0%"></div>
+        </div>
+        <p class="prontidao__hint" id="prontidaoHint">
+          Preencha os campos obrigatórios para aumentar a prontidão do DFD.
+        </p>
+      </div>
+
+      <!-- Bloco 1: Identificação -->
+      <fieldset class="dfd-fieldset">
+        <legend class="dfd-legend">1. Identificação</legend>
+        <div class="grid grid--2">
+          <div class="field">
+            <label class="field__label" for="dfdNumero">Nº do DFD / Expediente</label>
+            <input id="dfdNumero" class="input" type="text" placeholder="Ex.: DFD 042/2026" />
+          </div>
+          <div class="field">
+            <label class="field__label" for="dfdData">Data da formalização</label>
+            <input id="dfdData" class="input" type="date" />
+          </div>
+          <div class="field">
+            <label class="field__label" for="dfdUnidade">Unidade requisitante</label>
+            <input id="dfdUnidade" class="input" type="text" placeholder="Ex.: Diretoria de Tecnologia da Informação" />
+          </div>
+          <div class="field">
+            <label class="field__label" for="dfdResponsavel">Responsável pela demanda</label>
+            <input id="dfdResponsavel" class="input" type="text" placeholder="Ex.: Maria Souza" />
+          </div>
+          <div class="field">
+            <label class="field__label" for="dfdCargo">Cargo / Função</label>
+            <input id="dfdCargo" class="input" type="text" placeholder="Ex.: Diretora de TI" />
+          </div>
+          <div class="field">
+            <label class="field__label" for="dfdOrgao">Órgão / Entidade</label>
+            <input id="dfdOrgao" class="input" type="text" value="Universidade de Taubaté (UNITAU)" />
+          </div>
+        </div>
+      </fieldset>
+
+      <!-- Bloco 2: Objeto e Justificativa -->
+      <fieldset class="dfd-fieldset">
+        <legend class="dfd-legend">2. Objeto e Justificativa (Art. 18, §1º, I e II)</legend>
+
+        <div class="field">
+          <label class="field__label" for="dfdObjeto">Descrição resumida do objeto</label>
+          <input id="dfdObjeto" class="input" type="text" placeholder="Ex.: Aquisição de Workstations e Notebooks para modernização do parque tecnológico" />
+        </div>
+
+        <div class="field">
+          <label class="field__label" for="dfdJustificativa">
+            Justificativa da necessidade pública (fundamentada)
+          </label>
+          <textarea
+            id="dfdJustificativa"
+            class="textarea"
+            rows="6"
+            placeholder="Descreva a real necessidade administrativa, o interesse público e o resultado pretendido…"
+          ></textarea>
+          <div class="counter"><span id="dfdJustCount">0</span> caracteres</div>
+        </div>
+
+        <div class="field">
+          <label class="field__label" for="dfdQuantidades">Estimativa de quantidades</label>
+          <input id="dfdQuantidades" class="input" type="text" placeholder="Ex.: 30 (trinta) workstations e 20 (vinte) notebooks" />
+        </div>
+      </fieldset>
+
+      <!-- Bloco 3: PCA -->
+      <fieldset class="dfd-fieldset">
+        <legend class="dfd-legend">3. Alinhamento ao Plano de Contratações Anual — PCA (Art. 12, VII)</legend>
+        <div class="grid grid--2">
+          <div class="field">
+            <label class="field__label" for="dfdPcaPrevisto">Previsto no PCA?</label>
+            <select id="dfdPcaPrevisto" class="input">
+              <option value="">Selecione…</option>
+              <option value="sim">Sim — contratação prevista no PCA</option>
+              <option value="nao">Não — inclusão extraordinária</option>
+              <option value="revisao">Sim — em revisão do PCA</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="field__label" for="dfdPcaItem">Item / Código no PCA</label>
+            <input id="dfdPcaItem" class="input" type="text" placeholder="Ex.: PCA-2026-ITEM-042" />
+          </div>
+        </div>
+        <div class="field">
+          <label class="field__label" for="dfdPcaJustificativa">Justificativa do alinhamento (opcional)</label>
+          <textarea id="dfdPcaJustificativa" class="textarea" rows="3" placeholder="Caso não esteja prevista, justifique a inclusão extraordinária ou o alinhamento com as diretrizes do PCA…"></textarea>
+        </div>
+      </fieldset>
+
+      <!-- Bloco 4: Enquadramento -->
+      <fieldset class="dfd-fieldset">
+        <legend class="dfd-legend">4. Enquadramento Legal (Arts. 28, 6º e 33)</legend>
+        <div class="grid grid--2">
+          <div class="field">
+            <label class="field__label" for="dfdModalidade">Modalidade pretendida (Art. 28)</label>
+            <select id="dfdModalidade" class="input">
+              <option value="">Selecione…</option>
+              <option value="pregao">Pregão Eletrônico (Art. 29)</option>
+              <option value="concorrencia">Concorrência (Art. 29)</option>
+              <option value="concurso">Concurso (Art. 30)</option>
+              <option value="leilao">Leilão (Art. 31)</option>
+              <option value="dialogo">Diálogo Competitivo (Art. 32)</option>
+              <option value="dispensa">Dispensa de Licitação (Art. 75)</option>
+              <option value="inexigibilidade">Inexigibilidade (Art. 74)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="field__label" for="dfdNatureza">Natureza do objeto (Art. 6º)</label>
+            <select id="dfdNatureza" class="input">
+              <option value="">Selecione…</option>
+              <option value="bens">Bens comuns</option>
+              <option value="servicos-comuns">Serviços comuns</option>
+              <option value="servicos-especiais">Serviços especiais</option>
+              <option value="obras">Obras e serviços de engenharia</option>
+              <option value="intelectual">Serviços técnicos intelectuais</option>
+              <option value="alienacao">Alienação de bens / Concessão</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="field__label" for="dfdCriterio">Critério de julgamento (Art. 33)</label>
+            <select id="dfdCriterio" class="input">
+              <option value="">Selecione…</option>
+              <option value="menor-preco">Menor preço</option>
+              <option value="maior-desconto">Maior desconto</option>
+              <option value="melhor-tecnica">Melhor técnica ou conteúdo artístico</option>
+              <option value="tecnica-preco">Técnica e preço</option>
+              <option value="maior-lance">Maior lance</option>
+              <option value="maior-retorno">Maior retorno econômico</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="field__label" for="dfdRegime">Regime de execução (obras — Art. 46)</label>
+            <select id="dfdRegime" class="input">
+              <option value="">Não aplicável / Não declarado</option>
+              <option value="empreitada-preco-unitario">Empreitada por preço unitário</option>
+              <option value="empreitada-preco-global">Empreitada por preço global</option>
+              <option value="empreitada-integral">Empreitada integral</option>
+              <option value="tarefa">Tarefa</option>
+            </select>
+          </div>
+        </div>
+      </fieldset>
+
+      <!-- Bloco 5: Orçamento -->
+      <fieldset class="dfd-fieldset">
+        <legend class="dfd-legend">5. Estimativa Orçamentária (Arts. 23 e 150)</legend>
+        <div class="grid grid--2">
+          <div class="field">
+            <label class="field__label" for="dfdValor">Valor estimado (R$)</label>
+            <input id="dfdValor" class="input" type="text" inputmode="decimal" placeholder="Ex.: 165.000,00" />
+          </div>
+          <div class="field">
+            <label class="field__label" for="dfdMetodo">Método de estimativa</label>
+            <select id="dfdMetodo" class="input">
+              <option value="">Selecione…</option>
+              <option value="painel-precos">Painel de Preços (Gov.br)</option>
+              <option value="pesquisa-mercado">Pesquisa de mercado (3+ fornecedores)</option>
+              <option value="contratacoes-similares">Contratações similares</option>
+              <option value="sinapi">SINAPI / SICRO (obras)</option>
+              <option value="midia">Mídia especializada / sítios</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="field__label" for="dfdDotacao">Dotação orçamentária</label>
+            <input id="dfdDotacao" class="input" type="text" placeholder="Ex.: PT 12.345.6789.0001 — ND 33.90.30" />
+          </div>
+          <div class="field">
+            <label class="field__label" for="dfdFonte">Fonte de recurso</label>
+            <input id="dfdFonte" class="input" type="text" placeholder="Ex.: 01 — Tesouro / 250 — Convênio" />
+          </div>
+        </div>
+      </fieldset>
+
+      <!-- Bloco 6: Parcelamento / Entrega -->
+      <fieldset class="dfd-fieldset">
+        <legend class="dfd-legend">6. Parcelamento, Prazo e Entrega (Art. 47)</legend>
+        <div class="grid grid--2">
+          <div class="field">
+            <label class="field__label" for="dfdParcelamento">Decisão de parcelamento</label>
+            <select id="dfdParcelamento" class="input">
+              <option value="">Selecione…</option>
+              <option value="parcelado">Parcelado em lotes (justificado)</option>
+              <option value="indivisivel">Indivisível (justificado)</option>
+              <option value="lote-unico">Lote único (compatibilidade técnica)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="field__label" for="dfdPrazo">Prazo de execução / vigência</label>
+            <input id="dfdPrazo" class="input" type="text" placeholder="Ex.: 12 meses, contados da assinatura" />
+          </div>
+          <div class="field">
+            <label class="field__label" for="dfdLocal">Local de entrega / prestação</label>
+            <input id="dfdLocal" class="input" type="text" placeholder="Ex.: Almoxarifado Central — Campus UNITAU" />
+          </div>
+          <div class="field">
+            <label class="field__label" for="dfdPagamento">Condições de pagamento</label>
+            <select id="dfdPagamento" class="input">
+              <option value="">Selecione…</option>
+              <option value="30-dias">Até 30 dias após NF e aceite (Art. 141)</option>
+              <option value="parcelado-mensal">Mensal, mediante medição</option>
+              <option value="entrega-unica">Pagamento único contra entrega</option>
+            </select>
+          </div>
+        </div>
+      </fieldset>
+
+      <!-- Bloco 7: Fiscalização -->
+      <fieldset class="dfd-fieldset">
+        <legend class="dfd-legend">7. Fiscalização e Gestão Contratual (Art. 117)</legend>
+        <div class="grid grid--2">
+          <div class="field">
+            <label class="field__label" for="dfdFiscalTitular">Fiscal titular</label>
+            <input id="dfdFiscalTitular" class="input" type="text" placeholder="Ex.: João Silva — matrícula 12345" />
+          </div>
+          <div class="field">
+            <label class="field__label" for="dfdFiscalSubstituto">Fiscal substituto</label>
+            <input id="dfdFiscalSubstituto" class="input" type="text" placeholder="Ex.: Ana Souza — matrícula 67890" />
+          </div>
+          <div class="field">
+            <label class="field__label" for="dfdGestor">Gestor do contrato</label>
+            <input id="dfdGestor" class="input" type="text" placeholder="Ex.: Carlos Pereira — Divisão de Contratos" />
+          </div>
+          <div class="field">
+            <label class="field__label" for="dfdVistoria">Vistoria técnica</label>
+            <select id="dfdVistoria" class="input">
+              <option value="">Selecione…</option>
+              <option value="dispensada">Dispensada (não aplicável)</option>
+              <option value="declaracao-substituicao">Declaração em substituição (Art. 63)</option>
+              <option value="obrigatoria">Obrigatória (com justificativa técnica)</option>
+            </select>
+          </div>
+        </div>
+      </fieldset>
+
+      <!-- Bloco 8: Observações -->
+      <fieldset class="dfd-fieldset">
+        <legend class="dfd-legend">8. Observações Complementares</legend>
+        <div class="field">
+          <label class="field__label" for="dfdObservacoes">Observações adicionais (opcional)</label>
+          <textarea id="dfdObservacoes" class="textarea" rows="3" placeholder="Informações complementares relevantes para instrução do DFD…"></textarea>
+        </div>
+      </fieldset>
+
+      <!-- Ações DFD -->
+      <div class="actions" role="group" aria-label="Ações do DFD">
+        <button id="btnDfdGerarPDF" class="btn btn--secondary" type="button">
+          📄 Gerar DFD em PDF (rotulado LicitaReq)
+        </button>
+        <button id="btnDfdSalvarJSON" class="btn btn--primary" type="button">
+          💾 Salvar DFD em JSON
+        </button>
+        <button id="btnDfdCarregarExemplo" class="btn btn--ghost" type="button">
+          Carregar exemplo
+        </button>
+        <button id="btnDfdLimpar" class="btn btn--ghost" type="button">
+          Limpar DFD
+        </button>
+      </div>
+
+      <p class="dfd-tagline">
+        🏷️ <strong>Tag de autenticação:</strong>
+        <code>PREFIRO_TAG: LicitaReq_Documento_Oficial</code> — o PDF gerado é
+        reconhecido automaticamente pelo módulo de auditoria do <strong>LicitaAudit</strong>.
+      </p>
+    </section>
+
+    <!-- ------------------------- ENTRADA (TRIAGEM) ------------------------- -->
     <section class="panel panel--input" aria-labelledby="titulo-entrada">
       <header class="panel__head">
         <h2 id="titulo-entrada" class="panel__title">
           <span class="step" aria-hidden="true">1</span>
-          Entrada da solicitação
+          Entrada da solicitação (Triagem)
         </h2>
         <p class="panel__hint">
           Envie o Ofício/e-mail do setor requisitante ou cole o texto diretamente no campo abaixo.
@@ -131,12 +417,10 @@
             <label class="field__label" for="unidade">Unidade requisitante</label>
             <input id="unidade" class="input" type="text" placeholder="Ex.: Coordenação de TI" autocomplete="organization" />
           </div>
-
           <div class="field">
             <label class="field__label" for="processo">Nº do processo</label>
             <input id="processo" class="input" type="text" placeholder="Ex.: 00000.000123/2025-10" />
           </div>
-
           <div class="field">
             <label class="field__label" for="natureza">Natureza do objeto</label>
             <select id="natureza" class="input">
@@ -148,22 +432,18 @@
               <option value="tic">Tecnologia da Informação e Comunicação (TIC)</option>
             </select>
           </div>
-
           <div class="field">
             <label class="field__label" for="valor">Valor estimado (R$)</label>
             <input id="valor" class="input" type="text" inputmode="decimal" placeholder="Ex.: 165.000,00" />
           </div>
-
           <div class="field">
             <label class="field__label" for="orgao">Órgão / Entidade</label>
             <input id="orgao" class="input" type="text" placeholder="Ex.: Prefeitura Municipal de…" autocomplete="organization" />
           </div>
-
           <div class="field">
             <label class="field__label" for="responsavel">Responsável pela triagem</label>
             <input id="responsavel" class="input" type="text" placeholder="Ex.: Maria Souza" autocomplete="name" />
           </div>
-
           <div class="field">
             <label class="field__label" for="cargo">Cargo / Função</label>
             <input id="cargo" class="input" type="text" placeholder="Ex.: Chefe da Divisão de Licitações" autocomplete="organization-title" />
@@ -179,8 +459,8 @@
           </svg>
           Analisar solicitação
         </button>
-        <button id="btnExemplo" class="btn btn--ghost" type="button" aria-label="Carregar exemplo de solicitação">Carregar exemplo</button>
-        <button id="btnLimpar" class="btn btn--ghost" type="button" aria-label="Limpar todos os campos do formulário">Limpar</button>
+        <button id="btnExemplo" class="btn btn--ghost" type="button">Carregar exemplo</button>
+        <button id="btnLimpar" class="btn btn--ghost" type="button">Limpar</button>
       </div>
     </section>
 
