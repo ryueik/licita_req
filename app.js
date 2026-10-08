@@ -466,8 +466,9 @@ function carregarExemploDFD() {
 }
 
 /* ---------- Salvar / Carregar JSON ---------- */
+/* ---------- Salvar / Carregar JSON ---------- */
 function baixarJSONDFD() {
-  const d = coletarDadosDFD();
+  const d   = coletarDadosDFD();
   const org = carregarOrgConfig();
   const payload = {
     meta: {
@@ -481,19 +482,20 @@ function baixarJSONDFD() {
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
   const url  = URL.createObjectURL(blob);
-  const a = document.createElement('a');
+  const a    = document.createElement('a');
   a.href = url;
-  a.download = 'DFD_' +
-    (d.numero ? d.numero.replace(/[^\w\-]+/g, '_') : 'licitareq') + '.json';
+
+  /* ✅ Reutiliza a mesma nomenclatura do PDF, apenas troca a extensão */
+  a.download = montarNomeArquivoPDF(d.numero).replace(/\.pdf$/i, '.json');
+
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
-  toast('JSON do DFD gerado.', 'success');
+  toast('JSON do DFD gerado: ' + a.download, 'success');
 }
-
 /* ==============================================================
-   5. PDF — Geração
+   5. PDF — Geração (com nomenclatura limpa)
    ============================================================== */
 function gerarPDFDFD() {
   const btn = $('#btnDfdGerarPDF');
@@ -506,8 +508,8 @@ function gerarPDFDFD() {
     return;
   }
 
-  const dfd = coletarDadosDFD();
-  const org = carregarOrgConfig();
+  const dfd  = coletarDadosDFD();
+  const org  = carregarOrgConfig();
   const logo = carregarLogoDataUrl();
 
   if (!dfd.objeto || !dfd.justificativa) {
@@ -527,16 +529,92 @@ function gerarPDFDFD() {
       aprovadores: aprovadores,
       versao: 'LicitaReq v3.0'
     });
-    const nome = 'DFD_' +
-      (dfd.numero ? dfd.numero.replace(/[^\w\-]+/g, '_') : 'licitareq') + '.pdf';
+
+    /* -------- Nome limpo e profissional do arquivo -------- */
+    const nome = montarNomeArquivoPDF(dfd.numero);
+
     window.pdfMake.createPdf(def).download(nome);
-    toast('PDF gerado com sucesso.', 'success');
+    toast('PDF gerado: ' + nome, 'success');
   } catch (err) {
     console.error('[LicitaReq] Erro ao gerar PDF:', err);
     toast('Falha ao gerar o PDF. Verifique o console.', 'error');
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = '📄 Gerar DFD em PDF'; }
   }
+}
+
+/* --------------------------------------------------------------
+   Monta o nome final do arquivo PDF, removendo redundâncias.
+   Exemplos:
+     "DFD 042/2026"      → "DFD_042_2026.pdf"
+     "DFD-042/2026"      → "DFD_042_2026.pdf"
+     "DFD nº 042/2026"   → "DFD_042_2026.pdf"
+     "042/2026"          → "DFD_042_2026.pdf"    (prefixo aplicado)
+     "Requerimento 12"   → "Requerimento_12.pdf" (prefixo preservado)
+     ""                  → "DFD_LicitaReq_YYYY-MM-DD.pdf"
+   -------------------------------------------------------------- */
+function montarNomeArquivoPDF(numeroBruto) {
+  const PREFIXO_PADRAO = 'DFD';
+
+  // 1) Sanitiza entrada bruta
+  let bruto = String(numeroBruto == null ? '' : numeroBruto).trim();
+
+  // 2) Remove acentuação e caracteres problemáticos
+  bruto = bruto
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')          // remove acentos
+    .replace(/[ºª°]/g, '')                    // remove indicadores ordinais
+    .replace(/\bn[º°o]?\.?\b/gi, '')          // remove "nº", "no.", "n°"
+    .replace(/n[uú]mero/gi, '')               // remove "número"
+    .trim();
+
+  // 3) Colapsa espaços/hífens/pontuação em underscore único
+  bruto = bruto
+    .replace(/[\/\\]+/g, '_')                 // barra → underscore
+    .replace(/[\s\-–—.]+/g, '_')              // espaços/hífens/pontos → underscore
+    .replace(/_+/g, '_')                      // colapsa repetições
+    .replace(/^_+|_+$/g, '');                 // remove underscores das pontas
+
+  // 4) Se vazio, usa fallback com data
+  if (!bruto) {
+    const hoje = new Date();
+    const y = hoje.getFullYear();
+    const m = String(hoje.getMonth() + 1).padStart(2, '0');
+    const d = String(hoje.getDate()).padStart(2, '0');
+    return PREFIXO_PADRAO + '_' + y + '-' + m + '-' + d + '.pdf';
+  }
+
+  // 5) Detecta se o usuário já informou um prefixo alfabético próprio.
+  //    Consideramos "prefixo presente" quando o primeiro token é
+  //    puramente alfabético (ex.: "DFD", "Requerimento", "OF").
+  const partes = bruto.split('_');
+  const primeiro = partes[0] || '';
+  const temPrefixoAlfa = /^[A-Za-z]+$/.test(primeiro) && primeiro.length >= 2;
+
+  let base;
+  if (temPrefixoAlfa) {
+    // Já tem prefixo próprio ("DFD", "Requerimento"…) → preserva
+    base = partes.join('_');
+    // Normaliza para Title-Case quando for palavra longa
+    if (primeiro.length > 3) {
+      partes[0] = primeiro.charAt(0).toUpperCase() +
+                  primeiro.slice(1).toLowerCase();
+      base = partes.join('_');
+    } else {
+      // Siglas curtas (DFD, OF, MEMO) em maiúsculas
+      partes[0] = primeiro.toUpperCase();
+      base = partes.join('_');
+    }
+  } else {
+    // Sem prefixo (só o número) → aplica o padrão "DFD"
+    base = PREFIXO_PADRAO + '_' + bruto;
+  }
+
+  // 6) Garante limite razoável (evita nomes gigantes)
+  const MAX = 120;
+  if (base.length > MAX) base = base.slice(0, MAX).replace(/_+$/, '');
+
+  return base + '.pdf';
 }
 
 /* ==============================================================
