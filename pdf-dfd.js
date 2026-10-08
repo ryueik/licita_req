@@ -1,11 +1,10 @@
 /* ============================================================
    LicitaReq — pdf-dfd.js
-   v4.4 — Correções cirúrgicas de layout
+   v4.5 — Fim da página vazia + seções íntegras
    ------------------------------------------------------------
-   • Header limpo (sem "DFD DFD")
-   • Nota de Apresentação em página própria (isolada da capa)
-   • Seção 6 inquebrável (sem corte entre páginas)
-   • Autenticação em página única (mantida)
+   • Sem página fantasma entre Capa e Nota de Apresentação
+   • Seções inquebráveis por padrão (título + conteúdo juntos)
+   • Corpo técnico contínuo sem cortes
    ============================================================ */
 
 /* --------------------------------------------------------------
@@ -86,9 +85,6 @@ function rotulo(grupo, valor) {
   return (ROTULOS[grupo] && ROTULOS[grupo][valor]) || valor || '—';
 }
 
-/* ==============================================================
-   NORMALIZAÇÃO DE VALOR MONETÁRIO
-   ============================================================== */
 function normalizarValorMonetario(v) {
   if (v == null || v === '') return '—';
   const s = String(v).trim();
@@ -97,38 +93,24 @@ function normalizarValorMonetario(v) {
 }
 
 /* ==============================================================
-   ⭐ [FIX 1] HEADER LIMPO — sem "DFD DFD"
-   --------------------------------------------------------------
-   Recebe dfd.numero (ex.: "DFD 042/2026", "042/2026", "Requerimento 12")
-   e devolve um título padronizado:
-     "DFD 042/2026"       → "DFD · 042/2026"
-     "042/2026"           → "DFD · 042/2026"
-     "DFD-042/2026"       → "DFD · 042/2026"
-     "Requerimento 12"    → "Requerimento · 12"
-     ""                   → "Documento de Formalização de Demanda"
+   TÍTULO DO CABEÇALHO (limpo, sem "DFD DFD")
    ============================================================== */
 function montarTituloCabecalho(dfd) {
   const bruto = String((dfd && dfd.numero) || '').trim();
   if (!bruto) return 'Documento de Formalização de Demanda';
 
-  // Detecta prefixo alfabético (DFD, OF, MEMO, Requerimento…)
   const match = bruto.match(/^([A-Za-zÀ-ÿ]+)\s*[-–—\/]?\s*(.*)$/);
   if (!match) return 'DFD · ' + bruto;
 
   const prefixo = match[1].toUpperCase();
   const resto   = (match[2] || '').trim();
 
-  // Se o prefixo já é "DFD" e há resto, retorna "DFD · <resto>"
   if (prefixo === 'DFD') {
     return resto ? ('DFD · ' + resto) : 'DFD';
   }
-
-  // Siglas curtas (2-4 letras) → mantém em maiúsculas
   if (prefixo.length <= 4) {
     return resto ? (prefixo + ' · ' + resto) : prefixo;
   }
-
-  // Palavras longas → Title Case
   const titulo = prefixo.charAt(0) + prefixo.slice(1).toLowerCase();
   return resto ? (titulo + ' · ' + resto) : titulo;
 }
@@ -140,19 +122,19 @@ function buildDfdPdfDefinition(dfd, org, logoDataUrl, opts = {}) {
   const geradoEm = opts.geradoEm || new Date();
   const tag      = opts.tag      || gerarTagAutenticacao(dfd, org);
   const hash     = opts.hash     || gerarHashDocumento(dfd, org);
-  const versao   = opts.versao   || 'LicitaReq v4.4';
+  const versao   = opts.versao   || 'LicitaReq v4.5';
 
   const aprovadores = Array.isArray(opts.aprovadores) ? opts.aprovadores : [];
 
   const capa               = montarCapaExecutiva(dfd, org, logoDataUrl, geradoEm);
-  const notaApresentacao   = montarNotaApresentacao(geradoEm);   /* ⭐ [FIX 2] isolada */
+  const notaApresentacao   = montarNotaApresentacao(geradoEm);   /* sem pageBreak before */
   const corpoTecnico       = montarCorpoTecnico(dfd, org);
   const paginasAprovacoes  = montarPaginaAprovacoes(aprovadores);
   const paginaAutenticacao = montarPaginaAutenticacao({
     tag, hash, geradoEm, versao, org, dfd
   });
 
-  const tituloCabecalho = montarTituloCabecalho(dfd);   /* ⭐ [FIX 1] */
+  const tituloCabecalho = montarTituloCabecalho(dfd);
 
   return {
     pageSize: 'A4',
@@ -166,7 +148,6 @@ function buildDfdPdfDefinition(dfd, org, logoDataUrl, opts = {}) {
       creator:  versao
     },
 
-    /* ---- Header (a partir da página 2) ---- */
     header: function (currentPage) {
       if (currentPage === 1) return { text: '' };
       return {
@@ -174,7 +155,7 @@ function buildDfdPdfDefinition(dfd, org, logoDataUrl, opts = {}) {
         columns: [
           { text: (org && org.nome) || 'LicitaReq',
             fontSize: 8, color: '#94a3b8' },
-          { text: tituloCabecalho,               /* ⭐ usa helper */
+          { text: tituloCabecalho,
             alignment: 'right', fontSize: 8, color: '#94a3b8' }
         ]
       };
@@ -192,10 +173,14 @@ function buildDfdPdfDefinition(dfd, org, logoDataUrl, opts = {}) {
       };
     },
 
+    /* ⭐ Fluxo contínuo: capa → nota → corpo → aprovadores → autenticação
+       A capa tem `pageBreak: 'after'` no último elemento.
+       A nota NÃO tem `pageBreak: 'before'` (removido — causa página vazia).
+       A nota tem `pageBreak: 'after'` no último elemento. */
     content: [
-      capa,                 /* Página 1 */
-      notaApresentacao,     /* Página 2 (isolada) — ⭐ [FIX 2] */
-      corpoTecnico,         /* Páginas 3..N */
+      capa,
+      notaApresentacao,
+      corpoTecnico,
       ...(Array.isArray(paginasAprovacoes) ? paginasAprovacoes : [paginasAprovacoes]),
       paginaAutenticacao
     ],
@@ -333,23 +318,20 @@ function montarCapaExecutiva(dfd, org, logoDataUrl, geradoEm) {
         fontSize: 8, alignment: 'center', color: '#94a3b8',
         margin: [0, 10, 0, 0] },
 
-      /* 🔒 QUEBRA APÓS A CAPA — a Nota de Apresentação inicia na página 2 */
+      /* 🔒 ÚNICA quebra de página depois da capa */
       { text: '', pageBreak: 'after' }
     ]
   };
 }
 
 /* ==============================================================
-   ⭐ [FIX 2] NOTA DE APRESENTAÇÃO — página própria (página 2)
+   NOTA DE APRESENTAÇÃO (Página 2)
    --------------------------------------------------------------
-   Bloco separado, com pageBreak: 'before' garantindo isolamento.
-   Ao final, um pageBreak: 'after' empurra o corpo técnico para a pág. 3.
+   ⭐ SEM `pageBreak: 'before'` — a quebra já veio do `pageBreak:
+   'after'` no final da capa. Ter os dois gera página vazia.
    ============================================================== */
 function montarNotaApresentacao(geradoEm) {
   return {
-    /* Força início em página nova (a capa já quebra com 'after',
-       mas 'before' aqui é redundância de segurança) */
-    pageBreak: 'before',
     stack: [
       { text: '', margin: [0, 20, 0, 0] },
 
@@ -365,7 +347,6 @@ function montarNotaApresentacao(geradoEm) {
                    lineWidth: 1.2, lineColor: '#4f46e5' }],
         margin: [0, 0, 0, 20] },
 
-      /* Bloco I — Contextualização */
       {
         table: {
           widths: ['*'],
@@ -394,7 +375,6 @@ function montarNotaApresentacao(geradoEm) {
         margin: [0, 0, 0, 16]
       },
 
-      /* Bloco II — Finalidade */
       {
         table: {
           widths: ['*'],
@@ -422,7 +402,6 @@ function montarNotaApresentacao(geradoEm) {
         margin: [0, 0, 0, 16]
       },
 
-      /* Bloco III — Autenticidade */
       {
         table: {
           widths: ['*'],
@@ -457,7 +436,6 @@ function montarNotaApresentacao(geradoEm) {
         margin: [0, 0, 0, 24]
       },
 
-      /* Bloco de encerramento */
       { canvas: [{ type: 'line', x1: 150, y1: 0, x2: 365, y2: 0,
                    lineWidth: 0.8, lineColor: '#cbd5e1' }],
         margin: [0, 0, 0, 10] },
@@ -465,7 +443,7 @@ function montarNotaApresentacao(geradoEm) {
         fontSize: 8.5, italics: true, alignment: 'center',
         color: '#94a3b8' },
 
-      /* 🔒 QUEBRA APÓS A NOTA — corpo técnico inicia na página 3 */
+      /* 🔒 Quebra após a nota — corpo técnico inicia na pág. 3 */
       { text: '', pageBreak: 'after' }
     ]
   };
@@ -489,9 +467,7 @@ function layoutCartoes() {
     vLineColor: function () { return '#e2e8f0'; },
     hLineWidth: function () { return 0.4; },
     vLineWidth: function () { return 0.4; },
-    fillColor: function (i) {
-      return (i % 2 === 0) ? '#f8fafc' : '#ffffff';
-    },
+    fillColor: function (i) { return (i % 2 === 0) ? '#f8fafc' : '#ffffff'; },
     paddingLeft:   function () { return 0; },
     paddingRight:  function () { return 0; },
     paddingTop:    function () { return 0; },
@@ -565,6 +541,8 @@ function montarPainelConformidade(dfd, org) {
   });
 
   return {
+    /* ⭐ unbreakable: o painel + cabeçalho ficam juntos */
+    unbreakable: true,
     stack: [
       { text: 'PAINEL DE CONFORMIDADE — LEI Nº 14.133/2021',
         fontSize: 10.5, bold: true, color: '#4f46e5',
@@ -586,7 +564,9 @@ function montarPainelConformidade(dfd, org) {
           paddingRight:  function () { return 4; },
           paddingTop:    function () { return 0; },
           paddingBottom: function () { return 0; }
-        }
+        },
+        /* ⭐ Impede que uma linha do painel se parta ao meio */
+        dontBreakRows: true
       },
       { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 515, y2: 0,
                    lineWidth: 1, lineColor: '#4f46e5' }],
@@ -597,6 +577,9 @@ function montarPainelConformidade(dfd, org) {
 
 function montarSecoesTecnicas(dfd, org) {
   return [
+    /* ⭐ Todas as seções são unbreakable por padrão.
+       Se alguma seção exceder o espaço restante, ela migra inteira
+       para a próxima página — nunca corta o título do conteúdo. */
     secao('1. Identificação', [
       parDuplo(
         campo('Nº do DFD / Expediente', dfd.numero),
@@ -650,7 +633,6 @@ function montarSecoesTecnicas(dfd, org) {
       )
     ]),
 
-    /* ⭐ [FIX 3] Seção 6 inquebrável — não corta entre páginas */
     secao('6. Parcelamento, Prazo e Entrega', [
       parDuplo(
         campo('Decisão de Parcelamento (Art. 47)', rotulo('parcelamento', dfd.parcelamento)),
@@ -660,7 +642,7 @@ function montarSecoesTecnicas(dfd, org) {
         campo('Local de Entrega / Prestação', dfd.local),
         campo('Condições de Pagamento',       rotulo('pagamento', dfd.pagamento))
       )
-    ], { unbreakable: true, pageBreakBefore: true }),   /* ← bloqueia quebra */
+    ]),
 
     secao('7. Fiscalização e Gestão Contratual (Art. 117)', [
       parDuplo(
@@ -679,6 +661,79 @@ function montarSecoesTecnicas(dfd, org) {
             { full: true, bloco: true })
     ])
   ];
+}
+
+/* ==============================================================
+   SEÇÃO — unbreakable por padrão
+   --------------------------------------------------------------
+   opts.pageBreakBefore (opcional) → força início em nova página.
+   O wrapper externo é um `stack` com `unbreakable: true`, fazendo
+   com que título + conteúdo NUNCA se separem entre páginas.
+   ============================================================== */
+function secao(titulo, corpo, opts) {
+  opts = opts || {};
+
+  const conteudo = {
+    unbreakable: true,
+    stack: [
+      { text: titulo, fontSize: 11, bold: true, color: '#1e1b4b',
+        margin: [0, 12, 0, 10] },
+      ...corpo,
+      { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 515, y2: 0,
+                   lineWidth: 0.4, lineColor: '#e2e8f0' }],
+        margin: [0, 10, 0, 4] }
+    ]
+  };
+
+  if (opts.pageBreakBefore) {
+    return {
+      stack: [
+        { text: '', pageBreak: 'before' },
+        conteudo
+      ]
+    };
+  }
+
+  return conteudo;
+}
+
+function campo(label, valor, options) {
+  options = options || {};
+  const bloco = options.bloco || false;
+  return {
+    full: options.full || false,
+    stack: [
+      { text: label + ':', fontSize: 8, bold: true,
+        color: '#64748b', margin: [0, 0, 0, 2] },
+      { text: valor || '—', fontSize: bloco ? 9 : 9.5,
+        color: '#0f172a', lineHeight: 1.4 }
+    ],
+    margin: [0, 0, 0, 10]
+  };
+}
+
+function parDuplo(c1, c2) {
+  /* ⭐ Sempre unbreakable — o par label/valor não se parte */
+  if (c1.full || c2.full) {
+    return {
+      unbreakable: true,
+      stack: [c1, c2]
+    };
+  }
+  return {
+    unbreakable: true,
+    columns: [
+      { width: '50%', stack: c1.stack },
+      { width: '50%', stack: c2.stack }
+    ],
+    columnGap: 20
+  };
+}
+
+function chunk(arr, size) {
+  const out = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
 }
 
 /* ==============================================================
@@ -878,7 +933,7 @@ function blocoAssinatura(p) {
 }
 
 /* ==============================================================
-   PÁGINA FINAL — AUTENTICAÇÃO (página única)
+   PÁGINA FINAL — AUTENTICAÇÃO
    ============================================================== */
 function montarPaginaAutenticacao(ctx) {
   const tag      = ctx.tag;
@@ -1011,78 +1066,8 @@ function layoutTabelaMeta() {
 }
 
 /* ==============================================================
-   ⭐ [FIX 3] SECAO — agora aceita opts
-   --------------------------------------------------------------
-   opts.unbreakable      → envolve a seção em stack unbreakable
-   opts.pageBreakBefore  → insere { text: '', pageBreak: 'before' }
-                            como primeiro elemento do wrapper
+   HELPERS DE FORMATAÇÃO
    ============================================================== */
-function secao(titulo, corpo, opts) {
-  opts = opts || {};
-
-  const conteudoInterno = {
-    stack: [
-      { text: titulo, fontSize: 11, bold: true, color: '#1e1b4b',
-        margin: [0, 12, 0, 10] },
-      ...corpo,
-      { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 515, y2: 0,
-                   lineWidth: 0.4, lineColor: '#e2e8f0' }],
-        margin: [0, 10, 0, 4] }
-    ]
-  };
-
-  /* Caso especial: unbreakable + pageBreakBefore → envelope completo */
-  if (opts.unbreakable) {
-    const stackExterno = [];
-    if (opts.pageBreakBefore) {
-      stackExterno.push({ text: '', pageBreak: 'before' });
-    }
-    stackExterno.push({
-      unbreakable: true,
-      stack: conteudoInterno.stack
-    });
-    return { stack: stackExterno };
-  }
-
-  /* Caso padrão */
-  return conteudoInterno;
-}
-
-function campo(label, valor, options) {
-  options = options || {};
-  const bloco = options.bloco || false;
-  return {
-    full: options.full || false,
-    stack: [
-      { text: label + ':', fontSize: 8, bold: true,
-        color: '#64748b', margin: [0, 0, 0, 2] },
-      { text: valor || '—', fontSize: bloco ? 9 : 9.5,
-        color: '#0f172a', lineHeight: 1.4 }
-    ],
-    margin: [0, 0, 0, 10]
-  };
-}
-
-function parDuplo(c1, c2) {
-  if (c1.full || c2.full) {
-    return { stack: [c1, c2] };
-  }
-  return {
-    unbreakable: true,
-    columns: [
-      { width: '50%', stack: c1.stack },
-      { width: '50%', stack: c2.stack }
-    ],
-    columnGap: 20
-  };
-}
-
-function chunk(arr, size) {
-  const out = [];
-  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
-  return out;
-}
-
 function formatarData(iso) {
   if (!iso) return '—';
   const p = String(iso).split('-');
@@ -1128,7 +1113,7 @@ function hash32(str) {
    ============================================================== */
 window.LicitaReqPDF = {
   buildDfdPdfDefinition: buildDfdPdfDefinition,
-  montarTituloCabecalho: montarTituloCabecalho,   /* exposto para testes */
+  montarTituloCabecalho: montarTituloCabecalho,
   ROTULOS: ROTULOS,
   rotulo: rotulo,
   normalizarValorMonetario: normalizarValorMonetario,
