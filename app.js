@@ -1,6 +1,6 @@
 /* ============================================================
    LicitaReq — app.js
-   v3.0 — Aprovadores dinâmicos + PDF v3 + Triagem
+   v3.1 — Aprovadores dinâmicos + PDF v4.5 + Minuta PDF + Triagem
    ============================================================ */
 'use strict';
 
@@ -465,8 +465,7 @@ function carregarExemploDFD() {
   toast('Exemplo de DFD carregado.', 'success');
 }
 
-/* ---------- Salvar / Carregar JSON ---------- */
-/* ---------- Salvar / Carregar JSON ---------- */
+/* ---------- Salvar JSON (mesma nomenclatura do PDF) ---------- */
 function baixarJSONDFD() {
   const d   = coletarDadosDFD();
   const org = carregarOrgConfig();
@@ -496,7 +495,7 @@ function baixarJSONDFD() {
 }
 
 /* ==============================================================
-   5. PDF — Geração (com nomenclatura limpa)
+   5. PDF — Geração do DFD (com nomenclatura limpa)
    ============================================================== */
 function gerarPDFDFD() {
   const btn = $('#btnDfdGerarPDF');
@@ -528,10 +527,9 @@ function gerarPDFDFD() {
   try {
     const def = window.LicitaReqPDF.buildDfdPdfDefinition(dfd, org, logo, {
       aprovadores: aprovadores,
-      versao: 'LicitaReq v3.0'
+      versao: 'LicitaReq v4.5'
     });
 
-    /* -------- Nome limpo e profissional do arquivo -------- */
     const nome = montarNomeArquivoPDF(dfd.numero);
 
     window.pdfMake.createPdf(def).download(nome);
@@ -552,31 +550,27 @@ function gerarPDFDFD() {
      "DFD nº 042/2026"   → "DFD_042_2026.pdf"
      "042/2026"          → "DFD_042_2026.pdf"    (prefixo aplicado)
      "Requerimento 12"   → "Requerimento_12.pdf" (prefixo preservado)
-     ""                  → "DFD_LicitaReq_YYYY-MM-DD.pdf"
+     ""                  → "DFD_2026-10-08.pdf"
    -------------------------------------------------------------- */
 function montarNomeArquivoPDF(numeroBruto) {
   const PREFIXO_PADRAO = 'DFD';
 
-  // 1) Sanitiza entrada bruta
   let bruto = String(numeroBruto == null ? '' : numeroBruto).trim();
 
-  // 2) Remove acentuação e caracteres problemáticos
   bruto = bruto
     .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')          // remove acentos
-    .replace(/[ºª°]/g, '')                    // remove indicadores ordinais
-    .replace(/\bn[º°o]?\.?\b/gi, '')          // remove "nº", "no.", "n°"
-    .replace(/n[uú]mero/gi, '')               // remove "número"
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[ºª°]/g, '')
+    .replace(/\bn[º°o]?\.?\b/gi, '')
+    .replace(/n[uú]mero/gi, '')
     .trim();
 
-  // 3) Colapsa espaços/hífens/pontuação em underscore único
   bruto = bruto
-    .replace(/[\/\\]+/g, '_')                 // barra → underscore
-    .replace(/[\s\-–—.]+/g, '_')              // espaços/hífens/pontos → underscore
-    .replace(/_+/g, '_')                      // colapsa repetições
-    .replace(/^_+|_+$/g, '');                 // remove underscores das pontas
+    .replace(/[\/\\]+/g, '_')
+    .replace(/[\s\-–—.]+/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '');
 
-  // 4) Se vazio, usa fallback com data
   if (!bruto) {
     const hoje = new Date();
     const y = hoje.getFullYear();
@@ -585,33 +579,25 @@ function montarNomeArquivoPDF(numeroBruto) {
     return PREFIXO_PADRAO + '_' + y + '-' + m + '-' + d + '.pdf';
   }
 
-  // 5) Detecta se o usuário já informou um prefixo alfabético próprio.
-  //    Consideramos "prefixo presente" quando o primeiro token é
-  //    puramente alfabético (ex.: "DFD", "Requerimento", "OF").
   const partes = bruto.split('_');
   const primeiro = partes[0] || '';
   const temPrefixoAlfa = /^[A-Za-z]+$/.test(primeiro) && primeiro.length >= 2;
 
   let base;
   if (temPrefixoAlfa) {
-    // Já tem prefixo próprio ("DFD", "Requerimento"…) → preserva
     base = partes.join('_');
-    // Normaliza para Title-Case quando for palavra longa
     if (primeiro.length > 3) {
       partes[0] = primeiro.charAt(0).toUpperCase() +
                   primeiro.slice(1).toLowerCase();
       base = partes.join('_');
     } else {
-      // Siglas curtas (DFD, OF, MEMO) em maiúsculas
       partes[0] = primeiro.toUpperCase();
       base = partes.join('_');
     }
   } else {
-    // Sem prefixo (só o número) → aplica o padrão "DFD"
     base = PREFIXO_PADRAO + '_' + bruto;
   }
 
-  // 6) Garante limite razoável (evita nomes gigantes)
   const MAX = 120;
   if (base.length > MAX) base = base.slice(0, MAX).replace(/_+$/, '');
 
@@ -997,7 +983,6 @@ function analisarSolicitacao(texto, meta) {
   meta  = meta || {};
   const norm = texto.toLowerCase();
 
-  /* Natureza detectada */
   let natureza = meta.natureza && meta.natureza !== 'auto' ? meta.natureza : '';
   if (!natureza) {
     if (PALAVRAS_OBRAS.test(texto)) natureza = 'obra';
@@ -1014,7 +999,6 @@ function analisarSolicitacao(texto, meta) {
   const temDot   = /dota[çc][aã]o|fonte de recurso|programa de trabalho/i.test(norm);
   const temPCA   = /PCA|plano de contrata[çc][õo]es/i.test(norm);
 
-  /* Requisitos (checklist) */
   const req = [
     {
       ok: temObjeto, sev: 'alta', titulo: 'Descrição do objeto',
@@ -1060,14 +1044,12 @@ function analisarSolicitacao(texto, meta) {
     }
   ];
 
-  /* Score */
   const obrigatorios = req.filter(r => r.sev === 'alta');
   const atendeObrig   = obrigatorios.filter(r => r.ok).length;
   const atendeTotal   = req.filter(r => r.ok).length;
   const score = Math.round(((atendeObrig / Math.max(obrigatorios.length, 1)) * 60) +
                            ((atendeTotal / req.length) * 40));
 
-  /* Veredito */
   let veredito, vereditoCls, vereditoTexto;
   if (score >= 80 && atendeObrig === obrigatorios.length) {
     veredito = 'Deferido para prosseguimento';
@@ -1083,10 +1065,8 @@ function analisarSolicitacao(texto, meta) {
     vereditoTexto = 'A demanda carece de elementos mínimos de instrução (objeto e/ou justificativa). Sugere-se reformulação completa.';
   }
 
-  /* Modalidade sugerida */
   const modalidadeSug = sugerirModalidade(natureza, meta.valor);
 
-  /* Alertas */
   const alertas = [];
   if (!temObjeto) alertas.push({
     tipo: 'danger', titulo: 'Objeto ausente',
@@ -1107,7 +1087,6 @@ function analisarSolicitacao(texto, meta) {
     });
   }
 
-  /* Minuta */
   const minuta = gerarMinuta({
     veredito, vereditoTexto, natureza, modalidadeSug, score,
     requisitos: req, meta
@@ -1194,7 +1173,7 @@ function renderizarResultado(res) {
 
   const rows = res.requisitos.map(r => {
     const cls = r.ok
-      ? (r.sev === 'alta' ? 'req-row--ok' : 'req-row--ok')
+      ? 'req-row--ok'
       : (r.sev === 'alta' ? 'req-row--fail' : 'req-row--warn');
     const icon = r.ok ? '✓' : (r.sev === 'alta' ? '✕' : '!');
     const sevCls = r.ok ? 'sev--ok'
@@ -1282,11 +1261,13 @@ function renderizarResultado(res) {
       '<h3 class="section__title">Minuta de devolutiva</h3>' +
       '<pre class="minuta" aria-label="Minuta gerada">' + escapeHTML(res.minuta) + '</pre>' +
       '<div class="minuta__actions">' +
-        '<button type="button" class="btn btn--ghost btn--icon" id="btnCopiarMinuta">📋 Copiar minuta</button>' +
+        '<button type="button" class="btn btn--primary btn--icon" id="btnBaixarMinutaPDF">📄 Baixar Minuta em PDF</button>' +
+        '<button type="button" class="btn btn--ghost btn--icon" id="btnCopiarMinuta">📋 Copiar texto</button>' +
         '<button type="button" class="btn btn--ghost btn--icon" id="btnBaixarMinuta">💾 Baixar .txt</button>' +
       '</div>' +
     '</section>';
 
+  /* ---- Ação: Copiar minuta ---- */
   const btnCopiar = $('#btnCopiarMinuta');
   if (btnCopiar) {
     btnCopiar.addEventListener('click', () => {
@@ -1296,6 +1277,8 @@ function renderizarResultado(res) {
       );
     });
   }
+
+  /* ---- Ação: Baixar .txt ---- */
   const btnBaixar = $('#btnBaixarMinuta');
   if (btnBaixar) {
     btnBaixar.addEventListener('click', () => {
@@ -1311,6 +1294,12 @@ function renderizarResultado(res) {
     });
   }
 
+  /* ---- Ação: Gerar Minuta em PDF ---- */
+  const btnMinPDF = $('#btnBaixarMinutaPDF');
+  if (btnMinPDF) {
+    btnMinPDF.addEventListener('click', () => gerarMinutaPDF(res));
+  }
+
   if (status) {
     status.textContent = 'Análise concluída. Veredito: ' + res.veredito + '. Score ' + res.score + ' de 100.';
   }
@@ -1318,7 +1307,79 @@ function renderizarResultado(res) {
 }
 
 /* ==============================================================
-   10. AÇÕES DA TRIAGEM
+   10. GERAÇÃO DA MINUTA EM PDF
+   ============================================================== */
+function gerarMinutaPDF(res) {
+  const btn = $('#btnBaixarMinutaPDF');
+
+  if (!window.LicitaReqMinutaPDF || !window.LicitaReqMinutaPDF.buildMinutaPdfDefinition) {
+    toast('Módulo de Minuta PDF não carregado.', 'error');
+    return;
+  }
+  if (!window.pdfMake) {
+    toast('pdfMake não carregado (verifique a conexão).', 'error');
+    return;
+  }
+  if (!res) {
+    toast('Nenhuma análise disponível. Execute a triagem primeiro.', 'error');
+    return;
+  }
+
+  const org    = carregarOrgConfig();
+  const logo   = carregarLogoDataUrl();
+  const meta   = res.meta || {};
+  const texto  = ($('#texto') && $('#texto').value) || '';
+
+  const minutaPayload = {
+    numero:        meta.processo || '',
+    processo:      meta.processo || '',
+    data:          new Date().toISOString().slice(0, 10),
+    unidade:       meta.unidade || '',
+    responsavel:   meta.responsavel || '',
+    cargo:         meta.cargo || '',
+    orgao:         meta.orgao || org.nome || '',
+    objeto:        texto.trim().slice(0, 500),
+    veredito:      res.veredito,
+    vereditoCls:   res.vereditoCls,
+    vereditoTexto: res.vereditoTexto,
+    score:         res.score,
+    natureza:      res.natureza,
+    modalidadeSug: res.modalidadeSug,
+    requisitos:    res.requisitos,
+    alertas:       res.alertas,
+    minuta:        res.minuta,
+    meta:          meta
+  };
+
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Gerando Minuta…'; }
+
+  try {
+    const def = window.LicitaReqMinutaPDF.buildMinutaPdfDefinition(
+      minutaPayload,
+      org,
+      logo,
+      {
+        aprovadores: getAprovadoresValidos(),
+        versao: 'LicitaReq v4.5'
+      }
+    );
+
+    const nome = window.LicitaReqMinutaPDF.montarNomeArquivoMinuta(
+      minutaPayload.processo || minutaPayload.numero
+    );
+
+    window.pdfMake.createPdf(def).download(nome);
+    toast('Minuta gerada: ' + nome, 'success');
+  } catch (err) {
+    console.error('[LicitaReq] Erro ao gerar Minuta PDF:', err);
+    toast('Falha ao gerar a Minuta. Verifique o console.', 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '📄 Baixar Minuta em PDF'; }
+  }
+}
+
+/* ==============================================================
+   11. AÇÕES DA TRIAGEM
    ============================================================== */
 function executarAnalise() {
   const texto = ($('#texto') && $('#texto').value.trim()) || '';
@@ -1408,7 +1469,7 @@ function ligarBotoesTriagem() {
 }
 
 /* ==============================================================
-   11. LIGAR BOTÕES DO DFD
+   12. LIGAR BOTÕES DO DFD
    ============================================================== */
 function ligarBotoesDFD() {
   const btnPDF = $('#btnDfdGerarPDF');
@@ -1429,7 +1490,6 @@ function ligarBotoesDFD() {
     });
   }
 
-  /* Auto-save + prontidão */
   const autosave = debounce(() => {
     salvarDFDLocal();
     atualizarProntidao();
@@ -1449,7 +1509,7 @@ function ligarBotoesDFD() {
 }
 
 /* ==============================================================
-   12. BOOTSTRAP
+   13. BOOTSTRAP
    ============================================================== */
 document.addEventListener('DOMContentLoaded', () => {
   /* Tema */
@@ -1474,5 +1534,6 @@ document.addEventListener('DOMContentLoaded', () => {
   ligarDropzoneTriagem();
   ligarBotoesTriagem();
 
-  console.info('[LicitaReq] v3.0 inicializado — Lei nº 14.133/2021');
+  console.info('[LicitaReq] v3.1 inicializado — Lei nº 14.133/2021');
+  console.info('[LicitaReq] Módulos: DFD PDF (v4.5) + Minuta PDF (v1.0)');
 });
