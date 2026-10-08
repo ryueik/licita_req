@@ -1,11 +1,13 @@
 /* ============================================================
    LicitaReq — pdf-dfd.js
    Módulo de geração de PDF (DFD)
-   v3.0 — Aprovadores dinâmicos + Página exclusiva de autenticação
+   v3.1 — Auditoria otimizada + Painel de Conformidade
    ------------------------------------------------------------
-   • Suporta N aprovadores/validadores em grade de 2 colunas
+   • Painel de conformidade com pares "Chave: Valor" em linha única
+     (compatível com o extrator regex do LicitaAudit)
+   • Labels sem characterSpacing e sem uppercase forçado
+   • Nome do arquivo sem redundância (DFD_042_2026.pdf)
    • Quebra de página obrigatória para a TAG de autenticação
-   • Rótulos revisados (pt-BR · Lei nº 14.133/2021)
    ============================================================ */
 
 /* --------------------------------------------------------------
@@ -87,13 +89,132 @@ function rotulo(grupo, valor) {
 }
 
 /* ==============================================================
+   NORMALIZAÇÃO DE VALOR MONETÁRIO
+   Converte qualquer entrada em "R$ 165.000,00" legível ao regex
+   ============================================================== */
+function normalizarValorMonetario(v) {
+  if (v == null || v === '') return '—';
+  const s = String(v).trim();
+  // Se já tem "R$", mantém
+  if (/^R\$/i.test(s)) return s;
+  // Se for só número com pontos/vírgula, prefixa
+  return 'R$ ' + s;
+}
+
+/* ==============================================================
+   PAINEL DE CONFORMIDADE — Chave: Valor em linha única
+   Bloco que o LicitaAudit lê ANTES das seções numeradas
+   ============================================================== */
+function montarPainelConformidade(dfd, org) {
+  const linhas = [
+    ['Nº do DFD',                  dfd.numero        || '—'],
+    ['Data da Formalização',       formatarData(dfd.data)],
+    ['Órgão / Entidade',           dfd.orgao || (org && org.nome) || '—'],
+    ['Unidade Requisitante',       dfd.unidade       || '—'],
+    ['Responsável pela Demanda',   dfd.responsavel   || '—'],
+    ['Cargo / Função',             dfd.cargo         || '—'],
+    ['Objeto da Contratação',      dfd.objeto        || '—'],
+    ['Estimativa de Quantidades',  dfd.quantidades   || '—'],
+    ['Valor Estimado',             normalizarValorMonetario(dfd.valor)],
+    ['Método de Estimativa',       rotulo('metodo', dfd.metodo)],
+    ['Dotação Orçamentária',       dfd.dotacao       || '—'],
+    ['Fonte de Recurso',           dfd.fonte         || '—'],
+    ['Previsão no PCA',            rotulo('pca', dfd.pcaPrevisto)],
+    ['Item / Código no PCA',       dfd.pcaItem       || '—'],
+    ['Modalidade Pretendida',      rotulo('modalidade', dfd.modalidade)],
+    ['Natureza do Objeto',         rotulo('natureza',   dfd.natureza)],
+    ['Critério de Julgamento',     rotulo('criterio',   dfd.criterio)],
+    ['Regime de Execução',         rotulo('regime',     dfd.regime)],
+    ['Decisão de Parcelamento',    rotulo('parcelamento', dfd.parcelamento)],
+    ['Prazo de Execução',          dfd.prazo         || '—'],
+    ['Local de Entrega',           dfd.local         || '—'],
+    ['Condições de Pagamento',     rotulo('pagamento', dfd.pagamento)],
+    ['Fiscal Titular',             dfd.fiscalTitular || '—'],
+    ['Fiscal Substituto',          dfd.fiscalSubstituto || '—'],
+    ['Gestor do Contrato',         dfd.gestor        || '—'],
+    ['Vistoria Técnica',           rotulo('vistoria', dfd.vistoria)]
+  ];
+
+  const body = linhas.map(function (par) {
+    return [
+      {
+        text: par[0] + ':',
+        fontSize: 9,
+        bold: true,
+        color: '#1e1b4b',
+        // SEM characterSpacing — leitura regex limpa
+        margin: [8, 5, 8, 5]
+      },
+      {
+        text: par[1] || '—',
+        fontSize: 9,
+        color: '#0f172a',
+        margin: [8, 5, 8, 5]
+      }
+    ];
+  });
+
+  return {
+    unbreakable: true,
+    stack: [
+      {
+        text: 'PAINEL DE CONFORMIDADE — LEI Nº 14.133/2021',
+        fontSize: 10.5,
+        bold: true,
+        color: '#4f46e5',
+        alignment: 'center',
+        margin: [0, 0, 0, 4]
+      },
+      {
+        text: 'Bloco de leitura automatizada para o LicitaAudit',
+        fontSize: 8,
+        italics: true,
+        color: '#64748b',
+        alignment: 'center',
+        margin: [0, 0, 0, 10]
+      },
+      {
+        table: {
+          widths: ['38%', '*'],
+          body: body
+        },
+        layout: {
+          hLineColor: function () { return '#e2e8f0'; },
+          vLineColor: function () { return '#e2e8f0'; },
+          hLineWidth: function (i, node) {
+            // linha superior e inferior mais fortes
+            return (i === 0 || i === node.table.body.length) ? 0.8 : 0.3;
+          },
+          vLineWidth: function () { return 0.3; },
+          fillColor: function (i) {
+            // zebra striping leve
+            return i % 2 === 0 ? '#f8fafc' : null;
+          },
+          paddingLeft:   function () { return 4; },
+          paddingRight:  function () { return 4; },
+          paddingTop:    function () { return 0; },
+          paddingBottom: function () { return 0; }
+        }
+      },
+      {
+        canvas: [{
+          type: 'line', x1: 0, y1: 0, x2: 495, y2: 0,
+          lineWidth: 1, lineColor: '#4f46e5'
+        }],
+        margin: [0, 12, 0, 4]
+      }
+    ]
+  };
+}
+
+/* ==============================================================
    FUNÇÃO PRINCIPAL — Monta o docDefinition do pdfMake
    ============================================================== */
 function buildDfdPdfDefinition(dfd, org, logoDataUrl, opts = {}) {
   const geradoEm = opts.geradoEm || new Date();
   const tag      = opts.tag      || gerarTagAutenticacao(dfd, org);
   const hash     = opts.hash     || gerarHashDocumento(dfd, org);
-  const versao   = opts.versao   || 'LicitaReq v3.0';
+  const versao   = opts.versao   || 'LicitaReq v3.1';
 
   const aprovadores = Array.isArray(opts.aprovadores) ? opts.aprovadores : [];
 
@@ -132,91 +253,93 @@ function buildDfdPdfDefinition(dfd, org, logoDataUrl, opts = {}) {
   const titulo = {
     stack: [
       { text: 'DOCUMENTO DE FORMALIZAÇÃO DE DEMANDA',
-        fontSize: 14, bold: true, alignment: 'center', color: '#1e1b4b',
-        characterSpacing: 0.8 },
+        fontSize: 14, bold: true, alignment: 'center', color: '#1e1b4b' },
       { text: 'DFD — Lei nº 14.133/2021, Art. 18, § 1º',
-        fontSize: 9.5, alignment: 'center', color: '#4f46e5', margin: [0, 4, 0, 16] }
+        fontSize: 9.5, alignment: 'center', color: '#4f46e5', margin: [0, 4, 0, 14] }
     ]
   };
+
+  /* ---------- PAINEL DE CONFORMIDADE (topo, para o LicitaAudit) ---------- */
+  const painelConformidade = montarPainelConformidade(dfd, org);
 
   /* ---------- Blocos 1 a 8 ---------- */
   const blocos = [
     secao('1. Identificação', [
       parDuplo(
         campo('Nº do DFD / Expediente', dfd.numero),
-        campo('Data da formalização', formatarData(dfd.data))
+        campo('Data da Formalização',   formatarData(dfd.data))
       ),
       parDuplo(
-        campo('Unidade requisitante', dfd.unidade),
-        campo('Órgão / Entidade', dfd.orgao || (org && org.nome))
+        campo('Unidade Requisitante',   dfd.unidade),
+        campo('Órgão / Entidade',       dfd.orgao || (org && org.nome))
       ),
       parDuplo(
-        campo('Responsável pela demanda', dfd.responsavel),
-        campo('Cargo / Função', dfd.cargo)
+        campo('Responsável pela Demanda', dfd.responsavel),
+        campo('Cargo / Função',           dfd.cargo)
       )
     ]),
 
     secao('2. Objeto e Justificativa', [
-      campo('Descrição resumida do objeto', dfd.objeto, { full: true }),
-      campo('Justificativa da necessidade pública (fundamentada)', dfd.justificativa,
+      campo('Descrição Resumida do Objeto', dfd.objeto, { full: true }),
+      campo('Justificativa da Necessidade Pública (Fundamentada)', dfd.justificativa,
             { full: true, bloco: true }),
-      campo('Estimativa de quantidades', dfd.quantidades, { full: true })
+      campo('Estimativa de Quantidades', dfd.quantidades, { full: true })
     ]),
 
     secao('3. Alinhamento ao Plano de Contratações Anual (PCA)', [
       parDuplo(
-        campo('Previsto no PCA?', rotulo('pca', dfd.pcaPrevisto)),
-        campo('Item / Código no PCA', dfd.pcaItem)
+        campo('Previsão no PCA',        rotulo('pca', dfd.pcaPrevisto)),
+        campo('Item / Código no PCA',   dfd.pcaItem)
       ),
-      campo('Justificativa do alinhamento', dfd.pcaJustificativa, { full: true, bloco: true })
+      campo('Justificativa do Alinhamento', dfd.pcaJustificativa, { full: true, bloco: true })
     ]),
 
     secao('4. Enquadramento Legal', [
       parDuplo(
-        campo('Modalidade pretendida (Art. 28)', rotulo('modalidade', dfd.modalidade)),
-        campo('Natureza do objeto (Art. 6º)',     rotulo('natureza',   dfd.natureza))
+        campo('Modalidade Pretendida (Art. 28)', rotulo('modalidade', dfd.modalidade)),
+        campo('Natureza do Objeto (Art. 6º)',    rotulo('natureza',   dfd.natureza))
       ),
       parDuplo(
-        campo('Critério de julgamento (Art. 33)', rotulo('criterio', dfd.criterio)),
-        campo('Regime de execução (Art. 46)',     rotulo('regime',   dfd.regime))
+        campo('Critério de Julgamento (Art. 33)', rotulo('criterio', dfd.criterio)),
+        campo('Regime de Execução (Art. 46)',     rotulo('regime',   dfd.regime))
       )
     ]),
 
     secao('5. Estimativa Orçamentária', [
       parDuplo(
-        campo('Valor estimado (R$)', dfd.valor),
-        campo('Método de estimativa', rotulo('metodo', dfd.metodo))
+        campo('Valor Estimado', normalizarValorMonetario(dfd.valor)),
+        campo('Método de Estimativa', rotulo('metodo', dfd.metodo))
       ),
       parDuplo(
-        campo('Dotação orçamentária', dfd.dotacao),
-        campo('Fonte de recurso',     dfd.fonte)
+        campo('Dotação Orçamentária', dfd.dotacao),
+        campo('Fonte de Recurso',     dfd.fonte)
       )
     ]),
 
     secao('6. Parcelamento, Prazo e Entrega', [
       parDuplo(
-        campo('Decisão de parcelamento (Art. 47)', rotulo('parcelamento', dfd.parcelamento)),
-        campo('Prazo de execução / vigência',      dfd.prazo)
+        campo('Decisão de Parcelamento (Art. 47)', rotulo('parcelamento', dfd.parcelamento)),
+        campo('Prazo de Execução / Vigência',      dfd.prazo)
       ),
       parDuplo(
-        campo('Local de entrega / prestação', dfd.local),
-        campo('Condições de pagamento',       rotulo('pagamento', dfd.pagamento))
+        campo('Local de Entrega / Prestação', dfd.local),
+        campo('Condições de Pagamento',       rotulo('pagamento', dfd.pagamento))
       )
     ]),
 
     secao('7. Fiscalização e Gestão Contratual (Art. 117)', [
       parDuplo(
-        campo('Fiscal titular',     dfd.fiscalTitular),
-        campo('Fiscal substituto',  dfd.fiscalSubstituto)
+        campo('Fiscal Titular',     dfd.fiscalTitular),
+        campo('Fiscal Substituto',  dfd.fiscalSubstituto)
       ),
       parDuplo(
-        campo('Gestor do contrato', dfd.gestor),
-        campo('Vistoria técnica',   rotulo('vistoria', dfd.vistoria))
+        campo('Gestor do Contrato', dfd.gestor),
+        campo('Vistoria Técnica',   rotulo('vistoria', dfd.vistoria))
       )
     ]),
 
     secao('8. Observações Complementares', [
-      campo('Observações adicionais',
+      campo('Observações Adicionais',
             dfd.observacoes || 'Sem observações adicionais.',
             { full: true, bloco: true })
     ])
@@ -267,6 +390,9 @@ function buildDfdPdfDefinition(dfd, org, logoDataUrl, opts = {}) {
       cabecalho,
       linhaDivisoria,
       titulo,
+      // ⭐ PAINEL DE CONFORMIDADE — topo da página 1
+      painelConformidade,
+      { text: '', margin: [0, 8, 0, 0] },
       ...blocos,
       blocoAssinaturas,
       // 🔒 PÁGINA FINAL EXCLUSIVA — TAG DE AUTENTICAÇÃO
@@ -350,7 +476,7 @@ function blocoAssinatura(p) {
   if (p.papel) linhas.push({
     text: rotulo('papel', p.papel).toUpperCase(),
     fontSize: 7.5, bold: true, alignment: 'center',
-    color: '#4f46e5', characterSpacing: 0.8, margin: [0, 6, 0, 0]
+    color: '#4f46e5', margin: [0, 6, 0, 0]
   });
 
   return linhas;
@@ -368,20 +494,16 @@ function montarPaginaAutenticacao(ctx) {
   const dfd      = ctx.dfd  || {};
 
   return {
-    // 🔒 QUEBRA OBRIGATÓRIA
     pageBreak: 'before',
     stack: [
       { text: '', margin: [0, 30, 0, 0] },
-
       { text: '🔐', fontSize: 44, alignment: 'center', margin: [0, 0, 0, 10] },
-
       { text: 'AUTENTICAÇÃO E RASTREABILIDADE',
         fontSize: 17, bold: true, alignment: 'center',
-        color: '#4f46e5', characterSpacing: 1.6 },
-
+        color: '#4f46e5', margin: [0, 0, 0, 6] },
       { text: 'Documento Oficial LicitaReq · Integração LicitaAudit',
         fontSize: 10, alignment: 'center', color: '#64748b',
-        margin: [0, 6, 0, 34] },
+        margin: [0, 0, 0, 34] },
 
       {
         table: {
@@ -390,10 +512,10 @@ function montarPaginaAutenticacao(ctx) {
             stack: [
               { text: 'TAG DE AUTENTICAÇÃO',
                 fontSize: 9, bold: true, alignment: 'center',
-                color: '#c7d2fe', characterSpacing: 1.4 },
+                color: '#c7d2fe', margin: [0, 0, 0, 4] },
               { text: tag,
                 fontSize: 15, bold: true, alignment: 'center',
-                color: '#ffffff', margin: [0, 10, 0, 0] }
+                color: '#ffffff', margin: [0, 4, 0, 0] }
             ],
             fillColor: '#4f46e5',
             margin: [22, 20, 22, 20]
@@ -407,12 +529,12 @@ function montarPaginaAutenticacao(ctx) {
         table: {
           widths: ['35%', '*'],
           body: [
-            linhaMeta('Hash de integridade', hash),
+            linhaMeta('Hash de Integridade', hash),
             linhaMeta('Emitido em',          formatarDataHora(geradoEm)),
-            linhaMeta('Sistema emissor',     versao),
-            linhaMeta('Órgão emissor',       org.nome || '—'),
+            linhaMeta('Sistema Emissor',     versao),
+            linhaMeta('Órgão Emissor',       org.nome || '—'),
             linhaMeta('Expediente',          dfd.numero || '—'),
-            linhaMeta('Tag de integração',   'PREFIRO_TAG: LicitaReq_Documento_Oficial')
+            linhaMeta('Tag de Integração',   'PREFIRO_TAG: LicitaReq_Documento_Oficial')
           ]
         },
         layout: layoutTabelaMeta(),
@@ -449,10 +571,10 @@ function montarPaginaAutenticacao(ctx) {
             stack: [
               { text: '◆  SELO DIGITAL LICITAREQ',
                 fontSize: 9, bold: true, alignment: 'center',
-                color: '#4f46e5', characterSpacing: 1.2 },
+                color: '#4f46e5', margin: [0, 0, 0, 4] },
               { text: 'Documento íntegro · Não adulterado · Rastreável',
                 fontSize: 8, alignment: 'center',
-                color: '#64748b', margin: [0, 6, 0, 0] },
+                color: '#64748b', margin: [0, 4, 0, 0] },
               { text: tag,
                 fontSize: 8, alignment: 'center',
                 color: '#94a3b8', margin: [0, 6, 0, 0] }
@@ -470,7 +592,7 @@ function montarPaginaAutenticacao(ctx) {
 
 function linhaMeta(chave, valor) {
   return [
-    { text: chave, fontSize: 8.5, bold: true, color: '#334155',
+    { text: chave + ':', fontSize: 8.5, bold: true, color: '#334155',
       fillColor: '#f1f5f9', margin: [10, 7, 10, 7] },
     { text: valor || '—', fontSize: 8.5, color: '#0f172a',
       margin: [10, 7, 10, 7] }
@@ -506,16 +628,27 @@ function secao(titulo, corpo) {
   };
 }
 
+/* --------------------------------------------------------------
+   CAMPO — agora com "Label: Valor" em parágrafos contíguos
+   Sem characterSpacing (preserva leitura regex)
+   -------------------------------------------------------------- */
 function campo(label, valor, options) {
   options = options || {};
   const bloco = options.bloco || false;
   return {
     full: options.full || false,
     stack: [
-      { text: label.toUpperCase(), fontSize: 7.5, bold: true,
-        color: '#64748b', characterSpacing: 0.8, margin: [0, 0, 0, 3] },
+      // Label legível: mantém case original (Title Case)
+      { text: label + ':',
+        fontSize: 8,
+        bold: true,
+        color: '#64748b',
+        margin: [0, 0, 0, 2] },
+      // Valor em texto contínuo — o extrator lê "Valor Estimado:\nR$ 165.000,00"
       { text: valor || '—',
-        fontSize: bloco ? 9 : 9.5, color: '#0f172a', lineHeight: 1.4 }
+        fontSize: bloco ? 9 : 9.5,
+        color: '#0f172a',
+        lineHeight: 1.4 }
     ],
     margin: [0, 0, 0, 10]
   };
@@ -584,12 +717,13 @@ function hash32(str) {
 }
 
 /* ==============================================================
-   EXPORTAÇÃO GLOBAL (compatível com <script> sem módulos)
+   EXPORTAÇÃO GLOBAL
    ============================================================== */
 window.LicitaReqPDF = {
   buildDfdPdfDefinition: buildDfdPdfDefinition,
   ROTULOS: ROTULOS,
   rotulo: rotulo,
+  normalizarValorMonetario: normalizarValorMonetario,
   formatarData: formatarData,
   formatarDataHora: formatarDataHora
 };
