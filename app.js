@@ -1,6 +1,6 @@
 /* ============================================================
    LicitaReq — app.js
-   v4.0 — OmniLicit · SHA-256 · PDF v5.0
+   v4.1 — OmniLicit · SHA-256 · Logo dinâmica (Opção B)
    ============================================================ */
 'use strict';
 
@@ -11,6 +11,8 @@ const LS_KEYS = {
   DFD:         'licitareq-dfd',
   APROVADORES: 'licitareq-aprovadores',
 };
+
+const LOGO_OMNILICIT_URL = 'logo-omnlicit.png';
 
 const $  = (sel, ctx) => (ctx || document).querySelector(sel);
 const $$ = (sel, ctx) => Array.from((ctx || document).querySelectorAll(sel));
@@ -337,14 +339,13 @@ async function baixarJSONDFD() {
   const core = window.OmniLicit;
 
   const tag  = core ? await core.gerarTag(d, org) : 'OMNILICIT::DFD::PENDING';
-  const hash = core ? await core.gerarHash({ v: '4.0', tag, dfd: d, org }) : '0'.repeat(64);
+  const hash = core ? await core.gerarHash({ v: '4.1', tag, dfd: d, org }) : '0'.repeat(64);
 
   const payload = {
     meta: {
       geradoEm: new Date().toISOString(),
       versao: 'OmniLicit LicitaReq v5.0',
-      tag, hash,
-      emissor: 'OmniLicit · LicitaReq',
+      tag, hash, emissor: 'OmniLicit · LicitaReq',
     },
     orgao: org, dfd: d,
     aprovadores: getAprovadoresValidos(),
@@ -360,6 +361,42 @@ async function baixarJSONDFD() {
 }
 
 /* ==============================================================
+   LOGO — Obter para PDF (Opção B)
+   ------------------------------------------------------------
+   Prioridade:
+     1) Logo customizada do órgão (localStorage)
+     2) Logo OmniLicit padrão (fetch → base64, com cache)
+     3) null (o PDF usa escudo vetorial como fallback)
+   ============================================================== */
+let _logoOmniBase64Cache = null;
+let _logoOmniFalhou = false;
+
+async function obterLogoParaPDF() {
+  /* 1) Logo customizada do usuário */
+  const custom = carregarLogoDataUrl();
+  if (custom) return custom;
+
+  /* 2) Logo OmniLicit padrão (cache em memória) */
+  if (_logoOmniBase64Cache) return _logoOmniBase64Cache;
+  if (_logoOmniFalhou) return null;
+
+  if (!window.OmniLicit || !window.OmniLicit.carregarLogoBase64) {
+    console.warn('[OmniLicit] Core não carregado — usando escudo vetorial.');
+    _logoOmniFalhou = true;
+    return null;
+  }
+
+  try {
+    _logoOmniBase64Cache = await window.OmniLicit.carregarLogoBase64(LOGO_OMNILICIT_URL);
+    return _logoOmniBase64Cache;
+  } catch (err) {
+    console.warn('[OmniLicit] Falha ao carregar logo OmniLicit — usando escudo vetorial.', err);
+    _logoOmniFalhou = true;
+    return null;
+  }
+}
+
+/* ==============================================================
    PDF — Geração DFD (ASYNC)
    ============================================================== */
 async function gerarPDFDFD() {
@@ -372,7 +409,6 @@ async function gerarPDFDFD() {
 
   const dfd = coletarDadosDFD();
   const org = carregarOrgConfig();
-  const logo = carregarLogoDataUrl();
 
   if (!dfd.objeto || !dfd.justificativa) {
     toast('Preencha ao menos o objeto e a justificativa antes de gerar o PDF.', 'error');
@@ -387,7 +423,10 @@ async function gerarPDFDFD() {
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Gerando PDF…'; }
 
   try {
-    const def = await window.LicitaReqPDF.buildDfdPdfDefinition(dfd, org, logo, {
+    /* ⭐ Opção B — carrega logo (custom ou OmniLicit) */
+    const logoPdf = await obterLogoParaPDF();
+
+    const def = await window.LicitaReqPDF.buildDfdPdfDefinition(dfd, org, logoPdf, {
       aprovadores, versao: 'OmniLicit LicitaReq v5.0',
     });
     const nome = montarNomeArquivoPDF(dfd.numero);
@@ -430,12 +469,8 @@ function montarNomeArquivoPDF(numeroBruto) {
 }
 
 /* ==============================================================
-   ÓRGÃO + LOGO
+   ÓRGÃO + LOGO (upload custom)
    ============================================================== */
-const CAMPOS_ORG = [
-  'orgNome','orgSigla','orgCnpj','orgUf','orgCidade','orgEndereco',
-  'orgUnidadePadrao','orgResponsavelPadrao','orgCargoPadrao',
-];
 function carregarOrgConfig() {
   const padrao = { nome: '', sigla: '', cnpj: '', uf: '', cidade: '', endereco: '',
     unidadePadrao: '', responsavelPadrao: '', cargoPadrao: '' };
@@ -475,15 +510,14 @@ function salvarLogoLocal(dataUrl) {
   } catch (_) {}
 }
 function atualizarBrandMark() {
+  /* O brand mark usa a logo OmniLicit padrão definida no HTML.
+     Se houver logo custom, ela substitui no header. */
   const mark = $('#brandMark');
   if (!mark) return;
   const logo = carregarLogoDataUrl();
-  if (logo) {
-    mark.classList.add('has-logo');
-    mark.innerHTML = '<img src="' + logo + '" alt="Logomarca do órgão" />';
-  } else {
-    mark.classList.remove('has-logo');
-    mark.textContent = 'OL';
+  const img = mark.querySelector('.brand__logo');
+  if (img) {
+    img.src = logo || LOGO_OMNILICIT_URL;
   }
 }
 function mostrarPreviewLogo(nome, tamanho, dataUrl) {
@@ -589,7 +623,7 @@ function ligarModalOrg() {
 }
 
 /* ==============================================================
-   TRIAGEM — Upload / Extração / Análise
+   TRIAGEM
    ============================================================== */
 const arquivosTriagem = [];
 
@@ -906,7 +940,7 @@ function renderizarResultado(res) {
 }
 
 /* ==============================================================
-   MINUTA PDF (ASYNC)
+   MINUTA PDF (ASYNC) — também usa Opção B
    ============================================================== */
 async function gerarMinutaPDF(res) {
   const btn = $('#btnBaixarMinutaPDF');
@@ -918,7 +952,6 @@ async function gerarMinutaPDF(res) {
   if (!res) { toast('Nenhuma análise disponível.', 'error'); return; }
 
   const org = carregarOrgConfig();
-  const logo = carregarLogoDataUrl();
   const meta = res.meta || {};
   const texto = ($('#texto') && $('#texto').value) || '';
 
@@ -937,8 +970,11 @@ async function gerarMinutaPDF(res) {
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Gerando Minuta…'; }
 
   try {
+    /* ⭐ Opção B — mesma rotina de logo */
+    const logoPdf = await obterLogoParaPDF();
+
     const def = await window.LicitaReqMinutaPDF.buildMinutaPdfDefinition(
-      payload, org, logo,
+      payload, org, logoPdf,
       { aprovadores: getAprovadoresValidos(), versao: 'OmniLicit LicitaReq v5.0' }
     );
     const nome = window.LicitaReqMinutaPDF.montarNomeArquivoMinuta(payload.processo || payload.numero);
@@ -1041,7 +1077,7 @@ function ligarBotoesDFD() {
 /* ==============================================================
    BOOTSTRAP
    ============================================================== */
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   initTema();
   ligarModalOrg();
   atualizarBrandMark();
@@ -1055,6 +1091,13 @@ document.addEventListener('DOMContentLoaded', () => {
   ligarDropzoneTriagem();
   ligarBotoesTriagem();
 
-  console.info('[OmniLicit] LicitaReq v4.0 inicializado — Lei nº 14.133/2021');
-  console.info('[OmniLicit] Core:', window.OmniLicit ? 'OK (SHA-256)' : 'FALHA');
+  console.info('[OmniLicit] LicitaReq v4.1 inicializado — Lei nº 14.133/2021');
+  console.info('[OmniLicit] Core:', window.OmniLicit ? 'OK (SHA-256 + Logo)' : 'FALHA');
+
+  /* Pré-carrega a logo OmniLicit em background para o 1º PDF ser instantâneo */
+  if (window.OmniLicit && !carregarLogoDataUrl()) {
+    window.OmniLicit.carregarLogoBase64(LOGO_OMNILICIT_URL)
+      .then(() => console.info('[OmniLicit] Logo OmniLicit pré-carregada para PDF.'))
+      .catch(err => console.warn('[OmniLicit] Pré-carga da logo falhou (fallback: escudo vetorial).', err));
+  }
 });
