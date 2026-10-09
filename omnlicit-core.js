@@ -1,18 +1,19 @@
 /* ============================================================
    OmniLicit · Core compartilhado
-   v1.1 — SHA-256 + TAG + Hash + Escudo + Logo Base64 (Opção B)
+   v1.2 — Correção: escudoComMonograma + ordem de declaração
    ------------------------------------------------------------
    Expõe window.OmniLicit = {
-     sha256, gerarTag, gerarHash,
+     CORES, sha256, gerarTag, gerarHash,
      escudo, escudoComMonograma,
-     carregarLogoBase64,
-     CORES
+     carregarLogoBase64
    }
    ============================================================ */
 'use strict';
 
 (function () {
-  /* ---------- Paleta oficial ---------- */
+  /* ============================================================
+     PALETA OFICIAL
+     ============================================================ */
   const CORES = Object.freeze({
     petroleo:    '#00A896',
     petroleo400: '#29B5A7',
@@ -30,7 +31,7 @@
   });
 
   /* ============================================================
-     SHA-256 — Web Crypto com fallback puro JS (file://)
+     SHA-256 — Web Crypto com fallback puro JS
      ============================================================ */
   function strParaBytesUtf8(str) {
     return unescape(encodeURIComponent(str));
@@ -105,13 +106,13 @@
         return Array.from(new Uint8Array(buf))
           .map(b => b.toString(16).padStart(2, '0'))
           .join('').toUpperCase();
-      } catch (_) { /* fallback */ }
+      } catch (_) { /* fallback abaixo */ }
     }
     return sha256Fallback(strParaBytesUtf8(str));
   }
 
   /* ============================================================
-     TAG oficial: OMNILICIT::DFD::[8-hex]::[ANO]
+     TAG + HASH OFICIAIS
      ============================================================ */
   async function gerarTag(dfd, org, prefixo) {
     const ano = new Date().getFullYear();
@@ -133,44 +134,57 @@
   }
 
   /* ============================================================
-   ESCUDO OmniLicit — desenhado com pdfMake canvas (polyline)
-   ------------------------------------------------------------
-   Retorna { canvas: [...], w, h } pronto para inserir em `stack`.
-   ============================================================ */
-function escudo(w, h) {
-  w = w || 80; h = h || 96;
-  const P = (x, y) => ({ x: x * w, y: y * h });
+     ESCUDO VETORIAL (fallback visual)
+     ============================================================ */
+  function escudo(w, h) {
+    w = w || 80; h = h || 96;
+    const P = (x, y) => ({ x: x * w, y: y * h });
 
-  return {
-    w, h,
-    canvas: [
-      /* Face esquerda (executivo escuro) */
-      { type: 'polyline', closePath: true, color: CORES.executivo,
-        points: [P(0, 0.18), P(0.5, 0), P(0.5, 1), P(0, 0.55)] },
-      /* Face direita (petróleo) */
-      { type: 'polyline', closePath: true, color: CORES.petroleo,
-        points: [P(0.5, 0), P(1, 0.18), P(1, 0.55), P(0.5, 1)] },
-      /* Faceta superior (highlight) */
-      { type: 'polyline', closePath: true, color: CORES.petroleo400,
-        points: [P(0.5, 0), P(1, 0.18), P(0.5, 0.38), P(0, 0.18)] },
-      /* Faceta inferior esquerda (sombra sutil) */
-      { type: 'polyline', closePath: true, color: CORES.executivoD,
-        points: [P(0, 0.55), P(0.5, 0.75), P(0.5, 1)] },
-      /* Contorno interno branco — STROKE (repetindo o ponto inicial,
-         sem closePath, para o pdfMake desenhar a linha em vez de preencher) */
-      { type: 'polyline', closePath: false, color: '#FFFFFF', lineWidth: 1.1,
-        points: [P(0.16, 0.27), P(0.5, 0.13), P(0.84, 0.27),
-                 P(0.84, 0.55), P(0.5, 0.86), P(0.16, 0.55),
-                 P(0.16, 0.27)] },
-    ],
-  };
-}
+    return {
+      w: w, h: h,
+      canvas: [
+        /* Face esquerda (executivo escuro) */
+        { type: 'polyline', closePath: true, color: CORES.executivo,
+          points: [P(0, 0.18), P(0.5, 0), P(0.5, 1), P(0, 0.55)] },
+        /* Face direita (petróleo) */
+        { type: 'polyline', closePath: true, color: CORES.petroleo,
+          points: [P(0.5, 0), P(1, 0.18), P(1, 0.55), P(0.5, 1)] },
+        /* Faceta superior (highlight) */
+        { type: 'polyline', closePath: true, color: CORES.petroleo400,
+          points: [P(0.5, 0), P(1, 0.18), P(0.5, 0.38), P(0, 0.18)] },
+        /* Faceta inferior esquerda (sombra sutil) */
+        { type: 'polyline', closePath: true, color: CORES.executivoD,
+          points: [P(0, 0.55), P(0.5, 0.75), P(0.5, 1)] },
+        /* Contorno interno branco — STROKE (repete o ponto inicial) */
+        { type: 'polyline', closePath: false, color: '#FFFFFF', lineWidth: 1.1,
+          points: [P(0.16, 0.27), P(0.5, 0.13), P(0.84, 0.27),
+                   P(0.84, 0.55), P(0.5, 0.86), P(0.16, 0.55),
+                   P(0.16, 0.27)] },
+      ],
+    };
+  }
+
+  function escudoComMonograma(w, h) {
+    w = w || 80; h = h || 96;
+    const e = escudo(w, h);
+    return {
+      columns: [
+        { width: w, canvas: e.canvas, alignment: 'center' },
+        {
+          width: w,
+          margin: [-w, h * 0.36, 0, 0],
+          text: 'OL',
+          fontSize: h * 0.32,
+          bold: true,
+          color: '#FFFFFF',
+          alignment: 'center',
+        },
+      ],
+    };
+  }
+
   /* ============================================================
      CARREGAR LOGO → BASE64 (Opção B)
-     ------------------------------------------------------------
-     • Funciona com file:// e http(s)://
-     • Cache em memória por URL
-     • Retorna "data:image/png;base64,..." pronta para pdfMake
      ============================================================ */
   const _logoCache = Object.create(null);
 
@@ -192,7 +206,7 @@ function escudo(w, h) {
       _logoCache[url] = dataUrl;
       return dataUrl;
     } catch (err) {
-      /* 2) Fallback via <img> + canvas (útil em file:// restritivo) */
+      /* 2) Fallback via <img> + canvas (file:// restritivo) */
       try {
         const img = new Image();
         img.crossOrigin = 'anonymous';
@@ -209,7 +223,6 @@ function escudo(w, h) {
         const ctx = c.getContext('2d');
         ctx.drawImage(img, 0, 0);
 
-        /* Tenta PNG; se falhar (tainted), tenta JPEG */
         let dataUrl;
         try { dataUrl = c.toDataURL('image/png'); }
         catch (_) { dataUrl = c.toDataURL('image/jpeg', 0.95); }
@@ -227,12 +240,12 @@ function escudo(w, h) {
      EXPORT
      ============================================================ */
   window.OmniLicit = {
-    CORES,
-    sha256,
-    gerarTag,
-    gerarHash,
-    escudo,
-    escudoComMonograma,
-    carregarLogoBase64,
+    CORES: CORES,
+    sha256: sha256,
+    gerarTag: gerarTag,
+    gerarHash: gerarHash,
+    escudo: escudo,
+    escudoComMonograma: escudoComMonograma,
+    carregarLogoBase64: carregarLogoBase64,
   };
 })();
