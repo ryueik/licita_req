@@ -133,42 +133,38 @@
   }
 
   /* ============================================================
-     ESCUDO vetorial (fallback / decoração)
-     ============================================================ */
-  function escudo(w, h) {
-    w = w || 80; h = h || 96;
-    const P = (x, y) => ({ x: x * w, y: y * h });
-    return {
-      w, h,
-      canvas: [
-        { type: 'polyline', closePath: true, color: CORES.executivo,
-          points: [P(0, 0.18), P(0.5, 0), P(0.5, 1), P(0, 0.55)] },
-        { type: 'polyline', closePath: true, color: CORES.petroleo,
-          points: [P(0.5, 0), P(1, 0.18), P(1, 0.55), P(0.5, 1)] },
-        { type: 'polyline', closePath: true, color: CORES.petroleo400,
-          points: [P(0.5, 0), P(1, 0.18), P(0.5, 0.38), P(0, 0.18)] },
-        { type: 'polyline', closePath: true, color: CORES.executivoD,
-          points: [P(0, 0.55), P(0.5, 0.75), P(0.5, 1)] },
-        { type: 'polyline', closePath: true, color: '#FFFFFF', lineWidth: 1.1,
-          points: [P(0.16, 0.27), P(0.5, 0.13), P(0.84, 0.27),
-                   P(0.84, 0.55), P(0.5, 0.86), P(0.16, 0.55)] },
-      ],
-    };
-  }
+   ESCUDO OmniLicit — desenhado com pdfMake canvas (polyline)
+   ------------------------------------------------------------
+   Retorna { canvas: [...], w, h } pronto para inserir em `stack`.
+   ============================================================ */
+function escudo(w, h) {
+  w = w || 80; h = h || 96;
+  const P = (x, y) => ({ x: x * w, y: y * h });
 
-  function escudoComMonograma(w, h) {
-    w = w || 80; h = h || 96;
-    const e = escudo(w, h);
-    return {
-      columns: [
-        { width: w, canvas: e.canvas, alignment: 'center' },
-        { width: w, margin: [-w, h * 0.36, 0, 0],
-          text: 'OL', fontSize: h * 0.32, bold: true,
-          color: '#FFFFFF', alignment: 'center' },
-      ],
-    };
-  }
-
+  return {
+    w, h,
+    canvas: [
+      /* Face esquerda (executivo escuro) */
+      { type: 'polyline', closePath: true, color: CORES.executivo,
+        points: [P(0, 0.18), P(0.5, 0), P(0.5, 1), P(0, 0.55)] },
+      /* Face direita (petróleo) */
+      { type: 'polyline', closePath: true, color: CORES.petroleo,
+        points: [P(0.5, 0), P(1, 0.18), P(1, 0.55), P(0.5, 1)] },
+      /* Faceta superior (highlight) */
+      { type: 'polyline', closePath: true, color: CORES.petroleo400,
+        points: [P(0.5, 0), P(1, 0.18), P(0.5, 0.38), P(0, 0.18)] },
+      /* Faceta inferior esquerda (sombra sutil) */
+      { type: 'polyline', closePath: true, color: CORES.executivoD,
+        points: [P(0, 0.55), P(0.5, 0.75), P(0.5, 1)] },
+      /* Contorno interno branco — STROKE (repetindo o ponto inicial,
+         sem closePath, para o pdfMake desenhar a linha em vez de preencher) */
+      { type: 'polyline', closePath: false, color: '#FFFFFF', lineWidth: 1.1,
+        points: [P(0.16, 0.27), P(0.5, 0.13), P(0.84, 0.27),
+                 P(0.84, 0.55), P(0.5, 0.86), P(0.16, 0.55),
+                 P(0.16, 0.27)] },
+    ],
+  };
+}
   /* ============================================================
      CARREGAR LOGO → BASE64 (Opção B)
      ------------------------------------------------------------
