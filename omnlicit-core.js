@@ -1,9 +1,12 @@
 /* ============================================================
    OmniLicit · Core compartilhado
-   v1.0 — SHA-256 + TAG + Hash de Integridade + Escudo vetorial
+   v1.1 — SHA-256 + TAG + Hash + Escudo + Logo Base64 (Opção B)
    ------------------------------------------------------------
    Expõe window.OmniLicit = {
-     sha256, gerarTag, gerarHash, escudo, CORES
+     sha256, gerarTag, gerarHash,
+     escudo, escudoComMonograma,
+     carregarLogoBase64,
+     CORES
    }
    ============================================================ */
 'use strict';
@@ -27,13 +30,12 @@
   });
 
   /* ============================================================
-     SHA-256 — Web Crypto com fallback puro JS (para file://)
+     SHA-256 — Web Crypto com fallback puro JS (file://)
      ============================================================ */
   function strParaBytesUtf8(str) {
     return unescape(encodeURIComponent(str));
   }
 
-  /* --- Fallback puro (compatível com navegadores sem crypto.subtle) --- */
   function sha256Fallback(ascii) {
     function rr(v, a) { return (v >>> a) | (v << (32 - a)); }
     const mp = Math.pow;
@@ -95,7 +97,6 @@
     return result.toUpperCase();
   }
 
-  /* --- API pública: sempre 64 chars hexadecimais maiúsculos --- */
   async function sha256(input) {
     const str = typeof input === 'string' ? input : JSON.stringify(input);
     if (window.crypto && window.crypto.subtle) {
@@ -104,7 +105,7 @@
         return Array.from(new Uint8Array(buf))
           .map(b => b.toString(16).padStart(2, '0'))
           .join('').toUpperCase();
-      } catch (_) { /* fallback abaixo */ }
+      } catch (_) { /* fallback */ }
     }
     return sha256Fallback(strParaBytesUtf8(str));
   }
@@ -124,43 +125,30 @@
       dfd.unidade || '',
     ].join('|');
     const h = await sha256(base);
-    const tag8 = h.slice(0, 8);
-    return (prefixo || 'OMNILICIT::DFD') + '::' + tag8 + '::' + ano;
+    return (prefixo || 'OMNILICIT::DFD') + '::' + h.slice(0, 8) + '::' + ano;
   }
 
-  /* ============================================================
-     HASH de integridade (payload canônico → 64 chars)
-     ============================================================ */
   async function gerarHash(payload) {
-    const canonico = JSON.stringify(payload);
-    return sha256(canonico);
+    return sha256(JSON.stringify(payload));
   }
 
   /* ============================================================
-     ESCUDO OmniLicit — desenhado com pdfMake canvas (polyline)
-     ------------------------------------------------------------
-     Retorna { canvas: [...], w, h } pronto para inserir em `stack`.
+     ESCUDO vetorial (fallback / decoração)
      ============================================================ */
   function escudo(w, h) {
     w = w || 80; h = h || 96;
     const P = (x, y) => ({ x: x * w, y: y * h });
-
     return {
       w, h,
       canvas: [
-        /* Face esquerda (executivo escuro) */
         { type: 'polyline', closePath: true, color: CORES.executivo,
           points: [P(0, 0.18), P(0.5, 0), P(0.5, 1), P(0, 0.55)] },
-        /* Face direita (petróleo) */
         { type: 'polyline', closePath: true, color: CORES.petroleo,
           points: [P(0.5, 0), P(1, 0.18), P(1, 0.55), P(0.5, 1)] },
-        /* Faceta superior (highlight) */
         { type: 'polyline', closePath: true, color: CORES.petroleo400,
           points: [P(0.5, 0), P(1, 0.18), P(0.5, 0.38), P(0, 0.18)] },
-        /* Faceta inferior esquerda (sombra sutil) */
         { type: 'polyline', closePath: true, color: CORES.executivoD,
           points: [P(0, 0.55), P(0.5, 0.75), P(0.5, 1)] },
-        /* Contorno interno branco */
         { type: 'polyline', closePath: true, color: '#FFFFFF', lineWidth: 1.1,
           points: [P(0.16, 0.27), P(0.5, 0.13), P(0.84, 0.27),
                    P(0.84, 0.55), P(0.5, 0.86), P(0.16, 0.55)] },
@@ -168,22 +156,80 @@
     };
   }
 
-  /* Wrapper: escudo + monograma "OL" centralizado */
   function escudoComMonograma(w, h) {
     w = w || 80; h = h || 96;
     const e = escudo(w, h);
     return {
       columns: [
         { width: w, canvas: e.canvas, alignment: 'center' },
-        {
-          width: w, margin: [-w, h * 0.36, 0, 0],
+        { width: w, margin: [-w, h * 0.36, 0, 0],
           text: 'OL', fontSize: h * 0.32, bold: true,
-          color: '#FFFFFF', alignment: 'center',
-        },
+          color: '#FFFFFF', alignment: 'center' },
       ],
     };
   }
 
+  /* ============================================================
+     CARREGAR LOGO → BASE64 (Opção B)
+     ------------------------------------------------------------
+     • Funciona com file:// e http(s)://
+     • Cache em memória por URL
+     • Retorna "data:image/png;base64,..." pronta para pdfMake
+     ============================================================ */
+  const _logoCache = Object.create(null);
+
+  async function carregarLogoBase64(url) {
+    if (!url) throw new Error('URL da logo não informada.');
+    if (_logoCache[url]) return _logoCache[url];
+
+    /* 1) fetch + blob → FileReader */
+    try {
+      const resp = await fetch(url, { cache: 'force-cache' });
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      const blob = await resp.blob();
+      const dataUrl = await new Promise((resolve, reject) => {
+        const fr = new FileReader();
+        fr.onload  = () => resolve(fr.result);
+        fr.onerror = () => reject(fr.error || new Error('FileReader falhou'));
+        fr.readAsDataURL(blob);
+      });
+      _logoCache[url] = dataUrl;
+      return dataUrl;
+    } catch (err) {
+      /* 2) Fallback via <img> + canvas (útil em file:// restritivo) */
+      try {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        const loaded = new Promise((resolve, reject) => {
+          img.onload  = () => resolve();
+          img.onerror = () => reject(new Error('Imagem não carregou'));
+        });
+        img.src = url;
+        await loaded;
+
+        const c = document.createElement('canvas');
+        c.width  = img.naturalWidth  || img.width;
+        c.height = img.naturalHeight || img.height;
+        const ctx = c.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+
+        /* Tenta PNG; se falhar (tainted), tenta JPEG */
+        let dataUrl;
+        try { dataUrl = c.toDataURL('image/png'); }
+        catch (_) { dataUrl = c.toDataURL('image/jpeg', 0.95); }
+
+        _logoCache[url] = dataUrl;
+        return dataUrl;
+      } catch (err2) {
+        console.warn('[OmniLicit] Falha ao carregar logo:', url, err, err2);
+        throw err2;
+      }
+    }
+  }
+
+  /* ============================================================
+     EXPORT
+     ============================================================ */
   window.OmniLicit = {
     CORES,
     sha256,
@@ -191,5 +237,6 @@
     gerarHash,
     escudo,
     escudoComMonograma,
+    carregarLogoBase64,
   };
 })();
