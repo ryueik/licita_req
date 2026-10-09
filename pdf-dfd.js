@@ -1,92 +1,82 @@
 /* ============================================================
    LicitaReq — pdf-dfd.js
    v5.0 — OmniLicit Edition · SHA-256 real · Rodapé autenticado
-   ------------------------------------------------------------
-   • Cabeçalho com escudo vetorial OmniLicit
-   • Rodapé fixo com TAG + SHA-256 (64 chars) + metadados de auditoria
-   • Paleta petróleo/executivo em todas as camadas
    ============================================================ */
 'use strict';
 
-/* --------------------------------------------------------------
-   PALETA
-   -------------------------------------------------------------- */
 const OL = (window.OmniLicit && window.OmniLicit.CORES) || {
   petroleo: '#00A896', petroleo400: '#29B5A7', petroleo300: '#5CC7BC',
   petroleoD: '#007568', executivo: '#05668D', executivoD: '#034462',
   ink: '#0A0F1E', muted: '#475569', line: '#E2E8F0', bg: '#F8FAFC',
 };
 
-/* --------------------------------------------------------------
-   RÓTULOS
-   -------------------------------------------------------------- */
 const ROTULOS = Object.freeze({
   modalidade: {
-    'pregao':          'Pregão Eletrônico (Art. 29)',
-    'concorrencia':    'Concorrência (Art. 29)',
-    'concurso':        'Concurso (Art. 30)',
-    'leilao':          'Leilão (Art. 31)',
-    'dialogo':         'Diálogo Competitivo (Art. 32)',
-    'dispensa':        'Dispensa de Licitação (Art. 75)',
+    'pregao': 'Pregão Eletrônico (Art. 29)',
+    'concorrencia': 'Concorrência (Art. 29)',
+    'concurso': 'Concurso (Art. 30)',
+    'leilao': 'Leilão (Art. 31)',
+    'dialogo': 'Diálogo Competitivo (Art. 32)',
+    'dispensa': 'Dispensa de Licitação (Art. 75)',
     'inexigibilidade': 'Inexigibilidade de Licitação (Art. 74)',
   },
   natureza: {
-    'bens':               'Bens Comuns',
-    'servicos-comuns':    'Serviços Comuns',
+    'bens': 'Bens Comuns',
+    'servicos-comuns': 'Serviços Comuns',
     'servicos-especiais': 'Serviços Especiais',
-    'obras':              'Obras e Serviços de Engenharia',
-    'intelectual':        'Serviços Técnicos Intelectuais',
-    'alienacao':          'Alienação de Bens / Concessão',
+    'obras': 'Obras e Serviços de Engenharia',
+    'intelectual': 'Serviços Técnicos Intelectuais',
+    'alienacao': 'Alienação de Bens / Concessão',
   },
   criterio: {
-    'menor-preco':    'Menor Preço',
+    'menor-preco': 'Menor Preço',
     'maior-desconto': 'Maior Desconto',
     'melhor-tecnica': 'Melhor Técnica ou Conteúdo Artístico',
-    'tecnica-preco':  'Técnica e Preço',
-    'maior-lance':    'Maior Lance',
-    'maior-retorno':  'Maior Retorno Econômico',
+    'tecnica-preco': 'Técnica e Preço',
+    'maior-lance': 'Maior Lance',
+    'maior-retorno': 'Maior Retorno Econômico',
   },
   regime: {
     'empreitada-preco-unitario': 'Empreitada por Preço Unitário',
-    'empreitada-preco-global':   'Empreitada por Preço Global',
-    'empreitada-integral':       'Empreitada Integral',
-    'tarefa':                    'Tarefa',
-    '':                          'Não Aplicável / Não Declarado',
+    'empreitada-preco-global': 'Empreitada por Preço Global',
+    'empreitada-integral': 'Empreitada Integral',
+    'tarefa': 'Tarefa',
+    '': 'Não Aplicável / Não Declarado',
   },
   metodo: {
-    'painel-precos':          'Painel de Preços (Gov.br)',
-    'pesquisa-mercado':       'Pesquisa de Mercado (3+ fornecedores)',
+    'painel-precos': 'Painel de Preços (Gov.br)',
+    'pesquisa-mercado': 'Pesquisa de Mercado (3+ fornecedores)',
     'contratacoes-similares': 'Contratações Similares',
-    'sinapi':                 'SINAPI / SICRO (Obras)',
-    'midia':                  'Mídia Especializada / Sítios Eletrônicos',
+    'sinapi': 'SINAPI / SICRO (Obras)',
+    'midia': 'Mídia Especializada / Sítios Eletrônicos',
   },
   parcelamento: {
-    'parcelado':   'Parcelado em Lotes (justificado)',
+    'parcelado': 'Parcelado em Lotes (justificado)',
     'indivisivel': 'Indivisível (justificado)',
-    'lote-unico':  'Lote Único (compatibilidade técnica)',
+    'lote-unico': 'Lote Único (compatibilidade técnica)',
   },
   pagamento: {
-    '30-dias':          'Até 30 dias após NF e Aceite (Art. 141)',
+    '30-dias': 'Até 30 dias após NF e Aceite (Art. 141)',
     'parcelado-mensal': 'Mensal, mediante medição',
-    'entrega-unica':    'Pagamento único contra entrega',
+    'entrega-unica': 'Pagamento único contra entrega',
   },
   vistoria: {
-    'dispensada':              'Dispensada (não aplicável)',
+    'dispensada': 'Dispensada (não aplicável)',
     'declaracao-substituicao': 'Declaração em Substituição (Art. 63)',
-    'obrigatoria':             'Obrigatória (com justificativa técnica)',
+    'obrigatoria': 'Obrigatória (com justificativa técnica)',
   },
   pca: {
-    'sim':     'Sim — contratação prevista no PCA',
-    'nao':     'Não — inclusão extraordinária',
+    'sim': 'Sim — contratação prevista no PCA',
+    'nao': 'Não — inclusão extraordinária',
     'revisao': 'Sim — em revisão do PCA',
-    '':        'Não informado',
+    '': 'Não informado',
   },
   papel: {
-    'aprovador':    'Aprovador',
-    'validador':    'Validador',
-    'autoridade':   'Autoridade Competente',
-    'fiscal':       'Fiscal do Contrato',
-    'gestor':       'Gestor do Contrato',
+    'aprovador': 'Aprovador',
+    'validador': 'Validador',
+    'autoridade': 'Autoridade Competente',
+    'fiscal': 'Fiscal do Contrato',
+    'gestor': 'Gestor do Contrato',
     'requisitante': 'Requisitante',
   },
 });
@@ -101,9 +91,6 @@ function normalizarValorMonetario(v) {
   return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
-/* --------------------------------------------------------------
-   FORMATAÇÃO
-   -------------------------------------------------------------- */
 function formatarData(iso) {
   if (!iso) return '—';
   const p = String(iso).split('-');
@@ -117,9 +104,6 @@ function formatarDataHora(d) {
     ' ' + pad(dt.getHours()) + ':' + pad(dt.getMinutes()) + ':' + pad(dt.getSeconds());
 }
 
-/* --------------------------------------------------------------
-   TÍTULO LIMPO
-   -------------------------------------------------------------- */
 function montarTituloCabecalho(dfd) {
   const bruto = String((dfd && dfd.numero) || '').trim();
   if (!bruto) return 'Documento de Formalização de Demanda';
@@ -134,7 +118,7 @@ function montarTituloCabecalho(dfd) {
 }
 
 /* ==============================================================
-   BUILDER PRINCIPAL — async por causa do SHA-256
+   BUILDER PRINCIPAL — async
    ============================================================== */
 async function buildDfdPdfDefinition(dfd, org, logoDataUrl, opts) {
   opts = opts || {};
@@ -167,7 +151,7 @@ async function buildDfdPdfDefinition(dfd, org, logoDataUrl, opts) {
       return {
         margin: [40, 16, 40, 0],
         columns: [
-          montarMiniEscudoCabecalho(),
+          montarMiniLogoCabecalho(logoDataUrl),
           {
             margin: [8, 1, 0, 0],
             stack: [
@@ -197,7 +181,7 @@ async function buildDfdPdfDefinition(dfd, org, logoDataUrl, opts) {
       montarNotaApresentacao(geradoEm),
       { text: '', pageBreak: 'after' },
       montarCorpoTecnico(dfd, org),
-      ...(Array.isArray(aprovadores.length ? [1] : []) ? montarPaginaAprovacoes(aprovadores) : []),
+      ...(aprovadores.length ? montarPaginaAprovacoes(aprovadores) : []),
       montarPaginaAutenticacaoFinal(auth),
     ],
 
@@ -206,13 +190,15 @@ async function buildDfdPdfDefinition(dfd, org, logoDataUrl, opts) {
 }
 
 /* ==============================================================
-   MINI ESCUDO (cabeçalho)
+   MINI LOGO (cabeçalho)
    ============================================================== */
-function montarMiniEscudoCabecalho() {
+function montarMiniLogoCabecalho(logoDataUrl) {
+  if (logoDataUrl) {
+    return { width: 20, image: logoDataUrl, fit: [20, 24], alignment: 'center' };
+  }
   const core = window.OmniLicit;
-  if (!core || !core.escudo) return { text: '' };
-  const e = core.escudo(20, 24);
-  return { width: 20, canvas: e.canvas };
+  if (!core || !core.escudo) return { width: 0, text: '' };
+  return { width: 20, canvas: core.escudo(20, 24).canvas };
 }
 
 /* ==============================================================
@@ -222,7 +208,6 @@ function montarRodapeAutenticacao(page, total, auth) {
   const { tag, hash, geradoEm, versao } = auth;
   const dt = formatarDataHora(geradoEm);
 
-  /* Capa: rodapé enxuto */
   if (page === 1) {
     return {
       margin: [40, 0, 40, 18],
@@ -234,7 +219,6 @@ function montarRodapeAutenticacao(page, total, auth) {
     };
   }
 
-  /* Demais páginas: bloco de autenticação OmniLicit */
   return {
     margin: [40, 6, 40, 16],
     stack: [
@@ -277,7 +261,6 @@ function montarCapaExecutiva(dfd, org, logoDataUrl, geradoEm) {
 
   return {
     stack: [
-      /* Faixa institucional */
       {
         table: { widths: ['*'], body: [[{
           stack: [
@@ -294,14 +277,12 @@ function montarCapaExecutiva(dfd, org, logoDataUrl, geradoEm) {
         margin: [0, 0, 0, 22],
       },
 
-      /* Escudo OmniLicit ou logo do órgão */
       logoDataUrl
         ? { image: logoDataUrl, fit: [90, 90], alignment: 'center', margin: [0, 0, 0, 12] }
         : (escudoCol
             ? { width: 70, canvas: escudoCol.canvas, alignment: 'center', margin: [0, 0, 0, 14] }
             : { text: '', margin: [0, 0, 0, 26] }),
 
-      /* Órgão */
       { text: (org && org.nome ? org.nome : 'ÓRGÃO / ENTIDADE').toUpperCase(),
         fontSize: 15, bold: true, alignment: 'center', color: OL.executivo,
         margin: [0, 0, 0, 4] },
@@ -329,7 +310,6 @@ function montarCapaExecutiva(dfd, org, logoDataUrl, geradoEm) {
       { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 515, y2: 0, lineWidth: 1.2, lineColor: OL.petroleo }],
         margin: [0, 16, 0, 20] },
 
-      /* Identificação em cartões */
       {
         table: {
           widths: ['*', '*'],
@@ -346,7 +326,6 @@ function montarCapaExecutiva(dfd, org, logoDataUrl, geradoEm) {
         margin: [0, 0, 0, 18],
       },
 
-      /* Valor em destaque */
       {
         table: { widths: ['*'], body: [[{
           stack: [
@@ -369,7 +348,6 @@ function montarCapaExecutiva(dfd, org, logoDataUrl, geradoEm) {
         margin: [0, 0, 0, 20],
       },
 
-      /* Objeto resumido */
       dfd.objeto ? {
         table: { widths: ['*'], body: [[{
           stack: [
@@ -409,7 +387,7 @@ function layoutCartoes() {
 }
 
 /* ==============================================================
-   NOTA DE APRESENTAÇÃO (página 2)
+   NOTA DE APRESENTAÇÃO
    ============================================================== */
 function montarNotaApresentacao(geradoEm) {
   return {
@@ -486,37 +464,51 @@ function montarCorpoTecnico(dfd, org) {
 
 function montarPainelConformidade(dfd, org) {
   const linhas = [
-    ['Nº do DFD',                 dfd.numero || '—'],
-    ['Data da Formalização',      formatarData(dfd.data)],
-    ['Órgão / Entidade',          dfd.orgao || (org && org.nome) || '—'],
-    ['Unidade Requisitante',      dfd.unidade || '—'],
-    ['Responsável pela Demanda',  dfd.responsavel || '—'],
-    ['Cargo / Função',            dfd.cargo || '—'],
-    ['Objeto da Contratação',     dfd.objeto || '—'],
-    ['Estimativa de Quantidades', dfd.quantidades || '—'],
-    ['Valor Estimado',            normalizarValorMonetario(dfd.valor)],
-    ['Método de Estimativa',      rotulo('metodo', dfd.metodo)],
-    ['Dotação Orçamentária',      dfd.dotacao || '—'],
-    ['Fonte de Recurso',          dfd.fonte || '—'],
-    ['Previsão no PCA',           rotulo('pca', dfd.pcaPrevisto)],
-    ['Item / Código no PCA',      dfd.pcaItem || '—'],
-    ['Modalidade Pretendida',     rotulo('modalidade', dfd.modalidade)],
-    ['Natureza do Objeto',        rotulo('natureza', dfd.natureza)],
-    ['Critério de Julgamento',    rotulo('criterio', dfd.criterio)],
-    ['Regime de Execução',        rotulo('regime', dfd.regime)],
-    ['Decisão de Parcelamento',   rotulo('parcelamento', dfd.parcelamento)],
-    ['Prazo de Execução',         dfd.prazo || '—'],
-    ['Local de Entrega',          dfd.local || '—'],
-    ['Condições de Pagamento',    rotulo('pagamento', dfd.pagamento)],
-    ['Fiscal Titular',            dfd.fiscalTitular || '—'],
-    ['Fiscal Substituto',         dfd.fiscalSubstituto || '—'],
-    ['Gestor do Contrato',        dfd.gestor || '—'],
-    ['Vistoria Técnica',          rotulo('vistoria', dfd.vistoria)],
+    ['Nº do DFD', '—'],['Data da Formalização', '—'],
+    ['Órgão / Entidade', '—'],['Unidade Requisitante', '—'],
+    ['Responsável pela Demanda', '—'],['Cargo / Função', '—'],
+    ['Objeto da Contratação', '—'],['Estimativa de Quantidades', '—'],
+    ['Valor Estimado', '—'],['Método de Estimativa', '—'],
+    ['Dotação Orçamentária', '—'],['Fonte de Recurso', '—'],
+    ['Previsão no PCA', '—'],['Item / Código no PCA', '—'],
+    ['Modalidade Pretendida', '—'],['Natureza do Objeto', '—'],
+    ['Critério de Julgamento', '—'],['Regime de Execução', '—'],
+    ['Decisão de Parcelamento', '—'],['Prazo de Execução', '—'],
+    ['Local de Entrega', '—'],['Condições de Pagamento', '—'],
+    ['Fiscal Titular', '—'],['Fiscal Substituto', '—'],
+    ['Gestor do Contrato', '—'],['Vistoria Técnica', '—'],
   ];
-
-  const body = linhas.map(par => [
+  const valores = [
+    dfd.numero || '—',
+    formatarData(dfd.data),
+    dfd.orgao || (org && org.nome) || '—',
+    dfd.unidade || '—',
+    dfd.responsavel || '—',
+    dfd.cargo || '—',
+    dfd.objeto || '—',
+    dfd.quantidades || '—',
+    normalizarValorMonetario(dfd.valor),
+    rotulo('metodo', dfd.metodo),
+    dfd.dotacao || '—',
+    dfd.fonte || '—',
+    rotulo('pca', dfd.pcaPrevisto),
+    dfd.pcaItem || '—',
+    rotulo('modalidade', dfd.modalidade),
+    rotulo('natureza', dfd.natureza),
+    rotulo('criterio', dfd.criterio),
+    rotulo('regime', dfd.regime),
+    rotulo('parcelamento', dfd.parcelamento),
+    dfd.prazo || '—',
+    dfd.local || '—',
+    rotulo('pagamento', dfd.pagamento),
+    dfd.fiscalTitular || '—',
+    dfd.fiscalSubstituto || '—',
+    dfd.gestor || '—',
+    rotulo('vistoria', dfd.vistoria),
+  ];
+  const body = linhas.map((par, i) => [
     { text: par[0] + ':', fontSize: 8.5, bold: true, color: OL.executivoD, margin: [8, 5, 8, 5] },
-    { text: par[1] || '—', fontSize: 8.5, color: OL.ink, margin: [8, 5, 8, 5] },
+    { text: valores[i], fontSize: 8.5, color: OL.ink, margin: [8, 5, 8, 5] },
   ]);
 
   return {
@@ -556,47 +548,40 @@ function montarSecoesTecnicas(dfd, org) {
       parDuplo(campo('Responsável pela Demanda', dfd.responsavel),
                campo('Cargo / Função',           dfd.cargo)),
     ]),
-
     secao('2. Objeto e Justificativa', [
       campo('Descrição Resumida do Objeto', dfd.objeto, { full: true }),
       campo('Justificativa da Necessidade Pública (Fundamentada)', dfd.justificativa, { full: true, bloco: true }),
       campo('Estimativa de Quantidades', dfd.quantidades, { full: true }),
     ]),
-
     secao('3. Alinhamento ao Plano de Contratações Anual (PCA)', [
       parDuplo(campo('Previsão no PCA', rotulo('pca', dfd.pcaPrevisto)),
                campo('Item / Código no PCA', dfd.pcaItem)),
       campo('Justificativa do Alinhamento', dfd.pcaJustificativa, { full: true, bloco: true }),
     ]),
-
     secao('4. Enquadramento Legal', [
       parDuplo(campo('Modalidade Pretendida (Art. 28)', rotulo('modalidade', dfd.modalidade)),
                campo('Natureza do Objeto (Art. 6º)',    rotulo('natureza',   dfd.natureza))),
       parDuplo(campo('Critério de Julgamento (Art. 33)', rotulo('criterio', dfd.criterio)),
                campo('Regime de Execução (Art. 46)',     rotulo('regime',   dfd.regime))),
     ]),
-
     secao('5. Estimativa Orçamentária', [
       parDuplo(campo('Valor Estimado', normalizarValorMonetario(dfd.valor)),
                campo('Método de Estimativa', rotulo('metodo', dfd.metodo))),
       parDuplo(campo('Dotação Orçamentária', dfd.dotacao),
                campo('Fonte de Recurso',     dfd.fonte)),
     ]),
-
     secao('6. Parcelamento, Prazo e Entrega', [
       parDuplo(campo('Decisão de Parcelamento (Art. 47)', rotulo('parcelamento', dfd.parcelamento)),
                campo('Prazo de Execução / Vigência',      dfd.prazo)),
       parDuplo(campo('Local de Entrega / Prestação', dfd.local),
                campo('Condições de Pagamento',       rotulo('pagamento', dfd.pagamento))),
     ]),
-
     secao('7. Fiscalização e Gestão Contratual (Art. 117)', [
       parDuplo(campo('Fiscal Titular',     dfd.fiscalTitular),
                campo('Fiscal Substituto',  dfd.fiscalSubstituto)),
       parDuplo(campo('Gestor do Contrato', dfd.gestor),
                campo('Vistoria Técnica',   rotulo('vistoria', dfd.vistoria))),
     ]),
-
     secao('8. Observações Complementares', [
       campo('Observações Adicionais',
             dfd.observacoes || 'Sem observações adicionais.',
@@ -609,15 +594,13 @@ function secao(titulo, corpo) {
   return {
     unbreakable: true,
     stack: [
-      { text: titulo, fontSize: 11, bold: true, color: OL.executivo,
-        margin: [0, 12, 0, 10] },
+      { text: titulo, fontSize: 11, bold: true, color: OL.executivo, margin: [0, 12, 0, 10] },
       ...corpo,
       { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 515, y2: 0, lineWidth: 0.4, lineColor: OL.line }],
         margin: [0, 10, 0, 4] },
     ],
   };
 }
-
 function campo(label, valor, options) {
   options = options || {};
   const bloco = options.bloco || false;
@@ -727,8 +710,7 @@ function cabecalhoAprovacoes(ehPrimeira, pag, tot, totAss, noGrupo) {
     stack.push({
       text: 'Os responsáveis abaixo identificados aprovam e validam o presente Documento ' +
             'de Formalização de Demanda, atestando a veracidade das informações e a ' +
-            'conformidade com a legislação vigente. O documento deve ser assinado ' +
-            'eletronicamente ou de próprio punho, no espaço reservado para assinatura e/ou carimbo.',
+            'conformidade com a legislação vigente.',
       fontSize: 9, color: '#334155', lineHeight: 1.5, alignment: 'justify',
       margin: [0, 0, 0, 18],
     });
@@ -790,7 +772,7 @@ function rodapeAprovacoes(total, totPags) {
 }
 
 /* ==============================================================
-   PÁGINA FINAL — AUTENTICAÇÃO (reforço visual + TAG + HASH)
+   PÁGINA FINAL — AUTENTICAÇÃO
    ============================================================== */
 function montarPaginaAutenticacaoFinal(auth) {
   const { tag, hash, geradoEm, versao, org, dfd } = auth;
@@ -842,8 +824,7 @@ function montarPaginaAutenticacaoFinal(auth) {
               { text: 'Este documento foi gerado automaticamente pelo sistema LicitaReq (OmniLicit) ' +
                       'e possui TAG de autenticação única rastreável pelo OmniLicit Audit. A validade ' +
                       'jurídica do presente DFD está condicionada à conferência pela assessoria ' +
-                      'jurídica, pelo controle interno e pela autoridade competente, nos termos da ' +
-                      'Lei nº 14.133/2021.',
+                      'jurídica, pelo controle interno e pela autoridade competente.',
                 fontSize: 8, color: '#78350F', lineHeight: 1.4, alignment: 'justify' },
             ],
             fillColor: '#FEF3C7', margin: [14, 10, 14, 10],
@@ -888,7 +869,7 @@ function layoutMeta() {
 }
 
 /* ==============================================================
-   EXPORTAÇÃO GLOBAL
+   EXPORT
    ============================================================== */
 window.LicitaReqPDF = {
   buildDfdPdfDefinition,
