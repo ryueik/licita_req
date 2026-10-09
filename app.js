@@ -1078,14 +1078,41 @@ function ligarBotoesDFD() {
    BOOTSTRAP
    ============================================================== */
 document.addEventListener('DOMContentLoaded', async () => {
-  /* ⭐ FIX: alias Courier → Roboto no pdfMake
-     O vfs_fonts.js só traz Roboto. Sem este alias, qualquer
-     `font: 'Courier'` (tag, hash, metadados) quebra o PDF. */
-  if (window.pdfMake && pdfMake.fonts && !pdfMake.fonts.Courier) {
-    pdfMake.fonts.Courier = pdfMake.fonts.Roboto;
-    console.info('[OmniLicit] Alias Courier → Roboto registrado no pdfMake.');
+  /* ⭐ FIX 1: Garante que pdfMake.fonts existe.
+     Em pdfMake 0.2.7, `pdfMake.fonts` só passa a existir depois
+     que alguém o define OU após o vfs_fonts.js injetar o default.
+     Blindamos com um objeto vazio antes de registrar qualquer alias. */
+  if (window.pdfMake) {
+    if (!pdfMake.fonts) pdfMake.fonts = {};
+
+    /* ⭐ FIX 2: Define Roboto explicitamente se não existir
+       (default razoável apontando para os arquivos do vfs_fonts). */
+    if (!pdfMake.fonts.Roboto) {
+      pdfMake.fonts.Roboto = {
+        normal:      'Roboto-Regular.ttf',
+        bold:        'Roboto-Medium.ttf',
+        italics:     'Roboto-Italic.ttf',
+        bolditalics: 'Roboto-MediumItalic.ttf',
+      };
+    }
+
+    /* ⭐ FIX 3: Alias Courier → Roboto
+       Sem isso, qualquer `font: 'Courier'` quebra o PDF com
+       "File 'Courier' not found in virtual file system". */
+    if (!pdfMake.fonts.Courier) {
+      pdfMake.fonts.Courier = pdfMake.fonts.Roboto;
+    }
+
+    console.info('[OmniLicit] pdfMake.fonts registrados:', Object.keys(pdfMake.fonts).join(', '));
   }
 
+  /* Diagnóstico de dependências */
+  console.info('[OmniLicit] Core:',    window.OmniLicit            ? 'OK' : 'FALHA');
+  console.info('[OmniLicit] PDF DFD:', window.LicitaReqPDF        ? 'OK' : 'FALHA');
+  console.info('[OmniLicit] Minuta:',  window.LicitaReqMinutaPDF  ? 'OK' : 'FALHA');
+  console.info('[OmniLicit] pdfMake:', window.pdfMake             ? 'OK' : 'FALHA');
+
+  /* Inicialização normal */
   initTema();
   ligarModalOrg();
   atualizarBrandMark();
@@ -1100,9 +1127,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   ligarBotoesTriagem();
 
   console.info('[OmniLicit] LicitaReq v4.1 inicializado — Lei nº 14.133/2021');
-  console.info('[OmniLicit] Core:', window.OmniLicit ? 'OK (SHA-256 + Logo)' : 'FALHA');
-  console.info('[OmniLicit] pdfMake:', window.pdfMake ? 'OK' : 'FALHA');
-  console.info('[OmniLicit] Fontes registradas:', window.pdfMake ? Object.keys(pdfMake.fonts).join(', ') : '—');
 
   /* Pré-carrega a logo OmniLicit em background */
   if (window.OmniLicit && !carregarLogoDataUrl()) {
