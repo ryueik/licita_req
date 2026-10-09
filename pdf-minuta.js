@@ -11,8 +11,8 @@ const OL_M = (window.OmniLicit && window.OmniLicit.CORES) || {
 
 const ROTULOS_MINUTA = Object.freeze({
   vereditoCls: {
-    'deferido':   'Deferido para Prosseguimento',
-    'devolvido':  'Devolvido para Complementação',
+    'deferido': 'Deferido para Prosseguimento',
+    'devolvido': 'Devolvido para Complementação',
     'indeferido': 'Indeferido — Informações Insuficientes',
   },
   natureza: {
@@ -91,7 +91,7 @@ async function buildMinutaPdfDefinition(minuta, org, logoDataUrl, opts) {
     header: currentPage => (currentPage === 1) ? { text: '' } : {
       margin: [40, 16, 40, 0],
       columns: [
-        core && core.escudo ? { width: 20, canvas: core.escudo(20, 24).canvas } : { width: 0, text: '' },
+        montarMiniLogoMinuta(logoDataUrl),
         { margin: [8, 1, 0, 0], stack: [
           { text: (org && org.nome ? org.nome : 'OMNILICIT').toUpperCase(),
             fontSize: 8.5, bold: true, color: OL_M.executivo },
@@ -117,8 +117,15 @@ async function buildMinutaPdfDefinition(minuta, org, logoDataUrl, opts) {
   };
 }
 
+function montarMiniLogoMinuta(logoDataUrl) {
+  if (logoDataUrl) return { width: 20, image: logoDataUrl, fit: [20, 24], alignment: 'center' };
+  const core = window.OmniLicit;
+  if (!core || !core.escudo) return { width: 0, text: '' };
+  return { width: 20, canvas: core.escudo(20, 24).canvas };
+}
+
 /* ==============================================================
-   RODAPÉ FIXO
+   RODAPÉ
    ============================================================== */
 function montarRodapeAutenticacaoMinuta(page, total, auth) {
   const { tag, hash, geradoEm, versao } = auth;
@@ -191,7 +198,6 @@ function montarCapaMinuta(minuta, org, logoDataUrl, geradoEm) {
         fontSize: 8.5, alignment: 'center', color: OL_M.muted },
 
       { text: '', margin: [0, 0, 0, 20] },
-
       { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 515, y2: 0, lineWidth: 1.2, lineColor: OL_M.petroleo }],
         margin: [0, 0, 0, 16] },
       { text: 'MINUTA DE DEVOLUTIVA', fontSize: 18, bold: true, alignment: 'center', color: OL_M.ink },
@@ -377,7 +383,6 @@ function montarCorpoMinuta(minuta, org) {
                        campoMinuta('Órgão / Entidade', minuta.orgao || (org && org.nome))),
         campoMinuta('Objeto da Contratação', minuta.objeto, { full: true, bloco: true }),
       ]),
-
       secaoMinuta('2. Veredito Preliminar', [
         parDuploMinuta(campoMinuta('Veredito', rotuloMinuta('vereditoCls', minuta.vereditoCls)),
                        campoMinuta('Score', (minuta.score != null ? minuta.score : '—') + '/100')),
@@ -386,36 +391,29 @@ function montarCorpoMinuta(minuta, org) {
                     'A análise considerou o disposto nos Arts. 18 e 23 da Lei nº 14.133/2021.',
                     { full: true, bloco: true }),
       ]),
-
       secaoMinuta('3. Enquadramento e Natureza', [
         parDuploMinuta(campoMinuta('Natureza Detectada', rotuloMinuta('natureza', minuta.natureza)),
                        campoMinuta('Modalidade Sugerida', (minuta.modalidadeSug && minuta.modalidadeSug.rotulo) || '—')),
         campoMinuta('Base Legal', (minuta.modalidadeSug && minuta.modalidadeSug.lei) || 'Art. 28', { full: true }),
       ]),
-
       montarChecklistDetalhado(minuta),
       montarAlertasMinuta(minuta),
-
       secaoMinuta('6. Encaminhamento', [
         campoMinuta('Providências',
           minuta.vereditoCls === 'deferido'
-            ? 'Encaminhe-se o processo à fase seguinte de instrução, nos termos do Art. 18 da Lei nº 14.133/2021, com elaboração de Estudo Técnico Preliminar (ETP) e Termo de Referência (TR).'
+            ? 'Encaminhe-se o processo à fase seguinte de instrução, nos termos do Art. 18 da Lei nº 14.133/2021, com elaboração de ETP e TR.'
             : minuta.vereditoCls === 'devolvido'
-            ? 'Devolva-se o expediente à unidade requisitante para complementação dos itens apontados no checklist desta minuta, antes de novo encaminhamento à unidade de licitações.'
-            : 'Recomenda-se a reformulação integral da demanda, com reapresentação devidamente instruída, antes de nova submissão à triagem.',
+            ? 'Devolva-se o expediente à unidade requisitante para complementação dos itens apontados no checklist.'
+            : 'Recomenda-se a reformulação integral da demanda, com reapresentação devidamente instruída.',
           { full: true, bloco: true }),
       ]),
-
       montarMinutaTextual(minuta),
-
       secaoMinuta('8. Ressalva Institucional', [
         { table: { widths: ['*'], body: [[{
             stack: [
               { text: '⚠  RESSALVA', fontSize: 9, bold: true, color: '#92400E', margin: [0, 0, 0, 4] },
               { text: 'Esta é uma análise automatizada de apoio e NÃO substitui o parecer da ' +
-                      'assessoria jurídica, do controle interno ou da autoridade competente. ' +
-                      'Nos termos dos Arts. 52 a 54 da Lei nº 14.133/2021, a decisão final ' +
-                      'cabe à autoridade competente, após manifestação das áreas técnicas.',
+                      'assessoria jurídica, do controle interno ou da autoridade competente.',
                 fontSize: 8.5, color: '#78350F', lineHeight: 1.5, alignment: 'justify' },
             ],
             fillColor: '#FEF3C7', margin: [14, 12, 14, 12],
@@ -619,9 +617,7 @@ function cabecalhoAprovacoesMinuta(ehPrimeira, pag, tot, totAss, noGrupo) {
   }
   if (ehPrimeira) {
     stack.push({
-      text: 'Os responsáveis abaixo identificados aprovam e validam o presente Parecer de ' +
-            'Triagem Preliminar. O documento deve ser assinado eletronicamente ou de próprio ' +
-            'punho, no espaço reservado para assinatura e/ou carimbo.',
+      text: 'Os responsáveis abaixo identificados aprovam e validam o presente Parecer de Triagem Preliminar.',
       fontSize: 9, color: '#334155', lineHeight: 1.5, alignment: 'justify', margin: [0, 0, 0, 18],
     });
   }
@@ -721,9 +717,7 @@ function montarPaginaAutenticacaoMinuta(auth) {
             stack: [
               { text: '⚠  AVISO IMPORTANTE', fontSize: 8.5, bold: true, color: '#92400E', margin: [0, 0, 0, 4] },
               { text: 'Esta Minuta foi gerada automaticamente pelo sistema LicitaReq (OmniLicit) e possui ' +
-                      'TAG de autenticação única rastreável pelo OmniLicit Audit. A validade jurídica ' +
-                      'está condicionada à conferência pela assessoria jurídica, pelo controle interno e ' +
-                      'pela autoridade competente, nos termos da Lei nº 14.133/2021.',
+                      'TAG de autenticação única rastreável pelo OmniLicit Audit.',
                 fontSize: 8, color: '#78350F', lineHeight: 1.4, alignment: 'justify' },
             ],
             fillColor: '#FEF3C7', margin: [14, 10, 14, 10],
