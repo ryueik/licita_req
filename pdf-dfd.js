@@ -781,10 +781,10 @@ function montarPaginaAutenticacaoFinal(auth) {
     stack: [{
       unbreakable: true,
       stack: [
-         { text: '', margin: [0, 4, 0, 0] },
+        { text: '', margin: [0, 4, 0, 0] },
         { text: '[SEG]', fontSize: 14, bold: true, alignment: 'center',
           color: OL.petroleoD, letterSpacing: 2, margin: [0, 0, 0, 10] },
-        { text: 'AUTENTICAÇÃO E RASTREABILIDADE',,
+        { text: 'AUTENTICAÇÃO E RASTREABILIDADE',
           fontSize: 14, bold: true, alignment: 'center', color: OL.petroleoD,
           margin: [0, 0, 0, 3] },
         { text: 'Documento Oficial OmniLicit · Integração LicitaAudit',
