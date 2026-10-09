@@ -245,7 +245,7 @@ function montarRodapeAutenticacao(page, total, auth) {
       },
       {
         margin: [0, 3, 0, 0],
-        text: '◆ Documento íntegro · Autenticidade verificável via OmniLicit Audit',
+                text: '• Documento íntegro · Autenticidade verificável via OmniLicit Audit',
         fontSize: 6, italics: true, color: OL.muted,
       },
     ],
@@ -644,7 +644,7 @@ function montarPaginaAprovacoes(aprovadores) {
         {
           table: { widths: ['*'], body: [[{
             stack: [
-              { text: '⚠', fontSize: 26, alignment: 'center', color: '#F59E0B', margin: [0, 0, 0, 8] },
+              { text: '[!]', fontSize: 26, alignment: 'center', color: '#F59E0B', margin: [0, 0, 0, 8] },
               { text: 'Nenhum aprovador ou validador foi informado',
                 fontSize: 12, bold: true, alignment: 'center', color: '#78350F', margin: [0, 0, 0, 6] },
               { text: 'Preencha o Bloco 7A (Aprovadores e Validadores) no formulário do LicitaReq antes de gerar o PDF.',
@@ -781,9 +781,10 @@ function montarPaginaAutenticacaoFinal(auth) {
     stack: [{
       unbreakable: true,
       stack: [
-        { text: '', margin: [0, 4, 0, 0] },
-        { text: '🔐', fontSize: 28, alignment: 'center', margin: [0, 0, 0, 4] },
-        { text: 'AUTENTICAÇÃO E RASTREABILIDADE',
+         { text: '', margin: [0, 4, 0, 0] },
+        { text: '[SEG]', fontSize: 14, bold: true, alignment: 'center',
+          color: OL.petroleoD, letterSpacing: 2, margin: [0, 0, 0, 10] },
+        { text: 'AUTENTICAÇÃO E RASTREABILIDADE',,
           fontSize: 14, bold: true, alignment: 'center', color: OL.petroleoD,
           margin: [0, 0, 0, 3] },
         { text: 'Documento Oficial OmniLicit · Integração LicitaAudit',
@@ -819,7 +820,7 @@ function montarPaginaAutenticacaoFinal(auth) {
         {
           table: { widths: ['*'], body: [[{
             stack: [
-              { text: '⚠  AVISO IMPORTANTE', fontSize: 8.5, bold: true,
+              { text: '[!]  AVISO IMPORTANTE', fontSize: 8.5, bold: true,
                 color: '#92400E', margin: [0, 0, 0, 4] },
               { text: 'Este documento foi gerado automaticamente pelo sistema LicitaReq (OmniLicit) ' +
                       'e possui TAG de autenticação única rastreável pelo OmniLicit Audit. A validade ' +
@@ -835,7 +836,7 @@ function montarPaginaAutenticacaoFinal(auth) {
         {
           table: { widths: ['*'], body: [[{
             stack: [
-              { text: '◆  SELO DIGITAL OMNILICIT', fontSize: 8, bold: true,
+              { text: '•  SELO DIGITAL OMNILICIT', fontSize: 8, bold: true,
                 alignment: 'center', color: OL.petroleoD, margin: [0, 0, 0, 3] },
               { text: 'Documento íntegro · Não adulterado · Rastreável', fontSize: 7,
                 alignment: 'center', color: OL.muted, margin: [0, 3, 0, 0] },
