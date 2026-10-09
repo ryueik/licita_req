@@ -1,6 +1,10 @@
 /* ============================================================
    LicitaReq — pdf-dfd.js
-   v5.0 — OmniLicit Edition · SHA-256 real · Rodapé autenticado
+   v5.0.1 — OmniLicit Edition · SHA-256 real · Rodapé autenticado
+   ------------------------------------------------------------
+   • Sem emojis Unicode (compatível apenas com Roboto do VFS)
+   • Sintaxe validada · sem vírgulas duplas
+   • Logo dinâmica (Opção B) com fallback para escudo vetorial
    ============================================================ */
 'use strict';
 
@@ -96,6 +100,7 @@ function formatarData(iso) {
   const p = String(iso).split('-');
   return (p[2] && p[1] && p[0]) ? (p[2] + '/' + p[1] + '/' + p[0]) : iso;
 }
+
 function formatarDataHora(d) {
   const dt = d instanceof Date ? d : new Date(d);
   if (isNaN(dt)) return '—';
@@ -126,9 +131,16 @@ async function buildDfdPdfDefinition(dfd, org, logoDataUrl, opts) {
   const versao   = opts.versao   || 'OmniLicit LicitaReq v5.0';
 
   const core = window.OmniLicit;
-  const tag  = opts.tag  || (core ? await core.gerarTag(dfd, org) : 'OMNILICIT::DFD::PENDING::' + geradoEm.getFullYear());
-  const hash = opts.hash || (core ? await core.gerarHash({ v: '5.0', tag, dfd, org: { nome: org && org.nome, cnpj: org && org.cnpj, sigla: org && org.sigla } })
-                                 : '0'.repeat(64));
+  const tag  = opts.tag  || (core
+    ? await core.gerarTag(dfd, org)
+    : 'OMNILICIT::DFD::PENDING::' + geradoEm.getFullYear());
+
+  const hash = opts.hash || (core
+    ? await core.gerarHash({
+        v: '5.0', tag, dfd,
+        org: { nome: org && org.nome, cnpj: org && org.cnpj, sigla: org && org.sigla },
+      })
+    : '0'.repeat(64));
 
   const aprovadores = Array.isArray(opts.aprovadores) ? opts.aprovadores : [];
   const tituloCabecalho = montarTituloCabecalho(dfd);
@@ -245,7 +257,7 @@ function montarRodapeAutenticacao(page, total, auth) {
       },
       {
         margin: [0, 3, 0, 0],
-                text: '• Documento íntegro · Autenticidade verificável via OmniLicit Audit',
+        text: '• Documento íntegro · Autenticidade verificável via OmniLicit Audit',
         fontSize: 6, italics: true, color: OL.muted,
       },
     ],
@@ -377,6 +389,7 @@ function cartao(label, valor) {
     margin: [12, 9, 12, 9],
   };
 }
+
 function layoutCartoes() {
   return {
     hLineColor: () => OL.line, vLineColor: () => OL.line,
@@ -464,20 +477,34 @@ function montarCorpoTecnico(dfd, org) {
 
 function montarPainelConformidade(dfd, org) {
   const linhas = [
-    ['Nº do DFD', '—'],['Data da Formalização', '—'],
-    ['Órgão / Entidade', '—'],['Unidade Requisitante', '—'],
-    ['Responsável pela Demanda', '—'],['Cargo / Função', '—'],
-    ['Objeto da Contratação', '—'],['Estimativa de Quantidades', '—'],
-    ['Valor Estimado', '—'],['Método de Estimativa', '—'],
-    ['Dotação Orçamentária', '—'],['Fonte de Recurso', '—'],
-    ['Previsão no PCA', '—'],['Item / Código no PCA', '—'],
-    ['Modalidade Pretendida', '—'],['Natureza do Objeto', '—'],
-    ['Critério de Julgamento', '—'],['Regime de Execução', '—'],
-    ['Decisão de Parcelamento', '—'],['Prazo de Execução', '—'],
-    ['Local de Entrega', '—'],['Condições de Pagamento', '—'],
-    ['Fiscal Titular', '—'],['Fiscal Substituto', '—'],
-    ['Gestor do Contrato', '—'],['Vistoria Técnica', '—'],
+    'Nº do DFD',
+    'Data da Formalização',
+    'Órgão / Entidade',
+    'Unidade Requisitante',
+    'Responsável pela Demanda',
+    'Cargo / Função',
+    'Objeto da Contratação',
+    'Estimativa de Quantidades',
+    'Valor Estimado',
+    'Método de Estimativa',
+    'Dotação Orçamentária',
+    'Fonte de Recurso',
+    'Previsão no PCA',
+    'Item / Código no PCA',
+    'Modalidade Pretendida',
+    'Natureza do Objeto',
+    'Critério de Julgamento',
+    'Regime de Execução',
+    'Decisão de Parcelamento',
+    'Prazo de Execução',
+    'Local de Entrega',
+    'Condições de Pagamento',
+    'Fiscal Titular',
+    'Fiscal Substituto',
+    'Gestor do Contrato',
+    'Vistoria Técnica',
   ];
+
   const valores = [
     dfd.numero || '—',
     formatarData(dfd.data),
@@ -506,10 +533,13 @@ function montarPainelConformidade(dfd, org) {
     dfd.gestor || '—',
     rotulo('vistoria', dfd.vistoria),
   ];
-  const body = linhas.map((par, i) => [
-    { text: par[0] + ':', fontSize: 8.5, bold: true, color: OL.executivoD, margin: [8, 5, 8, 5] },
-    { text: valores[i], fontSize: 8.5, color: OL.ink, margin: [8, 5, 8, 5] },
-  ]);
+
+  const body = linhas.map(function (label, i) {
+    return [
+      { text: label + ':', fontSize: 8.5, bold: true, color: OL.executivoD, margin: [8, 5, 8, 5] },
+      { text: valores[i], fontSize: 8.5, color: OL.ink, margin: [8, 5, 8, 5] },
+    ];
+  });
 
   return {
     unbreakable: true,
@@ -601,6 +631,7 @@ function secao(titulo, corpo) {
     ],
   };
 }
+
 function campo(label, valor, options) {
   options = options || {};
   const bloco = options.bloco || false;
@@ -613,6 +644,7 @@ function campo(label, valor, options) {
     margin: [0, 0, 0, 10],
   };
 }
+
 function parDuplo(c1, c2) {
   if (c1.full || c2.full) return { unbreakable: true, stack: [c1, c2] };
   return {
@@ -624,6 +656,7 @@ function parDuplo(c1, c2) {
     columnGap: 20,
   };
 }
+
 function chunk(arr, size) {
   const out = [];
   for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
@@ -660,7 +693,7 @@ function montarPaginaAprovacoes(aprovadores) {
 
   const MAX = 6;
   const grupos = distribuir(aprovadores, MAX);
-  return grupos.map((grupo, idx) => {
+  return grupos.map(function (grupo, idx) {
     const ehPrimeira = idx === 0;
     const ehUltima   = idx === grupos.length - 1;
     return {
@@ -721,17 +754,19 @@ function cabecalhoAprovacoes(ehPrimeira, pag, tot, totAss, noGrupo) {
 function montarLinhas(grupo) {
   const linhas = chunk(grupo, 2);
   const ult = linhas.length - 1;
-  return linhas.map((par, idx) => ({
-    stack: [{
-      unbreakable: true,
-      columns: [
-        { width: '50%', stack: blocoAssinatura(par[0]) },
-        par[1] ? { width: '50%', stack: blocoAssinatura(par[1]) } : { width: '50%', text: '' },
-      ],
-      columnGap: 26,
-    }],
-    margin: [0, 0, 0, idx === ult ? 0 : 22],
-  }));
+  return linhas.map(function (par, idx) {
+    return {
+      stack: [{
+        unbreakable: true,
+        columns: [
+          { width: '50%', stack: blocoAssinatura(par[0]) },
+          par[1] ? { width: '50%', stack: blocoAssinatura(par[1]) } : { width: '50%', text: '' },
+        ],
+        columnGap: 26,
+      }],
+      margin: [0, 0, 0, idx === ult ? 0 : 22],
+    };
+  });
 }
 
 function blocoAssinatura(p) {
@@ -775,15 +810,21 @@ function rodapeAprovacoes(total, totPags) {
    PÁGINA FINAL — AUTENTICAÇÃO
    ============================================================== */
 function montarPaginaAutenticacaoFinal(auth) {
-  const { tag, hash, geradoEm, versao, org, dfd } = auth;
+  const tag      = auth.tag;
+  const hash     = auth.hash;
+  const geradoEm = auth.geradoEm;
+  const versao   = auth.versao;
+  const org      = auth.org || {};
+  const dfd      = auth.dfd || {};
+
   return {
     pageBreak: 'before',
     stack: [{
       unbreakable: true,
       stack: [
         { text: '', margin: [0, 4, 0, 0] },
-        { text: '[SEG]', fontSize: 14, bold: true, alignment: 'center',
-          color: OL.petroleoD, letterSpacing: 2, margin: [0, 0, 0, 10] },
+        { text: 'S E G', fontSize: 12, bold: true, alignment: 'center',
+          color: OL.petroleoD, margin: [0, 0, 0, 8] },
         { text: 'AUTENTICAÇÃO E RASTREABILIDADE',
           fontSize: 14, bold: true, alignment: 'center', color: OL.petroleoD,
           margin: [0, 0, 0, 3] },
@@ -807,11 +848,11 @@ function montarPaginaAutenticacaoFinal(auth) {
             widths: ['35%', '*'],
             body: [
               linhaMeta('Hash SHA-256', hash),
-              linhaMeta('Emitido em',          formatarDataHora(geradoEm)),
-              linhaMeta('Sistema Emissor',     versao),
-              linhaMeta('Órgão Emissor',       (org && org.nome) || '—'),
-              linhaMeta('Expediente',          (dfd && dfd.numero) || '—'),
-              linhaMeta('Tag de Integração',   'PREFIRO_TAG: OmniLicit_DFD_Oficial'),
+              linhaMeta('Emitido em',        formatarDataHora(geradoEm)),
+              linhaMeta('Sistema Emissor',   versao),
+              linhaMeta('Órgão Emissor',     (org && org.nome) || '—'),
+              linhaMeta('Expediente',        (dfd && dfd.numero) || '—'),
+              linhaMeta('Tag de Integração', 'PREFIRO_TAG: OmniLicit_DFD_Oficial'),
             ],
           },
           layout: layoutMeta(), margin: [0, 0, 0, 12],
@@ -861,6 +902,7 @@ function linhaMeta(chave, valor) {
       margin: [8, 5, 8, 5] },
   ];
 }
+
 function layoutMeta() {
   return {
     hLineColor: () => '#CBD5E1', vLineColor: () => '#CBD5E1',
