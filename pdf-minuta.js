@@ -156,7 +156,7 @@ function montarRodapeAutenticacaoMinuta(page, total, auth) {
         ]},
       ]},
       { margin: [0, 3, 0, 0],
-        text: '◆ Minuta íntegra · Autenticidade verificável via OmniLicit Audit',
+        text: '• Minuta íntegra · Autenticidade verificável via OmniLicit Audit',
         fontSize: 6, italics: true, color: OL_M.muted },
     ],
   };
@@ -411,7 +411,7 @@ function montarCorpoMinuta(minuta, org) {
       secaoMinuta('8. Ressalva Institucional', [
         { table: { widths: ['*'], body: [[{
             stack: [
-              { text: '⚠  RESSALVA', fontSize: 9, bold: true, color: '#92400E', margin: [0, 0, 0, 4] },
+              { text: '[!]  RESSALVA', fontSize: 9, bold: true, color: '#92400E', margin: [0, 0, 0, 4] },
               { text: 'Esta é uma análise automatizada de apoio e NÃO substitui o parecer da ' +
                       'assessoria jurídica, do controle interno ou da autoridade competente.',
                 fontSize: 8.5, color: '#78350F', lineHeight: 1.5, alignment: 'justify' },
@@ -428,7 +428,7 @@ function montarChecklistDetalhado(minuta) {
   const req = Array.isArray(minuta.requisitos) ? minuta.requisitos : [];
   if (!req.length) return { text: '' };
   const rows = req.map(r => {
-    const icon = r.ok ? '✓' : (r.sev === 'alta' ? '✕' : '!');
+    const icon = r.ok ? 'V' : (r.sev === 'alta' ? 'X' : '!');
     const cor = r.ok ? '#059669' : r.sev === 'alta' ? '#DC2626' : '#B45309';
     return [
       { text: icon, fontSize: 11, bold: true, color: cor, margin: [6, 5, 6, 5], alignment: 'center' },
@@ -465,10 +465,10 @@ function montarAlertasMinuta(minuta) {
   const alertas = Array.isArray(minuta.alertas) ? minuta.alertas : [];
   if (!alertas.length) return { text: '' };
   const blocks = alertas.map(a => {
-    const c = a.tipo === 'danger'  ? { bg: '#FEF2F2', br: '#DC2626', tx: '#450A0A', ic: '⚠' }
-            : a.tipo === 'warning' ? { bg: '#FFFBEB', br: '#B45309', tx: '#451A03', ic: '⚠' }
-            : a.tipo === 'success' ? { bg: '#ECFDF5', br: '#059669', tx: '#052E1F', ic: '✓' }
-            :                        { bg: '#F0F9FF', br: '#0284C7', tx: '#082F49', ic: 'ℹ' };
+    const c = a.tipo === 'danger'  ? { bg: '#FEF2F2', br: '#DC2626', tx: '#450A0A', ic: '[!]' }
+            : a.tipo === 'warning' ? { bg: '#FFFBEB', br: '#B45309', tx: '#451A03', ic: '[!]' }
+            : a.tipo === 'success' ? { bg: '#ECFDF5', br: '#059669', tx: '#052E1F', ic: '[OK]' }
+            :                        { bg: '#F0F9FF', br: '#0284C7', tx: '#082F49', ic: '[i]' };
     return {
       table: { widths: ['*'], body: [[{
         stack: [
@@ -561,7 +561,7 @@ function montarPaginaAprovacoesMinuta(aprovadores) {
         cabecalhoAprovacoesMinuta(true, 1, 1, 0, 0),
         { table: { widths: ['*'], body: [[{
             stack: [
-              { text: '⚠', fontSize: 26, alignment: 'center', color: '#F59E0B', margin: [0, 0, 0, 8] },
+              { text: '[!]', fontSize: 26, alignment: 'center', color: '#F59E0B', margin: [0, 0, 0, 8] },
               { text: 'Nenhum aprovador ou validador foi informado',
                 fontSize: 12, bold: true, alignment: 'center', color: '#78350F' },
               { text: 'Preencha os aprovadores no LicitaReq antes de gerar a Minuta.',
@@ -683,7 +683,8 @@ function montarPaginaAutenticacaoMinuta(auth) {
       unbreakable: true,
       stack: [
         { text: '', margin: [0, 4, 0, 0] },
-        { text: '🔐', fontSize: 28, alignment: 'center', margin: [0, 0, 0, 4] },
+        { text: '[SEG]', fontSize: 14, bold: true, alignment: 'center',
+          color: OL_M.petroleoD, letterSpacing: 2, margin: [0, 0, 0, 10] },
         { text: 'AUTENTICAÇÃO E RASTREABILIDADE', fontSize: 14, bold: true,
           alignment: 'center', color: OL_M.petroleoD, margin: [0, 0, 0, 3] },
         { text: 'Minuta Oficial OmniLicit · Integração LicitaAudit',
@@ -715,7 +716,7 @@ function montarPaginaAutenticacaoMinuta(auth) {
 
         { table: { widths: ['*'], body: [[{
             stack: [
-              { text: '⚠  AVISO IMPORTANTE', fontSize: 8.5, bold: true, color: '#92400E', margin: [0, 0, 0, 4] },
+              { text: '[!]  AVISO IMPORTANTE', fontSize: 8.5, bold: true, color: '#92400E', margin: [0, 0, 0, 4] },
               { text: 'Esta Minuta foi gerada automaticamente pelo sistema LicitaReq (OmniLicit) e possui ' +
                       'TAG de autenticação única rastreável pelo OmniLicit Audit.',
                 fontSize: 8, color: '#78350F', lineHeight: 1.4, alignment: 'justify' },
@@ -726,7 +727,7 @@ function montarPaginaAutenticacaoMinuta(auth) {
 
         { table: { widths: ['*'], body: [[{
             stack: [
-              { text: '◆  SELO DIGITAL OMNILICIT', fontSize: 8, bold: true,
+              { text: '•  SELO DIGITAL OMNILICIT', fontSize: 8, bold: true,
                 alignment: 'center', color: OL_M.petroleoD, margin: [0, 0, 0, 3] },
               { text: 'Documento íntegro · Não adulterado · Rastreável', fontSize: 7,
                 alignment: 'center', color: OL_M.muted, margin: [0, 3, 0, 0] },
