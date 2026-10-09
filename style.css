@@ -1,14 +1,8 @@
 /* ============================================================
    OmniLicit · LicitaReq — style.css
    v4.0 · Identidade Visual OmniLicit + Logo integrada
-   ------------------------------------------------------------
-   • Paleta: Verde-petróleo/Turquesa (#00A896) + Azul Executivo (#05668D)
-   • Brand mark com logo oficial (imagem)
-   • Footer com logo inline
-   • Suporte a dark/light
    ============================================================ */
 
-/* -------------------- RESET -------------------- */
 *, *::before, *::after { box-sizing: border-box; }
 [hidden] { display: none !important; }
 
@@ -16,45 +10,36 @@
 :root,
 [data-theme="dark"] {
   color-scheme: dark;
-
-  /* Superfícies */
   --bg-app: #0a0f1e; --bg-app-2: #0f172a;
   --bg-panel: rgba(20, 27, 45, 0.72); --bg-panel-solid: #151d33;
   --bg-elevated: #1a2440; --bg-subtle: rgba(148, 163, 184, 0.06);
   --bg-hover: rgba(0, 168, 150, 0.10); --bg-input: #0e1526;
 
-  /* Bordas */
   --border: rgba(148, 163, 184, 0.14);
   --border-strong: rgba(148, 163, 184, 0.24);
   --border-glow: rgba(0, 168, 150, 0.45);
 
-  /* Texto */
   --text: #f1f5f9; --text-muted: #cbd5e1; --text-soft: #94a3b8; --text-faint: #64748b;
 
-  /* Marca — Verde-petróleo / Turquesa */
   --brand-300: #5CC7BC; --brand-400: #29B5A7; --brand-500: #00A896;
   --brand-600: #008F80; --brand-700: #007568;
 
-  /* Marca secundária — Azul Executivo */
   --accent-400: #2975A2; --accent-500: #05668D; --accent-700: #034462;
 
   --brand-soft: rgba(0, 168, 150, 0.14);
   --brand-glow: rgba(0, 168, 150, 0.55);
 
-  /* Semânticas */
   --success: #34d399; --success-fg: #d1fae5; --success-bg: rgba(16, 185, 129, 0.14); --success-brd: rgba(16, 185, 129, 0.35);
   --warning: #fbbf24; --warning-fg: #fef3c7; --warning-bg: rgba(245, 158, 11, 0.14); --warning-brd: rgba(245, 158, 11, 0.35);
   --danger:  #f87171; --danger-fg:  #fee2e2; --danger-bg:  rgba(239, 68, 68, 0.14);  --danger-brd:  rgba(239, 68, 68, 0.35);
   --info:    #38bdf8; --info-fg:    #e0f2fe; --info-bg:    rgba(14, 165, 233, 0.14); --info-brd:    rgba(14, 165, 233, 0.35);
 
-  /* Sombras */
   --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.35);
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 8px 24px -8px rgba(0, 0, 0, 0.7), 0 2px 6px rgba(0, 0, 0, 0.4);
   --shadow-lg: 0 24px 48px -16px rgba(0, 0, 0, 0.85), 0 8px 16px rgba(0, 0, 0, 0.5);
   --shadow-glow: 0 0 32px -8px var(--brand-glow);
 
-  /* Geometria */
   --radius-xs: 6px; --radius-sm: 8px; --radius-md: 12px;
   --radius-lg: 16px; --radius-xl: 22px; --radius-2xl: 28px;
   --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
@@ -176,7 +161,6 @@ strong { color: var(--text); font-weight: 700; }
 /* -------------------- BRAND -------------------- */
 .brand { display: flex; align-items: center; gap: 14px; min-width: 0; }
 
-/* Brand mark — logo OmniLicit */
 .brand__mark {
   position: relative;
   width: 50px; height: 50px; flex: 0 0 auto;
@@ -214,7 +198,6 @@ strong { color: var(--text); font-weight: 700; }
     inset 0 1px 0 #fff;
 }
 
-/* Logo dentro do brand mark */
 .brand__logo {
   display: block;
   width: 38px; height: 38px;
@@ -227,14 +210,12 @@ strong { color: var(--text); font-weight: 700; }
 }
 .brand__mark:hover .brand__logo { transform: scale(1.04); }
 
-/* Compat: se o JS antigo injetar <img> ou texto, ainda funciona */
 .brand__mark > img:not(.brand__logo) {
   width: 100%; height: 100%; object-fit: contain; padding: 6px; border-radius: inherit;
 }
 .brand__mark.has-logo { background: #fff; padding: 4px; }
 .brand__mark.has-logo::before { display: none; }
 
-/* Texto do brand */
 .brand__text { min-width: 0; }
 .brand__title {
   font-size: 1.22rem; font-weight: 800; letter-spacing: -0.015em;
@@ -284,7 +265,7 @@ strong { color: var(--text); font-weight: 700; }
   min-width: 0;
 }
 
-/* -------------------- GUIA RÁPIDO -------------------- */
+/* -------------------- GUIA -------------------- */
 .guide {
   padding: clamp(24px, 3vw, 40px);
   border-radius: var(--radius-2xl);
@@ -721,7 +702,7 @@ select.input {
 .accordion__hint { font-weight: 400; color: var(--text-soft); font-size: 0.78rem; }
 .accordion__body { padding: 8px 20px 22px; }
 
-/* -------------------- RESULTADO / DASHBOARD -------------------- */
+/* -------------------- RESULTADO -------------------- */
 .result {
   display: flex; flex-direction: column; gap: var(--space-5);
   animation: fadeUp 0.4s ease; min-width: 0;
@@ -824,28 +805,6 @@ select.input {
   content: ""; width: 4px; height: 22px; border-radius: 4px;
   background: linear-gradient(180deg, var(--brand-400), var(--accent-500));
   box-shadow: 0 0 16px -2px var(--brand-glow); flex: 0 0 auto;
-}
-
-.motivacao-grid {
-  display: grid; gap: var(--space-3);
-  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
-  min-width: 0;
-}
-.motivacao-item {
-  padding: 14px 16px; border-radius: var(--radius-md);
-  background: var(--bg-subtle); border: 1px solid var(--border);
-  min-width: 0; transition: border-color var(--transition);
-}
-.motivacao-item:hover { border-color: var(--border-glow); }
-.motivacao-item--full { grid-column: 1 / -1; }
-.motivacao-item dt {
-  font-size: 0.68rem; text-transform: uppercase;
-  letter-spacing: 0.1em; color: var(--text-soft);
-  font-weight: 800; margin-bottom: 8px;
-}
-.motivacao-item dd {
-  margin: 0; font-size: 0.9rem; color: var(--text);
-  line-height: 1.65; overflow-wrap: anywhere;
 }
 
 .req-table { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
@@ -1036,7 +995,7 @@ select.input {
 }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
-/* -------------------- LOGO UPLOAD (modal órgão) -------------------- */
+/* -------------------- LOGO UPLOAD -------------------- */
 .logo-section {
   margin-top: var(--space-6); padding-top: var(--space-5);
   border-top: 1px solid var(--border);
@@ -1133,7 +1092,7 @@ select.input {
 }
 ::-webkit-scrollbar-thumb:hover { background: var(--brand-400); background-clip: content-box; }
 
-/* -------------------- ROLAGEM INDEPENDENTE (workspace) -------------------- */
+/* -------------------- ROLAGEM INDEPENDENTE -------------------- */
 @media (min-width: 1081px) {
   .workspace-grid {
     height: clamp(520px, 72vh, 760px);
@@ -1160,7 +1119,7 @@ select.input {
   }
 }
 
-/* -------------------- APROVADORES DINÂMICOS -------------------- */
+/* -------------------- APROVADORES -------------------- */
 .aprovadores-fieldset {
   background: linear-gradient(135deg, var(--brand-soft), transparent 70%), var(--bg-subtle);
   border-color: var(--border-glow);
@@ -1265,7 +1224,7 @@ select.input {
   .app-footer__logo { width: 18px; height: 18px; }
 }
 
-/* -------------------- ACESSIBILIDADE MOTION/CONTRAST -------------------- */
+/* -------------------- A11Y MOTION/CONTRAST -------------------- */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.001ms !important;
