@@ -9,9 +9,7 @@
   <meta name="color-scheme" content="dark light" />
   <meta name="theme-color" content="#00A896" />
 
-  <!-- ============================================================
-       FAVICON — usa a logo oficial OmniLicit
-       ============================================================ -->
+  <!-- FAVICON — logo oficial OmniLicit -->
   <link rel="icon" type="image/png" href="logo-omnlicit.png" />
   <link rel="apple-touch-icon" href="logo-omnlicit.png" />
   <link rel="shortcut icon" href="logo-omnlicit.png" />
@@ -29,11 +27,8 @@
   </script>
 
   <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin />
+  <link rel="preload" as="image" href="logo-omnlicit.png" />
   <link rel="stylesheet" href="style.css" />
-
-  <!-- Bibliotecas externas -->
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
 </head>
 
 <body>
@@ -42,9 +37,6 @@
   <!-- ============================= HEADER ============================= -->
   <header class="app-header" role="banner">
     <div class="brand">
-      <!-- ============================================================
-           BRAND MARK — logo oficial OmniLicit
-           ============================================================ -->
       <div class="brand__mark brand__mark--omnlicit" id="brandMark" aria-hidden="true">
         <img
           src="logo-omnlicit.png"
@@ -144,7 +136,7 @@
       </div>
     </section>
 
-    <!-- ============ DFD (MÓDULO REQUISITANTE) ============ -->
+    <!-- ============ DFD ============ -->
     <section class="panel panel--dfd" aria-labelledby="titulo-dfd">
       <header class="panel__head">
         <div class="panel__head-icon" aria-hidden="true">📋</div>
@@ -157,7 +149,6 @@
         </div>
       </header>
 
-      <!-- Painel de Prontidão -->
       <div class="prontidao" role="region" aria-label="Indicador de prontidão da demanda">
         <div class="prontidao__head">
           <span class="prontidao__label">Prontidão da Demanda</span>
@@ -172,13 +163,12 @@
         </p>
       </div>
 
-      <!-- Bloco 1: Identificação -->
+      <!-- Bloco 1 -->
       <fieldset class="dfd-fieldset">
         <legend class="dfd-legend">
           <span class="dfd-legend__num">1</span>
           <span class="dfd-legend__text">Identificação</span>
         </legend>
-
         <div class="grid grid--2">
           <div class="field">
             <label class="field__label" for="dfdNumero">Nº do DFD / Expediente</label>
@@ -207,27 +197,24 @@
         </div>
       </fieldset>
 
-      <!-- Bloco 2: Objeto e Justificativa -->
+      <!-- Bloco 2 -->
       <fieldset class="dfd-fieldset">
         <legend class="dfd-legend">
           <span class="dfd-legend__num">2</span>
           <span class="dfd-legend__text">Objeto e Justificativa</span>
           <span class="dfd-legend__law">Art. 18, §1º, I e II</span>
         </legend>
-
         <div class="field">
           <label class="field__label" for="dfdObjeto">Descrição resumida do objeto</label>
           <input id="dfdObjeto" class="input" type="text"
                  placeholder="Ex.: Aquisição de Workstations e Notebooks para modernização do parque tecnológico" />
         </div>
-
         <div class="field">
           <label class="field__label" for="dfdJustificativa">Justificativa da necessidade pública (fundamentada)</label>
           <textarea id="dfdJustificativa" class="textarea" rows="6"
                     placeholder="Descreva a real necessidade administrativa, o interesse público e o resultado pretendido…"></textarea>
           <div class="counter"><span id="dfdJustCount">0</span> caracteres</div>
         </div>
-
         <div class="field">
           <label class="field__label" for="dfdQuantidades">Estimativa de quantidades</label>
           <input id="dfdQuantidades" class="input" type="text"
@@ -235,14 +222,13 @@
         </div>
       </fieldset>
 
-      <!-- Bloco 3: PCA -->
+      <!-- Bloco 3 -->
       <fieldset class="dfd-fieldset">
         <legend class="dfd-legend">
           <span class="dfd-legend__num">3</span>
           <span class="dfd-legend__text">Alinhamento ao PCA</span>
           <span class="dfd-legend__law">Art. 12, VII</span>
         </legend>
-
         <div class="grid grid--2">
           <div class="field">
             <label class="field__label" for="dfdPcaPrevisto">Previsto no PCA?</label>
@@ -258,22 +244,20 @@
             <input id="dfdPcaItem" class="input" type="text" placeholder="Ex.: PCA-2026-ITEM-042" />
           </div>
         </div>
-
         <div class="field">
           <label class="field__label" for="dfdPcaJustificativa">Justificativa do alinhamento (opcional)</label>
           <textarea id="dfdPcaJustificativa" class="textarea" rows="3"
-                    placeholder="Caso não esteja prevista, justifique a inclusão extraordinária ou o alinhamento com as diretrizes do PCA…"></textarea>
+                    placeholder="Caso não esteja prevista, justifique a inclusão extraordinária…"></textarea>
         </div>
       </fieldset>
 
-      <!-- Bloco 4: Enquadramento -->
+      <!-- Bloco 4 -->
       <fieldset class="dfd-fieldset">
         <legend class="dfd-legend">
           <span class="dfd-legend__num">4</span>
           <span class="dfd-legend__text">Enquadramento Legal</span>
           <span class="dfd-legend__law">Arts. 28, 6º e 33</span>
         </legend>
-
         <div class="grid grid--2">
           <div class="field">
             <label class="field__label" for="dfdModalidade">Modalidade pretendida (Art. 28)</label>
@@ -325,14 +309,13 @@
         </div>
       </fieldset>
 
-      <!-- Bloco 5: Orçamento -->
+      <!-- Bloco 5 -->
       <fieldset class="dfd-fieldset">
         <legend class="dfd-legend">
           <span class="dfd-legend__num">5</span>
           <span class="dfd-legend__text">Estimativa Orçamentária</span>
           <span class="dfd-legend__law">Arts. 23 e 150</span>
         </legend>
-
         <div class="grid grid--2">
           <div class="field">
             <label class="field__label" for="dfdValor">Valor estimado (R$)</label>
@@ -360,14 +343,13 @@
         </div>
       </fieldset>
 
-      <!-- Bloco 6: Parcelamento / Entrega -->
+      <!-- Bloco 6 -->
       <fieldset class="dfd-fieldset">
         <legend class="dfd-legend">
           <span class="dfd-legend__num">6</span>
           <span class="dfd-legend__text">Parcelamento, Prazo e Entrega</span>
           <span class="dfd-legend__law">Art. 47</span>
         </legend>
-
         <div class="grid grid--2">
           <div class="field">
             <label class="field__label" for="dfdParcelamento">Decisão de parcelamento</label>
@@ -398,14 +380,13 @@
         </div>
       </fieldset>
 
-      <!-- Bloco 7: Fiscalização -->
+      <!-- Bloco 7 -->
       <fieldset class="dfd-fieldset">
         <legend class="dfd-legend">
           <span class="dfd-legend__num">7</span>
           <span class="dfd-legend__text">Fiscalização e Gestão Contratual</span>
           <span class="dfd-legend__law">Art. 117</span>
         </legend>
-
         <div class="grid grid--2">
           <div class="field">
             <label class="field__label" for="dfdFiscalTitular">Fiscal titular</label>
@@ -431,7 +412,7 @@
         </div>
       </fieldset>
 
-      <!-- Bloco 7-A: Aprovadores e Validadores -->
+      <!-- Bloco 7A -->
       <fieldset class="dfd-fieldset aprovadores-fieldset">
         <legend class="dfd-legend">
           <span class="dfd-legend__num">7A</span>
@@ -439,15 +420,11 @@
           <span class="dfd-legend__law">Art. 18, § 1º</span>
           <span class="dfd-legend__badge" id="aprovadoresContador">0</span>
         </legend>
-
         <p class="aprovadores__intro">
           Adicione <strong>quantos aprovadores e validadores desejar</strong>. Eles aparecerão
-          no PDF em blocos de assinatura organizados em duas colunas, com espaço reservado
-          para assinatura ou carimbo.
+          no PDF em blocos de assinatura organizados em duas colunas.
         </p>
-
         <div id="aprovadoresList" class="aprovadores__list" aria-live="polite"></div>
-
         <div class="aprovadores__actions">
           <button id="btnAddAprovador" type="button" class="btn btn--ghost btn--icon">
             <span aria-hidden="true">➕</span>
@@ -460,14 +437,13 @@
         </div>
       </fieldset>
 
-      <!-- Bloco 8: Observações -->
+      <!-- Bloco 8 -->
       <fieldset class="dfd-fieldset">
         <legend class="dfd-legend">
           <span class="dfd-legend__num">8</span>
           <span class="dfd-legend__text">Observações Complementares</span>
           <span class="dfd-legend__badge">Opcional</span>
         </legend>
-
         <div class="field">
           <label class="field__label" for="dfdObservacoes">Observações adicionais</label>
           <textarea id="dfdObservacoes" class="textarea" rows="3"
@@ -475,7 +451,6 @@
         </div>
       </fieldset>
 
-      <!-- Ações DFD -->
       <div class="actions" role="group" aria-label="Ações do DFD">
         <button id="btnDfdGerarPDF" class="btn btn--secondary" type="button">📄 Gerar DFD em PDF</button>
         <button id="btnDfdSalvarJSON" class="btn btn--primary" type="button">💾 Salvar DFD em JSON</button>
@@ -490,10 +465,9 @@
       </p>
     </section>
 
-    <!-- ============ WORKSPACE: TRIAGEM + DASHBOARD ============ -->
+    <!-- ============ WORKSPACE ============ -->
     <div class="workspace-grid">
 
-      <!-- TRIAGEM -->
       <section class="panel panel--input" aria-labelledby="titulo-entrada">
         <header class="panel__head">
           <div class="panel__head-icon" aria-hidden="true">🔍</div>
@@ -542,7 +516,6 @@
             <span class="accordion__title">Dados complementares</span>
             <span class="accordion__hint">(opcional — melhora a precisão da análise)</span>
           </summary>
-
           <div class="accordion__body grid grid--2">
             <div class="field">
               <label class="field__label" for="unidade">Unidade requisitante</label>
@@ -596,7 +569,6 @@
         </div>
       </section>
 
-      <!-- DASHBOARD -->
       <section class="panel panel--result" aria-labelledby="titulo-resultado" role="region">
         <header class="panel__head">
           <div class="panel__head-icon" aria-hidden="true">📊</div>
@@ -634,7 +606,6 @@
       </section>
     </div>
 
-    <!-- ============ FOOTER INLINE ============ -->
     <footer class="app-footer" role="contentinfo">
       <div class="app-footer__grid">
         <div class="app-footer__col">
@@ -664,7 +635,6 @@
           </p>
         </div>
       </div>
-
       <p class="app-footer__bottom">OmniLicit · LicitaReq © 2026 · Todos os direitos reservados</p>
     </footer>
   </main>
