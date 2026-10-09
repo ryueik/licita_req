@@ -1,14 +1,24 @@
 /* ============================================================
    LicitaReq — pdf-dfd.js
-   v4.5 — Fim da página vazia + seções íntegras
+   v5.0 — OmniLicit Edition · SHA-256 real · Rodapé autenticado
    ------------------------------------------------------------
-   • Sem página fantasma entre Capa e Nota de Apresentação
-   • Seções inquebráveis por padrão (título + conteúdo juntos)
-   • Corpo técnico contínuo sem cortes
+   • Cabeçalho com escudo vetorial OmniLicit
+   • Rodapé fixo com TAG + SHA-256 (64 chars) + metadados de auditoria
+   • Paleta petróleo/executivo em todas as camadas
    ============================================================ */
+'use strict';
 
 /* --------------------------------------------------------------
-   DICIONÁRIO DE RÓTULOS
+   PALETA
+   -------------------------------------------------------------- */
+const OL = (window.OmniLicit && window.OmniLicit.CORES) || {
+  petroleo: '#00A896', petroleo400: '#29B5A7', petroleo300: '#5CC7BC',
+  petroleoD: '#007568', executivo: '#05668D', executivoD: '#034462',
+  ink: '#0A0F1E', muted: '#475569', line: '#E2E8F0', bg: '#F8FAFC',
+};
+
+/* --------------------------------------------------------------
+   RÓTULOS
    -------------------------------------------------------------- */
 const ROTULOS = Object.freeze({
   modalidade: {
@@ -18,7 +28,7 @@ const ROTULOS = Object.freeze({
     'leilao':          'Leilão (Art. 31)',
     'dialogo':         'Diálogo Competitivo (Art. 32)',
     'dispensa':        'Dispensa de Licitação (Art. 75)',
-    'inexigibilidade': 'Inexigibilidade de Licitação (Art. 74)'
+    'inexigibilidade': 'Inexigibilidade de Licitação (Art. 74)',
   },
   natureza: {
     'bens':               'Bens Comuns',
@@ -26,7 +36,7 @@ const ROTULOS = Object.freeze({
     'servicos-especiais': 'Serviços Especiais',
     'obras':              'Obras e Serviços de Engenharia',
     'intelectual':        'Serviços Técnicos Intelectuais',
-    'alienacao':          'Alienação de Bens / Concessão'
+    'alienacao':          'Alienação de Bens / Concessão',
   },
   criterio: {
     'menor-preco':    'Menor Preço',
@@ -34,457 +44,430 @@ const ROTULOS = Object.freeze({
     'melhor-tecnica': 'Melhor Técnica ou Conteúdo Artístico',
     'tecnica-preco':  'Técnica e Preço',
     'maior-lance':    'Maior Lance',
-    'maior-retorno':  'Maior Retorno Econômico'
+    'maior-retorno':  'Maior Retorno Econômico',
   },
   regime: {
     'empreitada-preco-unitario': 'Empreitada por Preço Unitário',
     'empreitada-preco-global':   'Empreitada por Preço Global',
     'empreitada-integral':       'Empreitada Integral',
     'tarefa':                    'Tarefa',
-    '':                          'Não Aplicável / Não Declarado'
+    '':                          'Não Aplicável / Não Declarado',
   },
   metodo: {
     'painel-precos':          'Painel de Preços (Gov.br)',
-    'pesquisa-mercado':       'Pesquisa de Mercado (três ou mais fornecedores)',
+    'pesquisa-mercado':       'Pesquisa de Mercado (3+ fornecedores)',
     'contratacoes-similares': 'Contratações Similares',
     'sinapi':                 'SINAPI / SICRO (Obras)',
-    'midia':                  'Mídia Especializada / Sítios Eletrônicos'
+    'midia':                  'Mídia Especializada / Sítios Eletrônicos',
   },
   parcelamento: {
-    'parcelado':   'Parcelado em Lotes (devidamente justificado)',
-    'indivisivel': 'Indivisível (devidamente justificado)',
-    'lote-unico':  'Lote Único (por compatibilidade técnica)'
+    'parcelado':   'Parcelado em Lotes (justificado)',
+    'indivisivel': 'Indivisível (justificado)',
+    'lote-unico':  'Lote Único (compatibilidade técnica)',
   },
   pagamento: {
-    '30-dias':          'Até 30 dias após a Nota Fiscal e o Aceite (Art. 141)',
+    '30-dias':          'Até 30 dias após NF e Aceite (Art. 141)',
     'parcelado-mensal': 'Mensal, mediante medição',
-    'entrega-unica':    'Pagamento único contra entrega'
+    'entrega-unica':    'Pagamento único contra entrega',
   },
   vistoria: {
     'dispensada':              'Dispensada (não aplicável)',
     'declaracao-substituicao': 'Declaração em Substituição (Art. 63)',
-    'obrigatoria':             'Obrigatória (com justificativa técnica)'
+    'obrigatoria':             'Obrigatória (com justificativa técnica)',
   },
   pca: {
     'sim':     'Sim — contratação prevista no PCA',
     'nao':     'Não — inclusão extraordinária',
     'revisao': 'Sim — em revisão do PCA',
-    '':        'Não informado'
+    '':        'Não informado',
   },
   papel: {
-    'aprovador':   'Aprovador',
-    'validador':   'Validador',
-    'autoridade':  'Autoridade Competente',
-    'fiscal':      'Fiscal do Contrato',
-    'gestor':      'Gestor do Contrato',
-    'requisitante':'Requisitante'
-  }
+    'aprovador':    'Aprovador',
+    'validador':    'Validador',
+    'autoridade':   'Autoridade Competente',
+    'fiscal':       'Fiscal do Contrato',
+    'gestor':       'Gestor do Contrato',
+    'requisitante': 'Requisitante',
+  },
 });
 
-function rotulo(grupo, valor) {
-  return (ROTULOS[grupo] && ROTULOS[grupo][valor]) || valor || '—';
-}
+function rotulo(g, v) { return (ROTULOS[g] && ROTULOS[g][v]) || v || '—'; }
 
 function normalizarValorMonetario(v) {
-  if (v == null || v === '') return '—';
+  if (v == null || v === '') return 'R$ —';
   const s = String(v).trim();
-  if (/^R\$/i.test(s)) return s;
-  return 'R$ ' + s;
+  const n = parseFloat(s.replace(/\./g, '').replace(',', '.'));
+  if (isNaN(n)) return /^R\$/i.test(s) ? s : 'R$ ' + s;
+  return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
-/* ==============================================================
-   TÍTULO DO CABEÇALHO (limpo, sem "DFD DFD")
-   ============================================================== */
+/* --------------------------------------------------------------
+   FORMATAÇÃO
+   -------------------------------------------------------------- */
+function formatarData(iso) {
+  if (!iso) return '—';
+  const p = String(iso).split('-');
+  return (p[2] && p[1] && p[0]) ? (p[2] + '/' + p[1] + '/' + p[0]) : iso;
+}
+function formatarDataHora(d) {
+  const dt = d instanceof Date ? d : new Date(d);
+  if (isNaN(dt)) return '—';
+  const pad = n => String(n).padStart(2, '0');
+  return pad(dt.getDate()) + '/' + pad(dt.getMonth() + 1) + '/' + dt.getFullYear() +
+    ' ' + pad(dt.getHours()) + ':' + pad(dt.getMinutes()) + ':' + pad(dt.getSeconds());
+}
+
+/* --------------------------------------------------------------
+   TÍTULO LIMPO
+   -------------------------------------------------------------- */
 function montarTituloCabecalho(dfd) {
   const bruto = String((dfd && dfd.numero) || '').trim();
   if (!bruto) return 'Documento de Formalização de Demanda';
-
-  const match = bruto.match(/^([A-Za-zÀ-ÿ]+)\s*[-–—\/]?\s*(.*)$/);
-  if (!match) return 'DFD · ' + bruto;
-
-  const prefixo = match[1].toUpperCase();
-  const resto   = (match[2] || '').trim();
-
-  if (prefixo === 'DFD') {
-    return resto ? ('DFD · ' + resto) : 'DFD';
-  }
-  if (prefixo.length <= 4) {
-    return resto ? (prefixo + ' · ' + resto) : prefixo;
-  }
-  const titulo = prefixo.charAt(0) + prefixo.slice(1).toLowerCase();
-  return resto ? (titulo + ' · ' + resto) : titulo;
+  const m = bruto.match(/^([A-Za-zÀ-ÿ]+)\s*[-–—\/]?\s*(.*)$/);
+  if (!m) return 'DFD · ' + bruto;
+  const pre = m[1].toUpperCase();
+  const rst = (m[2] || '').trim();
+  if (pre === 'DFD') return rst ? ('DFD · ' + rst) : 'DFD';
+  if (pre.length <= 4) return rst ? (pre + ' · ' + rst) : pre;
+  const t = pre.charAt(0) + pre.slice(1).toLowerCase();
+  return rst ? (t + ' · ' + rst) : t;
 }
 
 /* ==============================================================
-   FUNÇÃO PRINCIPAL
+   BUILDER PRINCIPAL — async por causa do SHA-256
    ============================================================== */
-function buildDfdPdfDefinition(dfd, org, logoDataUrl, opts = {}) {
+async function buildDfdPdfDefinition(dfd, org, logoDataUrl, opts) {
+  opts = opts || {};
   const geradoEm = opts.geradoEm || new Date();
-  const tag      = opts.tag      || gerarTagAutenticacao(dfd, org);
-  const hash     = opts.hash     || gerarHashDocumento(dfd, org);
-  const versao   = opts.versao   || 'LicitaReq v4.5';
+  const versao   = opts.versao   || 'OmniLicit LicitaReq v5.0';
+
+  const core = window.OmniLicit;
+  const tag  = opts.tag  || (core ? await core.gerarTag(dfd, org) : 'OMNILICIT::DFD::PENDING::' + geradoEm.getFullYear());
+  const hash = opts.hash || (core ? await core.gerarHash({ v: '5.0', tag, dfd, org: { nome: org && org.nome, cnpj: org && org.cnpj, sigla: org && org.sigla } })
+                                 : '0'.repeat(64));
 
   const aprovadores = Array.isArray(opts.aprovadores) ? opts.aprovadores : [];
-
-  const capa               = montarCapaExecutiva(dfd, org, logoDataUrl, geradoEm);
-  const notaApresentacao   = montarNotaApresentacao(geradoEm);   /* sem pageBreak before */
-  const corpoTecnico       = montarCorpoTecnico(dfd, org);
-  const paginasAprovacoes  = montarPaginaAprovacoes(aprovadores);
-  const paginaAutenticacao = montarPaginaAutenticacao({
-    tag, hash, geradoEm, versao, org, dfd
-  });
-
   const tituloCabecalho = montarTituloCabecalho(dfd);
+  const auth = { tag, hash, geradoEm, versao, org: org || {}, dfd: dfd || {} };
 
   return {
     pageSize: 'A4',
-    pageMargins: [40, 45, 40, 50],
+    pageMargins: [40, 62, 40, 78],
 
     info: {
-      title:    (tituloCabecalho + ' — ' + ((org && org.nome) || 'LicitaReq')).trim(),
-      author:   (org && org.nome) || 'LicitaReq',
+      title:    (tituloCabecalho + ' — ' + ((org && org.nome) || 'OmniLicit')).trim(),
+      author:   (org && org.nome) || 'OmniLicit',
       subject:  'Documento de Formalização de Demanda — Lei nº 14.133/2021',
-      keywords: 'LicitaReq, DFD, LicitaAudit, ' + tag,
-      creator:  versao
+      keywords: 'OmniLicit, LicitaReq, DFD, LicitaAudit, ' + tag,
+      creator:  versao,
     },
 
     header: function (currentPage) {
       if (currentPage === 1) return { text: '' };
       return {
-        margin: [40, 14, 40, 0],
+        margin: [40, 16, 40, 0],
         columns: [
-          { text: (org && org.nome) || 'LicitaReq',
-            fontSize: 8, color: '#94a3b8' },
-          { text: tituloCabecalho,
-            alignment: 'right', fontSize: 8, color: '#94a3b8' }
-        ]
+          montarMiniEscudoCabecalho(),
+          {
+            margin: [8, 1, 0, 0],
+            stack: [
+              { text: (org && org.nome ? org.nome : 'OMNILICIT').toUpperCase(),
+                fontSize: 8.5, bold: true, color: OL.executivo },
+              { text: tituloCabecalho, fontSize: 7.5, color: OL.muted },
+            ],
+          },
+          {
+            alignment: 'right',
+            stack: [
+              { text: 'OMNILICIT', fontSize: 8, bold: true, color: OL.petroleoD },
+              { text: 'LicitaReq · Documento Oficial', fontSize: 7, color: OL.muted },
+            ],
+          },
+        ],
       };
     },
 
     footer: function (currentPage, pageCount) {
-      return {
-        margin: [40, 6, 40, 0],
-        columns: [
-          { text: 'LicitaReq · Documento Oficial · ' + formatarDataHora(geradoEm),
-            fontSize: 7.5, color: '#94a3b8' },
-          { text: 'Página ' + currentPage + ' de ' + pageCount,
-            alignment: 'right', fontSize: 7.5, color: '#94a3b8' }
-        ]
-      };
+      return montarRodapeAutenticacao(currentPage, pageCount, auth);
     },
 
-    /* ⭐ Fluxo contínuo: capa → nota → corpo → aprovadores → autenticação
-       A capa tem `pageBreak: 'after'` no último elemento.
-       A nota NÃO tem `pageBreak: 'before'` (removido — causa página vazia).
-       A nota tem `pageBreak: 'after'` no último elemento. */
     content: [
-      capa,
-      notaApresentacao,
-      corpoTecnico,
-      ...(Array.isArray(paginasAprovacoes) ? paginasAprovacoes : [paginasAprovacoes]),
-      paginaAutenticacao
+      montarCapaExecutiva(dfd, org, logoDataUrl, geradoEm),
+      { text: '', pageBreak: 'after' },
+      montarNotaApresentacao(geradoEm),
+      { text: '', pageBreak: 'after' },
+      montarCorpoTecnico(dfd, org),
+      ...(Array.isArray(aprovadores.length ? [1] : []) ? montarPaginaAprovacoes(aprovadores) : []),
+      montarPaginaAutenticacaoFinal(auth),
     ],
 
-    defaultStyle: { fontSize: 9.5, color: '#0f172a', lineHeight: 1.35 }
+    defaultStyle: { fontSize: 9.5, color: OL.ink, lineHeight: 1.35 },
   };
 }
 
 /* ==============================================================
-   CAPA EXECUTIVA (Página 1)
+   MINI ESCUDO (cabeçalho)
+   ============================================================== */
+function montarMiniEscudoCabecalho() {
+  const core = window.OmniLicit;
+  if (!core || !core.escudo) return { text: '' };
+  const e = core.escudo(20, 24);
+  return { width: 20, canvas: e.canvas };
+}
+
+/* ==============================================================
+   RODAPÉ FIXO — Autenticação OmniLicit
+   ============================================================== */
+function montarRodapeAutenticacao(page, total, auth) {
+  const { tag, hash, geradoEm, versao } = auth;
+  const dt = formatarDataHora(geradoEm);
+
+  /* Capa: rodapé enxuto */
+  if (page === 1) {
+    return {
+      margin: [40, 0, 40, 18],
+      columns: [
+        { text: versao, fontSize: 7, color: OL.muted },
+        { text: 'Emitido em ' + dt, alignment: 'center', fontSize: 7, color: OL.muted },
+        { text: 'Pág. ' + page + '/' + total, alignment: 'right', fontSize: 7, color: OL.muted },
+      ],
+    };
+  }
+
+  /* Demais páginas: bloco de autenticação OmniLicit */
+  return {
+    margin: [40, 6, 40, 16],
+    stack: [
+      { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 515, y2: 0, lineWidth: 0.5, lineColor: OL.petroleo }] },
+      {
+        margin: [0, 4, 0, 0],
+        columns: [
+          {
+            width: '*',
+            stack: [
+              { text: tag, fontSize: 7, bold: true, color: OL.petroleoD, font: 'Courier' },
+              { text: 'SHA-256: ' + hash, fontSize: 6.3, color: OL.muted, font: 'Courier', margin: [0, 2, 0, 0] },
+            ],
+          },
+          {
+            width: 'auto',
+            alignment: 'right',
+            stack: [
+              { text: versao + ' · OmniLicit Audit', fontSize: 7, color: OL.muted },
+              { text: dt + ' · Pág. ' + page + '/' + total, fontSize: 7, color: OL.muted },
+            ],
+          },
+        ],
+      },
+      {
+        margin: [0, 3, 0, 0],
+        text: '◆ Documento íntegro · Autenticidade verificável via OmniLicit Audit',
+        fontSize: 6, italics: true, color: OL.muted,
+      },
+    ],
+  };
+}
+
+/* ==============================================================
+   CAPA EXECUTIVA
    ============================================================== */
 function montarCapaExecutiva(dfd, org, logoDataUrl, geradoEm) {
+  const core = window.OmniLicit;
+  const escudoCol = (core && core.escudo) ? core.escudo(70, 84) : null;
+
   return {
     stack: [
+      /* Faixa institucional */
       {
-        table: {
-          widths: ['*'],
-          body: [[{
-            stack: [
-              { text: 'SISTEMA LICITAREQ', fontSize: 8, bold: true,
-                color: '#c7d2fe', alignment: 'center' },
-              { text: 'DOCUMENTO OFICIAL DE CONTRATAÇÃO PÚBLICA',
-                fontSize: 9, bold: true, color: '#ffffff',
-                alignment: 'center', margin: [0, 4, 0, 0] }
-            ],
-            fillColor: '#4f46e5',
-            margin: [0, 10, 0, 10]
-          }]]
-        },
+        table: { widths: ['*'], body: [[{
+          stack: [
+            { text: 'OMNILICIT · LICITAREQ', fontSize: 8, bold: true,
+              color: '#C2ECE7', alignment: 'center' },
+            { text: 'DOCUMENTO OFICIAL DE CONTRATAÇÃO PÚBLICA',
+              fontSize: 9.5, bold: true, color: '#FFFFFF',
+              alignment: 'center', margin: [0, 4, 0, 0] },
+          ],
+          fillColor: OL.petroleo,
+          margin: [0, 11, 0, 11],
+        }]]},
         layout: 'noBorders',
-        margin: [0, 0, 0, 26]
+        margin: [0, 0, 0, 22],
       },
 
+      /* Escudo OmniLicit ou logo do órgão */
       logoDataUrl
-        ? { image: logoDataUrl, fit: [100, 100], alignment: 'center',
-            margin: [0, 0, 0, 14] }
-        : { text: '', margin: [0, 0, 0, 26] },
+        ? { image: logoDataUrl, fit: [90, 90], alignment: 'center', margin: [0, 0, 0, 12] }
+        : (escudoCol
+            ? { width: 70, canvas: escudoCol.canvas, alignment: 'center', margin: [0, 0, 0, 14] }
+            : { text: '', margin: [0, 0, 0, 26] }),
 
+      /* Órgão */
       { text: (org && org.nome ? org.nome : 'ÓRGÃO / ENTIDADE').toUpperCase(),
-        fontSize: 15, bold: true, alignment: 'center',
-        color: '#1e1b4b', margin: [0, 0, 0, 4] },
+        fontSize: 15, bold: true, alignment: 'center', color: OL.executivo,
+        margin: [0, 0, 0, 4] },
       { text: [
           org && org.sigla ? 'Sigla: ' + org.sigla : '',
-          org && org.cnpj  ? 'CNPJ: '  + org.cnpj  : ''
+          org && org.cnpj  ? 'CNPJ: '  + org.cnpj  : '',
         ].filter(Boolean).join(' · '),
-        fontSize: 8.5, alignment: 'center', color: '#64748b',
-        margin: [0, 0, 0, 2] },
+        fontSize: 8.5, alignment: 'center', color: OL.muted },
       org && org.endereco
-        ? { text: org.endereco, fontSize: 8, alignment: 'center',
-            color: '#94a3b8', margin: [0, 0, 0, 2] }
+        ? { text: org.endereco, fontSize: 8, alignment: 'center', color: OL.muted, margin: [0, 2, 0, 0] }
         : null,
       org && (org.cidade || org.uf)
         ? { text: [org.cidade, org.uf].filter(Boolean).join('/'),
-            fontSize: 8, alignment: 'center', color: '#94a3b8' }
+            fontSize: 8, alignment: 'center', color: OL.muted, margin: [0, 2, 0, 0] }
         : null,
 
-      { text: '', margin: [0, 0, 0, 22] },
+      { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 515, y2: 0, lineWidth: 1.2, lineColor: OL.petroleo }],
+        margin: [0, 24, 0, 16] },
 
-      { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 515, y2: 0,
-                   lineWidth: 1.2, lineColor: '#4f46e5' }],
-        margin: [0, 0, 0, 16] },
       { text: 'DOCUMENTO DE FORMALIZAÇÃO DE DEMANDA',
-        fontSize: 18, bold: true, alignment: 'center',
-        color: '#1e1b4b', margin: [0, 0, 0, 6] },
+        fontSize: 18, bold: true, alignment: 'center', color: OL.ink },
       { text: 'Lei nº 14.133/2021 · Art. 18, § 1º',
-        fontSize: 11, alignment: 'center', color: '#4f46e5',
-        margin: [0, 0, 0, 4] },
-      { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 515, y2: 0,
-                   lineWidth: 1.2, lineColor: '#4f46e5' }],
+        fontSize: 11, alignment: 'center', color: OL.executivo, margin: [0, 4, 0, 0] },
+
+      { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 515, y2: 0, lineWidth: 1.2, lineColor: OL.petroleo }],
         margin: [0, 16, 0, 20] },
 
-      { text: 'IDENTIFICAÇÃO GERAL', fontSize: 10, bold: true,
-        color: '#4f46e5', alignment: 'center', margin: [0, 0, 0, 10] },
-
+      /* Identificação em cartões */
       {
         table: {
           widths: ['*', '*'],
           body: [
-            [ cartaoIdentificacao('Nº do DFD', dfd.numero || '—'),
-              cartaoIdentificacao('Data', formatarData(dfd.data) || formatarData(geradoEm)) ],
-            [ cartaoIdentificacao('Unidade Requisitante', dfd.unidade || '—'),
-              cartaoIdentificacao('Órgão / Entidade', dfd.orgao || (org && org.nome) || '—') ],
-            [ cartaoIdentificacao('Responsável pela Demanda', dfd.responsavel || '—'),
-              cartaoIdentificacao('Cargo / Função', dfd.cargo || '—') ]
-          ]
+            [ cartao('Nº do DFD', dfd.numero || '—'),
+              cartao('Data', formatarData(dfd.data) || formatarData(geradoEm)) ],
+            [ cartao('Unidade Requisitante', dfd.unidade || '—'),
+              cartao('Órgão / Entidade', dfd.orgao || (org && org.nome) || '—') ],
+            [ cartao('Responsável pela Demanda', dfd.responsavel || '—'),
+              cartao('Cargo / Função', dfd.cargo || '—') ],
+          ],
         },
         layout: layoutCartoes(),
-        margin: [0, 0, 0, 18]
+        margin: [0, 0, 0, 18],
       },
 
+      /* Valor em destaque */
       {
-        table: {
-          widths: ['*'],
-          body: [[{
-            stack: [
-              { text: 'VALOR ESTIMADO DA CONTRATAÇÃO',
-                fontSize: 9, bold: true, alignment: 'center',
-                color: '#4f46e5', margin: [0, 0, 0, 6] },
-              { text: normalizarValorMonetario(dfd.valor),
-                fontSize: 22, bold: true, alignment: 'center',
-                color: '#1e1b4b', margin: [0, 0, 0, 4] },
-              { text: 'Estimativa baseada em: ' + rotulo('metodo', dfd.metodo),
-                fontSize: 8, alignment: 'center', color: '#64748b' }
-            ],
-            fillColor: '#eef2ff',
-            margin: [20, 14, 20, 14]
-          }]]
+        table: { widths: ['*'], body: [[{
+          stack: [
+            { text: 'VALOR ESTIMADO DA CONTRATAÇÃO',
+              fontSize: 9, bold: true, alignment: 'center', color: OL.petroleoD },
+            { text: normalizarValorMonetario(dfd.valor),
+              fontSize: 22, bold: true, alignment: 'center', color: OL.ink,
+              margin: [0, 6, 0, 3] },
+            { text: 'Estimativa baseada em: ' + rotulo('metodo', dfd.metodo),
+              fontSize: 8, alignment: 'center', color: OL.muted },
+          ],
+          fillColor: '#E6F7F5',
+          margin: [20, 14, 20, 14],
+        }]]},
+        layout: {
+          hLineColor: () => OL.petroleo, vLineColor: () => OL.petroleo,
+          hLineWidth: () => 0.8, vLineWidth: () => 0.8,
+          paddingLeft: () => 0, paddingRight: () => 0, paddingTop: () => 0, paddingBottom: () => 0,
         },
-        layout: 'noBorders',
-        margin: [0, 0, 0, 20]
+        margin: [0, 0, 0, 20],
       },
 
-      dfd.objeto
-        ? {
-            table: {
-              widths: ['*'],
-              body: [[{
-                stack: [
-                  { text: 'OBJETO DA CONTRATAÇÃO',
-                    fontSize: 8, bold: true, color: '#4f46e5',
-                    margin: [0, 0, 0, 6] },
-                  { text: dfd.objeto, fontSize: 10,
-                    color: '#0f172a', lineHeight: 1.5 }
-                ],
-                fillColor: '#f8fafc',
-                margin: [16, 12, 16, 12]
-              }]]
-            },
-            layout: 'noBorders',
-            margin: [0, 0, 0, 20]
-          }
-        : null,
+      /* Objeto resumido */
+      dfd.objeto ? {
+        table: { widths: ['*'], body: [[{
+          stack: [
+            { text: 'OBJETO DA CONTRATAÇÃO',
+              fontSize: 8, bold: true, color: OL.petroleoD, margin: [0, 0, 0, 5] },
+            { text: dfd.objeto, fontSize: 10, color: OL.ink, lineHeight: 1.5, alignment: 'justify' },
+          ],
+          fillColor: OL.bg,
+          margin: [16, 12, 16, 12],
+        }]]},
+        layout: 'noBorders',
+        margin: [0, 0, 0, 18],
+      } : null,
 
       { text: 'Emitido em ' + formatarDataHora(geradoEm),
-        fontSize: 8, alignment: 'center', color: '#94a3b8',
-        margin: [0, 10, 0, 0] },
+        fontSize: 8, alignment: 'center', color: OL.muted, margin: [0, 12, 0, 0] },
+    ].filter(Boolean),
+  };
+}
 
-      /* 🔒 ÚNICA quebra de página depois da capa */
-      { text: '', pageBreak: 'after' }
-    ]
+function cartao(label, valor) {
+  return {
+    stack: [
+      { text: String(label).toUpperCase(), fontSize: 7, bold: true, color: OL.muted, margin: [0, 0, 0, 3] },
+      { text: valor || '—', fontSize: 9.5, bold: true, color: OL.ink, lineHeight: 1.35 },
+    ],
+    margin: [12, 9, 12, 9],
+  };
+}
+function layoutCartoes() {
+  return {
+    hLineColor: () => OL.line, vLineColor: () => OL.line,
+    hLineWidth: () => 0.4, vLineWidth: () => 0.4,
+    fillColor: i => (i % 2 === 0 ? OL.bg : '#FFFFFF'),
+    paddingLeft: () => 0, paddingRight: () => 0, paddingTop: () => 0, paddingBottom: () => 0,
   };
 }
 
 /* ==============================================================
-   NOTA DE APRESENTAÇÃO (Página 2)
-   --------------------------------------------------------------
-   ⭐ SEM `pageBreak: 'before'` — a quebra já veio do `pageBreak:
-   'after'` no final da capa. Ter os dois gera página vazia.
+   NOTA DE APRESENTAÇÃO (página 2)
    ============================================================== */
 function montarNotaApresentacao(geradoEm) {
   return {
     stack: [
       { text: '', margin: [0, 20, 0, 0] },
-
       { text: 'NOTA DE APRESENTAÇÃO INSTITUCIONAL',
-        fontSize: 14, bold: true, alignment: 'center',
-        color: '#1e1b4b', margin: [0, 0, 0, 6] },
-
+        fontSize: 14, bold: true, alignment: 'center', color: OL.executivo,
+        margin: [0, 0, 0, 6] },
       { text: 'Termo de Abertura do Procedimento Administrativo',
-        fontSize: 9.5, alignment: 'center', color: '#4f46e5',
-        margin: [0, 0, 0, 12] },
-
-      { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 515, y2: 0,
-                   lineWidth: 1.2, lineColor: '#4f46e5' }],
+        fontSize: 9.5, alignment: 'center', color: OL.petroleoD, margin: [0, 0, 0, 12] },
+      { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 515, y2: 0, lineWidth: 1.2, lineColor: OL.petroleo }],
         margin: [0, 0, 0, 20] },
 
-      {
-        table: {
-          widths: ['*'],
-          body: [[{
-            stack: [
-              { text: 'I. CONTEXTUALIZAÇÃO',
-                fontSize: 9, bold: true, color: '#4f46e5',
-                margin: [0, 0, 0, 6] },
-              { text:
-                'O presente Documento de Formalização de Demanda (DFD) formaliza o início ' +
-                'do procedimento administrativo de contratação pública no âmbito deste órgão, ' +
-                'em conformidade com a Lei nº 14.133/2021, seu Art. 18, § 1º, e demais normas ' +
-                'correlatas. O documento é instruído com a identificação da necessidade, ' +
-                'a devida motivação administrativa, a estimativa de valor e o enquadramento ' +
-                'legal aplicável, servindo de base para as etapas subsequentes de planejamento ' +
-                'da contratação e elaboração do Estudo Técnico Preliminar (ETP) e do Termo ' +
-                'de Referência (TR).',
-                fontSize: 10, color: '#334155', lineHeight: 1.7,
-                alignment: 'justify' }
-            ],
-            fillColor: '#ffffff',
-            margin: [20, 16, 20, 16]
-          }]]
-        },
-        layout: layoutBordaFina(),
-        margin: [0, 0, 0, 16]
-      },
+      blocoNota('I. CONTEXTUALIZAÇÃO',
+        'O presente Documento de Formalização de Demanda (DFD) formaliza o início ' +
+        'do procedimento administrativo de contratação pública no âmbito deste órgão, ' +
+        'em conformidade com a Lei nº 14.133/2021, seu Art. 18, § 1º, e demais normas ' +
+        'correlatas. O documento é instruído com a identificação da necessidade, ' +
+        'a devida motivação administrativa, a estimativa de valor e o enquadramento ' +
+        'legal aplicável, servindo de base para as etapas subsequentes de planejamento ' +
+        'da contratação.', '#FFFFFF'),
 
-      {
-        table: {
-          widths: ['*'],
-          body: [[{
-            stack: [
-              { text: 'II. FINALIDADE E FUNDAMENTAÇÃO LEGAL',
-                fontSize: 9, bold: true, color: '#4f46e5',
-                margin: [0, 0, 0, 6] },
-              { text:
-                'Este documento tem por finalidade instruir o processo administrativo ' +
-                'de contratação, garantindo a motivação e o planejamento previstos no ' +
-                'Art. 18 da Lei nº 14.133/2021. A instrução processual observa ainda os ' +
-                'princípios do Art. 5º da mesma lei — legalidade, impessoalidade, moralidade, ' +
-                'publicidade, eficiência, interesse público, motivação, segurança jurídica, ' +
-                'razoabilidade, competitividade e eficácia — bem como as diretrizes do ' +
-                'Art. 11 (objetivo, resultado pretendido, ciclo de vida do objeto).',
-                fontSize: 10, color: '#334155', lineHeight: 1.7,
-                alignment: 'justify' }
-            ],
-            fillColor: '#f8fafc',
-            margin: [20, 16, 20, 16]
-          }]]
-        },
-        layout: layoutBordaFina(),
-        margin: [0, 0, 0, 16]
-      },
+      blocoNota('II. FINALIDADE E FUNDAMENTAÇÃO LEGAL',
+        'Este documento tem por finalidade instruir o processo administrativo ' +
+        'de contratação, garantindo a motivação e o planejamento previstos no ' +
+        'Art. 18 da Lei nº 14.133/2021. A instrução processual observa ainda os ' +
+        'princípios do Art. 5º — legalidade, impessoalidade, moralidade, publicidade, ' +
+        'eficiência, interesse público, motivação, segurança jurídica, razoabilidade, ' +
+        'competitividade e eficácia — bem como as diretrizes do Art. 11.', OL.bg),
 
-      {
-        table: {
-          widths: ['*'],
-          body: [[{
-            stack: [
-              { text: 'III. AUTENTICIDADE E RASTREABILIDADE',
-                fontSize: 9, bold: true, color: '#4f46e5',
-                margin: [0, 0, 0, 6] },
-              { text:
-                'Este documento foi gerado eletronicamente pelo sistema LicitaReq, possui ' +
-                'TAG de autenticação única rastreável pelo LicitaAudit e está apto à auditoria ' +
-                'interna e aos órgãos de controle. Sua validade jurídica está condicionada à ' +
-                'conferência pela assessoria jurídica, pelo controle interno e pela autoridade ' +
-                'competente, conforme preconiza a legislação vigente.',
-                fontSize: 10, color: '#334155', lineHeight: 1.7,
-                alignment: 'justify' }
-            ],
-            fillColor: '#eef2ff',
-            margin: [20, 16, 20, 16]
-          }]]
-        },
-        layout: {
-          hLineColor: function () { return '#c7d2fe'; },
-          vLineColor: function () { return '#c7d2fe'; },
-          hLineWidth: function () { return 0.6; },
-          vLineWidth: function () { return 0.6; },
-          paddingLeft:   function () { return 0; },
-          paddingRight:  function () { return 0; },
-          paddingTop:    function () { return 0; },
-          paddingBottom: function () { return 0; }
-        },
-        margin: [0, 0, 0, 24]
-      },
+      blocoNota('III. AUTENTICIDADE E RASTREABILIDADE',
+        'Este documento foi gerado eletronicamente pelo sistema LicitaReq (OmniLicit), ' +
+        'possui TAG única rastreável pelo OmniLicit Audit e hash SHA-256 de integridade ' +
+        'impresso no rodapé de cada página. Sua validade jurídica está condicionada à ' +
+        'conferência pela assessoria jurídica, pelo controle interno e pela autoridade ' +
+        'competente, conforme preconiza a legislação vigente.', '#E6F7F5'),
 
-      { canvas: [{ type: 'line', x1: 150, y1: 0, x2: 365, y2: 0,
-                   lineWidth: 0.8, lineColor: '#cbd5e1' }],
-        margin: [0, 0, 0, 10] },
       { text: 'Documento emitido em ' + formatarDataHora(geradoEm),
-        fontSize: 8.5, italics: true, alignment: 'center',
-        color: '#94a3b8' },
-
-      /* 🔒 Quebra após a nota — corpo técnico inicia na pág. 3 */
-      { text: '', pageBreak: 'after' }
-    ]
-  };
-}
-
-function cartaoIdentificacao(label, valor) {
-  return {
-    stack: [
-      { text: label.toUpperCase(), fontSize: 7, bold: true,
-        color: '#64748b', margin: [0, 0, 0, 3] },
-      { text: valor || '—', fontSize: 9.5, bold: true,
-        color: '#0f172a', lineHeight: 1.4 }
+        fontSize: 8.5, italics: true, alignment: 'center', color: OL.muted, margin: [0, 14, 0, 0] },
     ],
-    margin: [12, 9, 12, 9]
   };
 }
 
-function layoutCartoes() {
+function blocoNota(titulo, texto, bg) {
   return {
-    hLineColor: function () { return '#e2e8f0'; },
-    vLineColor: function () { return '#e2e8f0'; },
-    hLineWidth: function () { return 0.4; },
-    vLineWidth: function () { return 0.4; },
-    fillColor: function (i) { return (i % 2 === 0) ? '#f8fafc' : '#ffffff'; },
-    paddingLeft:   function () { return 0; },
-    paddingRight:  function () { return 0; },
-    paddingTop:    function () { return 0; },
-    paddingBottom: function () { return 0; }
-  };
-}
-
-function layoutBordaFina() {
-  return {
-    hLineColor: function () { return '#4f46e5'; },
-    vLineColor: function () { return '#4f46e5'; },
-    hLineWidth: function () { return 0.6; },
-    vLineWidth: function () { return 0.6; },
-    paddingLeft:   function () { return 0; },
-    paddingRight:  function () { return 0; },
-    paddingTop:    function () { return 0; },
-    paddingBottom: function () { return 0; }
+    table: { widths: ['*'], body: [[{
+      stack: [
+        { text: titulo, fontSize: 9, bold: true, color: OL.petroleoD, margin: [0, 0, 0, 6] },
+        { text: texto, fontSize: 10, color: '#334155', lineHeight: 1.7, alignment: 'justify' },
+      ],
+      fillColor: bg, margin: [20, 16, 20, 16],
+    }]]},
+    layout: {
+      hLineColor: () => OL.petroleo, vLineColor: () => OL.petroleo,
+      hLineWidth: () => 0.6, vLineWidth: () => 0.6,
+      paddingLeft: () => 0, paddingRight: () => 0, paddingTop: () => 0, paddingBottom: () => 0,
+    },
+    margin: [0, 0, 0, 16],
   };
 }
 
@@ -496,205 +479,143 @@ function montarCorpoTecnico(dfd, org) {
     stack: [
       montarPainelConformidade(dfd, org),
       { text: '', margin: [0, 10, 0, 0] },
-      ...montarSecoesTecnicas(dfd, org)
-    ]
+      ...montarSecoesTecnicas(dfd, org),
+    ],
   };
 }
 
 function montarPainelConformidade(dfd, org) {
   const linhas = [
-    ['Nº do DFD',                  dfd.numero        || '—'],
-    ['Data da Formalização',       formatarData(dfd.data)],
-    ['Órgão / Entidade',           dfd.orgao || (org && org.nome) || '—'],
-    ['Unidade Requisitante',       dfd.unidade       || '—'],
-    ['Responsável pela Demanda',   dfd.responsavel   || '—'],
-    ['Cargo / Função',             dfd.cargo         || '—'],
-    ['Objeto da Contratação',      dfd.objeto        || '—'],
-    ['Estimativa de Quantidades',  dfd.quantidades   || '—'],
-    ['Valor Estimado',             normalizarValorMonetario(dfd.valor)],
-    ['Método de Estimativa',       rotulo('metodo', dfd.metodo)],
-    ['Dotação Orçamentária',       dfd.dotacao       || '—'],
-    ['Fonte de Recurso',           dfd.fonte         || '—'],
-    ['Previsão no PCA',            rotulo('pca', dfd.pcaPrevisto)],
-    ['Item / Código no PCA',       dfd.pcaItem       || '—'],
-    ['Modalidade Pretendida',      rotulo('modalidade', dfd.modalidade)],
-    ['Natureza do Objeto',         rotulo('natureza',   dfd.natureza)],
-    ['Critério de Julgamento',     rotulo('criterio',   dfd.criterio)],
-    ['Regime de Execução',         rotulo('regime',     dfd.regime)],
-    ['Decisão de Parcelamento',    rotulo('parcelamento', dfd.parcelamento)],
-    ['Prazo de Execução',          dfd.prazo         || '—'],
-    ['Local de Entrega',           dfd.local         || '—'],
-    ['Condições de Pagamento',     rotulo('pagamento', dfd.pagamento)],
-    ['Fiscal Titular',             dfd.fiscalTitular || '—'],
-    ['Fiscal Substituto',          dfd.fiscalSubstituto || '—'],
-    ['Gestor do Contrato',         dfd.gestor        || '—'],
-    ['Vistoria Técnica',           rotulo('vistoria', dfd.vistoria)]
+    ['Nº do DFD',                 dfd.numero || '—'],
+    ['Data da Formalização',      formatarData(dfd.data)],
+    ['Órgão / Entidade',          dfd.orgao || (org && org.nome) || '—'],
+    ['Unidade Requisitante',      dfd.unidade || '—'],
+    ['Responsável pela Demanda',  dfd.responsavel || '—'],
+    ['Cargo / Função',            dfd.cargo || '—'],
+    ['Objeto da Contratação',     dfd.objeto || '—'],
+    ['Estimativa de Quantidades', dfd.quantidades || '—'],
+    ['Valor Estimado',            normalizarValorMonetario(dfd.valor)],
+    ['Método de Estimativa',      rotulo('metodo', dfd.metodo)],
+    ['Dotação Orçamentária',      dfd.dotacao || '—'],
+    ['Fonte de Recurso',          dfd.fonte || '—'],
+    ['Previsão no PCA',           rotulo('pca', dfd.pcaPrevisto)],
+    ['Item / Código no PCA',      dfd.pcaItem || '—'],
+    ['Modalidade Pretendida',     rotulo('modalidade', dfd.modalidade)],
+    ['Natureza do Objeto',        rotulo('natureza', dfd.natureza)],
+    ['Critério de Julgamento',    rotulo('criterio', dfd.criterio)],
+    ['Regime de Execução',        rotulo('regime', dfd.regime)],
+    ['Decisão de Parcelamento',   rotulo('parcelamento', dfd.parcelamento)],
+    ['Prazo de Execução',         dfd.prazo || '—'],
+    ['Local de Entrega',          dfd.local || '—'],
+    ['Condições de Pagamento',    rotulo('pagamento', dfd.pagamento)],
+    ['Fiscal Titular',            dfd.fiscalTitular || '—'],
+    ['Fiscal Substituto',         dfd.fiscalSubstituto || '—'],
+    ['Gestor do Contrato',        dfd.gestor || '—'],
+    ['Vistoria Técnica',          rotulo('vistoria', dfd.vistoria)],
   ];
 
-  const body = linhas.map(function (par) {
-    return [
-      { text: par[0] + ':', fontSize: 8.5, bold: true,
-        color: '#1e1b4b', margin: [8, 5, 8, 5] },
-      { text: par[1] || '—', fontSize: 8.5,
-        color: '#0f172a', margin: [8, 5, 8, 5] }
-    ];
-  });
+  const body = linhas.map(par => [
+    { text: par[0] + ':', fontSize: 8.5, bold: true, color: OL.executivoD, margin: [8, 5, 8, 5] },
+    { text: par[1] || '—', fontSize: 8.5, color: OL.ink, margin: [8, 5, 8, 5] },
+  ]);
 
   return {
-    /* ⭐ unbreakable: o painel + cabeçalho ficam juntos */
     unbreakable: true,
     stack: [
       { text: 'PAINEL DE CONFORMIDADE — LEI Nº 14.133/2021',
-        fontSize: 10.5, bold: true, color: '#4f46e5',
+        fontSize: 10.5, bold: true, color: OL.petroleoD,
         alignment: 'center', margin: [0, 0, 0, 4] },
-      { text: 'Bloco de leitura automatizada para o LicitaAudit',
-        fontSize: 8, italics: true, color: '#64748b',
+      { text: 'Bloco de leitura automatizada para o OmniLicit Audit',
+        fontSize: 8, italics: true, color: OL.muted,
         alignment: 'center', margin: [0, 0, 0, 10] },
       {
         table: { widths: ['38%', '*'], body: body },
         layout: {
-          hLineColor: function () { return '#e2e8f0'; },
-          vLineColor: function () { return '#e2e8f0'; },
-          hLineWidth: function (i, node) {
-            return (i === 0 || i === node.table.body.length) ? 0.8 : 0.3;
-          },
-          vLineWidth: function () { return 0.3; },
-          fillColor: function (i) { return i % 2 === 0 ? '#f8fafc' : null; },
-          paddingLeft:   function () { return 4; },
-          paddingRight:  function () { return 4; },
-          paddingTop:    function () { return 0; },
-          paddingBottom: function () { return 0; }
+          hLineColor: () => OL.line, vLineColor: () => OL.line,
+          hLineWidth: (i, n) => (i === 0 || i === n.table.body.length) ? 0.8 : 0.3,
+          vLineWidth: () => 0.3,
+          fillColor: i => (i % 2 === 0 ? OL.bg : null),
+          paddingLeft: () => 4, paddingRight: () => 4,
+          paddingTop: () => 0, paddingBottom: () => 0,
         },
-        /* ⭐ Impede que uma linha do painel se parta ao meio */
-        dontBreakRows: true
+        dontBreakRows: true,
       },
-      { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 515, y2: 0,
-                   lineWidth: 1, lineColor: '#4f46e5' }],
-        margin: [0, 12, 0, 4] }
-    ]
+      { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 515, y2: 0, lineWidth: 1, lineColor: OL.petroleo }],
+        margin: [0, 12, 0, 4] },
+    ],
   };
 }
 
 function montarSecoesTecnicas(dfd, org) {
   return [
-    /* ⭐ Todas as seções são unbreakable por padrão.
-       Se alguma seção exceder o espaço restante, ela migra inteira
-       para a próxima página — nunca corta o título do conteúdo. */
     secao('1. Identificação', [
-      parDuplo(
-        campo('Nº do DFD / Expediente', dfd.numero),
-        campo('Data da Formalização',   formatarData(dfd.data))
-      ),
-      parDuplo(
-        campo('Unidade Requisitante',   dfd.unidade),
-        campo('Órgão / Entidade',       dfd.orgao || (org && org.nome))
-      ),
-      parDuplo(
-        campo('Responsável pela Demanda', dfd.responsavel),
-        campo('Cargo / Função',           dfd.cargo)
-      )
+      parDuplo(campo('Nº do DFD / Expediente', dfd.numero),
+               campo('Data da Formalização',   formatarData(dfd.data))),
+      parDuplo(campo('Unidade Requisitante',   dfd.unidade),
+               campo('Órgão / Entidade',       dfd.orgao || (org && org.nome))),
+      parDuplo(campo('Responsável pela Demanda', dfd.responsavel),
+               campo('Cargo / Função',           dfd.cargo)),
     ]),
 
     secao('2. Objeto e Justificativa', [
       campo('Descrição Resumida do Objeto', dfd.objeto, { full: true }),
-      campo('Justificativa da Necessidade Pública (Fundamentada)', dfd.justificativa,
-            { full: true, bloco: true }),
-      campo('Estimativa de Quantidades', dfd.quantidades, { full: true })
+      campo('Justificativa da Necessidade Pública (Fundamentada)', dfd.justificativa, { full: true, bloco: true }),
+      campo('Estimativa de Quantidades', dfd.quantidades, { full: true }),
     ]),
 
     secao('3. Alinhamento ao Plano de Contratações Anual (PCA)', [
-      parDuplo(
-        campo('Previsão no PCA',      rotulo('pca', dfd.pcaPrevisto)),
-        campo('Item / Código no PCA', dfd.pcaItem)
-      ),
-      campo('Justificativa do Alinhamento', dfd.pcaJustificativa,
-            { full: true, bloco: true })
+      parDuplo(campo('Previsão no PCA', rotulo('pca', dfd.pcaPrevisto)),
+               campo('Item / Código no PCA', dfd.pcaItem)),
+      campo('Justificativa do Alinhamento', dfd.pcaJustificativa, { full: true, bloco: true }),
     ]),
 
     secao('4. Enquadramento Legal', [
-      parDuplo(
-        campo('Modalidade Pretendida (Art. 28)', rotulo('modalidade', dfd.modalidade)),
-        campo('Natureza do Objeto (Art. 6º)',    rotulo('natureza',   dfd.natureza))
-      ),
-      parDuplo(
-        campo('Critério de Julgamento (Art. 33)', rotulo('criterio', dfd.criterio)),
-        campo('Regime de Execução (Art. 46)',     rotulo('regime',   dfd.regime))
-      )
+      parDuplo(campo('Modalidade Pretendida (Art. 28)', rotulo('modalidade', dfd.modalidade)),
+               campo('Natureza do Objeto (Art. 6º)',    rotulo('natureza',   dfd.natureza))),
+      parDuplo(campo('Critério de Julgamento (Art. 33)', rotulo('criterio', dfd.criterio)),
+               campo('Regime de Execução (Art. 46)',     rotulo('regime',   dfd.regime))),
     ]),
 
     secao('5. Estimativa Orçamentária', [
-      parDuplo(
-        campo('Valor Estimado', normalizarValorMonetario(dfd.valor)),
-        campo('Método de Estimativa', rotulo('metodo', dfd.metodo))
-      ),
-      parDuplo(
-        campo('Dotação Orçamentária', dfd.dotacao),
-        campo('Fonte de Recurso',     dfd.fonte)
-      )
+      parDuplo(campo('Valor Estimado', normalizarValorMonetario(dfd.valor)),
+               campo('Método de Estimativa', rotulo('metodo', dfd.metodo))),
+      parDuplo(campo('Dotação Orçamentária', dfd.dotacao),
+               campo('Fonte de Recurso',     dfd.fonte)),
     ]),
 
     secao('6. Parcelamento, Prazo e Entrega', [
-      parDuplo(
-        campo('Decisão de Parcelamento (Art. 47)', rotulo('parcelamento', dfd.parcelamento)),
-        campo('Prazo de Execução / Vigência',      dfd.prazo)
-      ),
-      parDuplo(
-        campo('Local de Entrega / Prestação', dfd.local),
-        campo('Condições de Pagamento',       rotulo('pagamento', dfd.pagamento))
-      )
+      parDuplo(campo('Decisão de Parcelamento (Art. 47)', rotulo('parcelamento', dfd.parcelamento)),
+               campo('Prazo de Execução / Vigência',      dfd.prazo)),
+      parDuplo(campo('Local de Entrega / Prestação', dfd.local),
+               campo('Condições de Pagamento',       rotulo('pagamento', dfd.pagamento))),
     ]),
 
     secao('7. Fiscalização e Gestão Contratual (Art. 117)', [
-      parDuplo(
-        campo('Fiscal Titular',     dfd.fiscalTitular),
-        campo('Fiscal Substituto',  dfd.fiscalSubstituto)
-      ),
-      parDuplo(
-        campo('Gestor do Contrato', dfd.gestor),
-        campo('Vistoria Técnica',   rotulo('vistoria', dfd.vistoria))
-      )
+      parDuplo(campo('Fiscal Titular',     dfd.fiscalTitular),
+               campo('Fiscal Substituto',  dfd.fiscalSubstituto)),
+      parDuplo(campo('Gestor do Contrato', dfd.gestor),
+               campo('Vistoria Técnica',   rotulo('vistoria', dfd.vistoria))),
     ]),
 
     secao('8. Observações Complementares', [
       campo('Observações Adicionais',
             dfd.observacoes || 'Sem observações adicionais.',
-            { full: true, bloco: true })
-    ])
+            { full: true, bloco: true }),
+    ]),
   ];
 }
 
-/* ==============================================================
-   SEÇÃO — unbreakable por padrão
-   --------------------------------------------------------------
-   opts.pageBreakBefore (opcional) → força início em nova página.
-   O wrapper externo é um `stack` com `unbreakable: true`, fazendo
-   com que título + conteúdo NUNCA se separem entre páginas.
-   ============================================================== */
-function secao(titulo, corpo, opts) {
-  opts = opts || {};
-
-  const conteudo = {
+function secao(titulo, corpo) {
+  return {
     unbreakable: true,
     stack: [
-      { text: titulo, fontSize: 11, bold: true, color: '#1e1b4b',
+      { text: titulo, fontSize: 11, bold: true, color: OL.executivo,
         margin: [0, 12, 0, 10] },
       ...corpo,
-      { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 515, y2: 0,
-                   lineWidth: 0.4, lineColor: '#e2e8f0' }],
-        margin: [0, 10, 0, 4] }
-    ]
+      { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 515, y2: 0, lineWidth: 0.4, lineColor: OL.line }],
+        margin: [0, 10, 0, 4] },
+    ],
   };
-
-  if (opts.pageBreakBefore) {
-    return {
-      stack: [
-        { text: '', pageBreak: 'before' },
-        conteudo
-      ]
-    };
-  }
-
-  return conteudo;
 }
 
 function campo(label, valor, options) {
@@ -703,33 +624,23 @@ function campo(label, valor, options) {
   return {
     full: options.full || false,
     stack: [
-      { text: label + ':', fontSize: 8, bold: true,
-        color: '#64748b', margin: [0, 0, 0, 2] },
-      { text: valor || '—', fontSize: bloco ? 9 : 9.5,
-        color: '#0f172a', lineHeight: 1.4 }
+      { text: label + ':', fontSize: 8, bold: true, color: OL.muted, margin: [0, 0, 0, 2] },
+      { text: valor || '—', fontSize: bloco ? 9 : 9.5, color: OL.ink, lineHeight: 1.4 },
     ],
-    margin: [0, 0, 0, 10]
+    margin: [0, 0, 0, 10],
   };
 }
-
 function parDuplo(c1, c2) {
-  /* ⭐ Sempre unbreakable — o par label/valor não se parte */
-  if (c1.full || c2.full) {
-    return {
-      unbreakable: true,
-      stack: [c1, c2]
-    };
-  }
+  if (c1.full || c2.full) return { unbreakable: true, stack: [c1, c2] };
   return {
     unbreakable: true,
     columns: [
       { width: '50%', stack: c1.stack },
-      { width: '50%', stack: c2.stack }
+      { width: '50%', stack: c2.stack },
     ],
-    columnGap: 20
+    columnGap: 20,
   };
 }
-
 function chunk(arr, size) {
   const out = [];
   for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
@@ -737,7 +648,7 @@ function chunk(arr, size) {
 }
 
 /* ==============================================================
-   PÁGINAS DE APROVAÇÕES
+   PÁGINA DE APROVAÇÕES
    ============================================================== */
 function montarPaginaAprovacoes(aprovadores) {
   aprovadores = aprovadores || [];
@@ -746,203 +657,143 @@ function montarPaginaAprovacoes(aprovadores) {
     return [{
       pageBreak: 'before',
       stack: [
-        montarCabecalhoAprovacoes(true, 1, 1, 0, 0),
+        cabecalhoAprovacoes(true, 1, 1, 0, 0),
         {
-          table: {
-            widths: ['*'],
-            body: [[{
-              stack: [
-                { text: '⚠', fontSize: 26, alignment: 'center',
-                  color: '#f59e0b', margin: [0, 0, 0, 8] },
-                { text: 'Nenhum aprovador ou validador foi informado',
-                  fontSize: 12, bold: true, alignment: 'center',
-                  color: '#78350f', margin: [0, 0, 0, 6] },
-                { text:
-                  'Preencha o Bloco 7A (Aprovadores e Validadores) no formulário ' +
-                  'do LicitaReq antes de gerar o PDF para que esta página seja ' +
-                  'preenchida com os blocos de assinatura.',
-                  fontSize: 9, alignment: 'center',
-                  color: '#92400e', lineHeight: 1.55 }
-              ],
-              fillColor: '#fef3c7',
-              margin: [20, 20, 20, 20]
-            }]]
-          },
-          layout: 'noBorders'
-        }
-      ]
+          table: { widths: ['*'], body: [[{
+            stack: [
+              { text: '⚠', fontSize: 26, alignment: 'center', color: '#F59E0B', margin: [0, 0, 0, 8] },
+              { text: 'Nenhum aprovador ou validador foi informado',
+                fontSize: 12, bold: true, alignment: 'center', color: '#78350F', margin: [0, 0, 0, 6] },
+              { text: 'Preencha o Bloco 7A (Aprovadores e Validadores) no formulário do LicitaReq antes de gerar o PDF.',
+                fontSize: 9, alignment: 'center', color: '#92400E', lineHeight: 1.55 },
+            ],
+            fillColor: '#FEF3C7', margin: [20, 20, 20, 20],
+          }]]},
+          layout: 'noBorders',
+        },
+      ],
     }];
   }
 
-  const MAX_POR_PAGINA = 6;
-  const grupos = distribuirAprovadores(aprovadores, MAX_POR_PAGINA);
-
-  return grupos.map(function (grupo, idx) {
+  const MAX = 6;
+  const grupos = distribuir(aprovadores, MAX);
+  return grupos.map((grupo, idx) => {
     const ehPrimeira = idx === 0;
     const ehUltima   = idx === grupos.length - 1;
-    const linhas     = montarLinhasAprovadores(grupo);
-
     return {
       pageBreak: 'before',
       stack: [
-        montarCabecalhoAprovacoes(ehPrimeira, idx + 1, grupos.length,
-                                   aprovadores.length, grupo.length),
-        ...linhas,
-        ehUltima
-          ? montarRodapeAprovacoes(aprovadores.length, grupos.length)
-          : { text: '', margin: [0, 20, 0, 0] }
-      ]
+        cabecalhoAprovacoes(ehPrimeira, idx + 1, grupos.length, aprovadores.length, grupo.length),
+        ...montarLinhas(grupo),
+        ehUltima ? rodapeAprovacoes(aprovadores.length, grupos.length) : { text: '', margin: [0, 20, 0, 0] },
+      ],
     };
   });
 }
 
-function distribuirAprovadores(aprovadores, maxPorPagina) {
+function distribuir(aprovadores, max) {
   const n = aprovadores.length;
-  if (n <= maxPorPagina) return [aprovadores];
-
-  const numPaginas = Math.ceil(n / maxPorPagina);
-  const base  = Math.floor(n / numPaginas);
-  const resto = n % numPaginas;
-
-  const paginas = [];
+  if (n <= max) return [aprovadores];
+  const pags = Math.ceil(n / max);
+  const base = Math.floor(n / pags);
+  const resto = n % pags;
+  const out = [];
   let idx = 0;
-  for (let i = 0; i < numPaginas; i++) {
+  for (let i = 0; i < pags; i++) {
     const tam = base + (i < resto ? 1 : 0);
-    paginas.push(aprovadores.slice(idx, idx + tam));
+    out.push(aprovadores.slice(idx, idx + tam));
     idx += tam;
   }
-  return paginas;
+  return out;
 }
 
-function montarCabecalhoAprovacoes(ehPrimeira, pagina, totalPaginas, totalSignatarios, nestaGrupo) {
+function cabecalhoAprovacoes(ehPrimeira, pag, tot, totAss, noGrupo) {
   const stack = [
     { text: 'APROVAÇÃO E VALIDAÇÃO',
-      fontSize: ehPrimeira ? 15 : 13, bold: true,
-      alignment: 'center', color: '#1e1b4b', margin: [0, 0, 0, 4] },
+      fontSize: ehPrimeira ? 15 : 13, bold: true, alignment: 'center', color: OL.executivo,
+      margin: [0, 0, 0, 4] },
     { text: 'Lei nº 14.133/2021 · Art. 18, § 1º',
-      fontSize: 9, alignment: 'center', color: '#4f46e5', margin: [0, 0, 0, 8] },
-    { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 515, y2: 0,
-                 lineWidth: 1.2, lineColor: '#4f46e5' }],
-      margin: [0, 0, 0, 10] }
+      fontSize: 9, alignment: 'center', color: OL.petroleoD, margin: [0, 0, 0, 8] },
+    { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 515, y2: 0, lineWidth: 1.2, lineColor: OL.petroleo }],
+      margin: [0, 0, 0, 10] },
   ];
-
-  if (totalPaginas > 1) {
+  if (tot > 1) {
     stack.push({
-      text: 'Página ' + pagina + ' de ' + totalPaginas +
-            ' · ' + nestaGrupo + ' de ' + totalSignatarios + ' assinaturas',
-      fontSize: 8, italics: true, alignment: 'center',
-      color: '#94a3b8', margin: [0, 0, 0, 10]
+      text: 'Página ' + pag + ' de ' + tot + ' · ' + noGrupo + ' de ' + totAss + ' assinaturas',
+      fontSize: 8, italics: true, alignment: 'center', color: OL.muted, margin: [0, 0, 0, 10],
     });
   }
-
   if (ehPrimeira) {
     stack.push({
-      text: 'Os responsáveis abaixo identificados aprovam e validam o presente ' +
-            'Documento de Formalização de Demanda, atestando a veracidade das ' +
-            'informações e a conformidade com a legislação vigente. O documento ' +
-            'deve ser assinado eletronicamente ou de próprio punho, no espaço ' +
-            'reservado para assinatura e/ou carimbo.',
-      fontSize: 9, color: '#334155', lineHeight: 1.5,
-      alignment: 'justify', margin: [0, 0, 0, 18]
+      text: 'Os responsáveis abaixo identificados aprovam e validam o presente Documento ' +
+            'de Formalização de Demanda, atestando a veracidade das informações e a ' +
+            'conformidade com a legislação vigente. O documento deve ser assinado ' +
+            'eletronicamente ou de próprio punho, no espaço reservado para assinatura e/ou carimbo.',
+      fontSize: 9, color: '#334155', lineHeight: 1.5, alignment: 'justify',
+      margin: [0, 0, 0, 18],
     });
   }
-
   return { unbreakable: true, stack: stack };
 }
 
-function montarLinhasAprovadores(grupo) {
+function montarLinhas(grupo) {
   const linhas = chunk(grupo, 2);
-  const ultimoIdx = linhas.length - 1;
-
-  return linhas.map(function (par, idx) {
-    const margemInferior = idx === ultimoIdx ? 0 : 22;
-
-    return {
-      stack: [{
-        unbreakable: true,
-        columns: [
-          { width: '50%', stack: blocoAssinatura(par[0]) },
-          par[1]
-            ? { width: '50%', stack: blocoAssinatura(par[1]) }
-            : { width: '50%', text: '' }
-        ],
-        columnGap: 26
-      }],
-      margin: [0, 0, 0, margemInferior]
-    };
-  });
-}
-
-function montarRodapeAprovacoes(total, totalPaginas) {
-  return {
-    unbreakable: true,
-    stack: [
-      { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 515, y2: 0,
-                   lineWidth: 0.6, lineColor: '#cbd5e1' }],
-        margin: [0, 30, 0, 10] },
-      { text: 'Total de assinaturas: ' + total +
-              (totalPaginas > 1 ? ' · distribuídas em ' + totalPaginas + ' páginas' : ''),
-        fontSize: 8, italics: true, alignment: 'center', color: '#94a3b8' }
-    ]
-  };
+  const ult = linhas.length - 1;
+  return linhas.map((par, idx) => ({
+    stack: [{
+      unbreakable: true,
+      columns: [
+        { width: '50%', stack: blocoAssinatura(par[0]) },
+        par[1] ? { width: '50%', stack: blocoAssinatura(par[1]) } : { width: '50%', text: '' },
+      ],
+      columnGap: 26,
+    }],
+    margin: [0, 0, 0, idx === ult ? 0 : 22],
+  }));
 }
 
 function blocoAssinatura(p) {
   const linhas = [
     { text: '', margin: [0, 32, 0, 0] },
-    { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 225, y2: 0,
-                 lineWidth: 0.9, lineColor: '#475569',
-                 dash: { length: 3, space: 2 } }],
+    { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 225, y2: 0, lineWidth: 0.9,
+                 lineColor: OL.executivo, dash: { length: 3, space: 2 } }],
       margin: [0, 0, 0, 5] },
     { text: 'Assinatura / Carimbo', fontSize: 7, italics: true,
-      alignment: 'center', color: '#94a3b8', margin: [0, 0, 0, 8] },
-    { text: p.nome || '—', fontSize: 10.5, bold: true,
-      alignment: 'center', color: '#0f172a' }
+      alignment: 'center', color: OL.muted, margin: [0, 0, 0, 8] },
+    { text: p.nome || '—', fontSize: 10.5, bold: true, alignment: 'center', color: OL.ink },
   ];
-
-  if (p.cargo) linhas.push({
-    text: p.cargo, fontSize: 8.5, alignment: 'center',
-    color: '#334155', margin: [0, 2, 0, 0]
-  });
-  if (p.orgao) linhas.push({
-    text: p.orgao, fontSize: 8, alignment: 'center',
-    color: '#64748b', margin: [0, 2, 0, 0]
-  });
-  if (p.papel) linhas.push({
-    text: rotulo('papel', p.papel).toUpperCase(),
-    fontSize: 7, bold: true, alignment: 'center',
-    color: '#4f46e5', margin: [0, 6, 0, 0]
-  });
+  if (p.cargo) linhas.push({ text: p.cargo, fontSize: 8.5, alignment: 'center', color: '#334155', margin: [0, 2, 0, 0] });
+  if (p.orgao) linhas.push({ text: p.orgao, fontSize: 8, alignment: 'center', color: OL.muted, margin: [0, 2, 0, 0] });
+  if (p.papel) linhas.push({ text: rotulo('papel', p.papel).toUpperCase(), fontSize: 7, bold: true,
+    alignment: 'center', color: OL.petroleoD, margin: [0, 6, 0, 0] });
 
   return [{
-    table: {
-      widths: ['*'],
-      body: [[{ stack: linhas, margin: [12, 8, 12, 10] }]]
-    },
+    table: { widths: ['*'], body: [[{ stack: linhas, margin: [12, 8, 12, 10] }]] },
     layout: {
-      hLineColor: function () { return '#e2e8f0'; },
-      vLineColor: function () { return '#e2e8f0'; },
-      hLineWidth: function () { return 0.4; },
-      vLineWidth: function () { return 0.4; },
-      paddingLeft:   function () { return 0; },
-      paddingRight:  function () { return 0; },
-      paddingTop:    function () { return 0; },
-      paddingBottom: function () { return 0; }
-    }
+      hLineColor: () => OL.line, vLineColor: () => OL.line,
+      hLineWidth: () => 0.4, vLineWidth: () => 0.4,
+      paddingLeft: () => 0, paddingRight: () => 0, paddingTop: () => 0, paddingBottom: () => 0,
+    },
   }];
 }
 
-/* ==============================================================
-   PÁGINA FINAL — AUTENTICAÇÃO
-   ============================================================== */
-function montarPaginaAutenticacao(ctx) {
-  const tag      = ctx.tag;
-  const hash     = ctx.hash;
-  const geradoEm = ctx.geradoEm;
-  const versao   = ctx.versao;
-  const org      = ctx.org  || {};
-  const dfd      = ctx.dfd  || {};
+function rodapeAprovacoes(total, totPags) {
+  return {
+    unbreakable: true,
+    stack: [
+      { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 515, y2: 0, lineWidth: 0.6, lineColor: OL.line }],
+        margin: [0, 30, 0, 10] },
+      { text: 'Total de assinaturas: ' + total + (totPags > 1 ? ' · distribuídas em ' + totPags + ' páginas' : ''),
+        fontSize: 8, italics: true, alignment: 'center', color: OL.muted },
+    ],
+  };
+}
 
+/* ==============================================================
+   PÁGINA FINAL — AUTENTICAÇÃO (reforço visual + TAG + HASH)
+   ============================================================== */
+function montarPaginaAutenticacaoFinal(auth) {
+  const { tag, hash, geradoEm, versao, org, dfd } = auth;
   return {
     pageBreak: 'before',
     stack: [{
@@ -951,172 +802,100 @@ function montarPaginaAutenticacao(ctx) {
         { text: '', margin: [0, 4, 0, 0] },
         { text: '🔐', fontSize: 28, alignment: 'center', margin: [0, 0, 0, 4] },
         { text: 'AUTENTICAÇÃO E RASTREABILIDADE',
-          fontSize: 14, bold: true, alignment: 'center',
-          color: '#4f46e5', margin: [0, 0, 0, 3] },
-        { text: 'Documento Oficial LicitaReq · Integração LicitaAudit',
-          fontSize: 8.5, alignment: 'center', color: '#64748b',
-          margin: [0, 0, 0, 14] },
+          fontSize: 14, bold: true, alignment: 'center', color: OL.petroleoD,
+          margin: [0, 0, 0, 3] },
+        { text: 'Documento Oficial OmniLicit · Integração LicitaAudit',
+          fontSize: 8.5, alignment: 'center', color: OL.muted, margin: [0, 0, 0, 14] },
 
         {
-          table: {
-            widths: ['*'],
-            body: [[{
-              stack: [
-                { text: 'TAG DE AUTENTICAÇÃO',
-                  fontSize: 8, bold: true, alignment: 'center',
-                  color: '#c7d2fe', margin: [0, 0, 0, 3] },
-                { text: tag,
-                  fontSize: 12, bold: true, alignment: 'center',
-                  color: '#ffffff', margin: [0, 3, 0, 0] }
-              ],
-              fillColor: '#4f46e5',
-              margin: [16, 12, 16, 12]
-            }]]
-          },
-          layout: 'noBorders',
-          margin: [0, 0, 0, 12]
+          table: { widths: ['*'], body: [[{
+            stack: [
+              { text: 'TAG DE AUTENTICAÇÃO', fontSize: 8, bold: true,
+                alignment: 'center', color: '#C2ECE7', margin: [0, 0, 0, 3] },
+              { text: tag, fontSize: 12, bold: true, alignment: 'center', color: '#FFFFFF' },
+            ],
+            fillColor: OL.petroleo, margin: [16, 12, 16, 12],
+          }]]},
+          layout: 'noBorders', margin: [0, 0, 0, 12],
         },
 
         {
           table: {
             widths: ['35%', '*'],
             body: [
-              linhaMeta('Hash de Integridade', hash),
+              linhaMeta('Hash SHA-256', hash),
               linhaMeta('Emitido em',          formatarDataHora(geradoEm)),
               linhaMeta('Sistema Emissor',     versao),
-              linhaMeta('Órgão Emissor',       org.nome || '—'),
-              linhaMeta('Expediente',          dfd.numero || '—'),
-              linhaMeta('Tag de Integração',   'PREFIRO_TAG: LicitaReq_Documento_Oficial')
-            ]
+              linhaMeta('Órgão Emissor',       (org && org.nome) || '—'),
+              linhaMeta('Expediente',          (dfd && dfd.numero) || '—'),
+              linhaMeta('Tag de Integração',   'PREFIRO_TAG: OmniLicit_DFD_Oficial'),
+            ],
           },
-          layout: layoutTabelaMeta(),
-          margin: [0, 0, 0, 12]
+          layout: layoutMeta(), margin: [0, 0, 0, 12],
         },
 
         {
-          table: {
-            widths: ['*'],
-            body: [[{
-              stack: [
-                { text: '⚠  AVISO IMPORTANTE',
-                  fontSize: 8.5, bold: true, color: '#92400e',
-                  margin: [0, 0, 0, 4] },
-                { text:
-                  'Este documento foi gerado automaticamente pelo sistema LicitaReq e possui ' +
-                  'TAG de autenticação única rastreável pelo LicitaAudit. A validade jurídica ' +
-                  'do presente DFD está condicionada à conferência pela assessoria jurídica, ' +
-                  'pelo controle interno e pela autoridade competente, nos termos da Lei nº 14.133/2021.',
-                  fontSize: 8, color: '#78350f', lineHeight: 1.4 }
-              ],
-              fillColor: '#fef3c7',
-              margin: [14, 10, 14, 10]
-            }]]
-          },
-          layout: 'noBorders',
-          margin: [0, 0, 0, 12]
+          table: { widths: ['*'], body: [[{
+            stack: [
+              { text: '⚠  AVISO IMPORTANTE', fontSize: 8.5, bold: true,
+                color: '#92400E', margin: [0, 0, 0, 4] },
+              { text: 'Este documento foi gerado automaticamente pelo sistema LicitaReq (OmniLicit) ' +
+                      'e possui TAG de autenticação única rastreável pelo OmniLicit Audit. A validade ' +
+                      'jurídica do presente DFD está condicionada à conferência pela assessoria ' +
+                      'jurídica, pelo controle interno e pela autoridade competente, nos termos da ' +
+                      'Lei nº 14.133/2021.',
+                fontSize: 8, color: '#78350F', lineHeight: 1.4, alignment: 'justify' },
+            ],
+            fillColor: '#FEF3C7', margin: [14, 10, 14, 10],
+          }]]},
+          layout: 'noBorders', margin: [0, 0, 0, 12],
         },
 
         {
-          table: {
-            widths: ['*'],
-            body: [[{
-              stack: [
-                { text: '◆  SELO DIGITAL LICITAREQ',
-                  fontSize: 8, bold: true, alignment: 'center',
-                  color: '#4f46e5', margin: [0, 0, 0, 3] },
-                { text: 'Documento íntegro · Não adulterado · Rastreável',
-                  fontSize: 7, alignment: 'center',
-                  color: '#64748b', margin: [0, 3, 0, 0] },
-                { text: tag,
-                  fontSize: 7, alignment: 'center',
-                  color: '#94a3b8', margin: [0, 4, 0, 0] }
-              ],
-              fillColor: '#eef2ff',
-              margin: [14, 10, 14, 10]
-            }]]
-          },
+          table: { widths: ['*'], body: [[{
+            stack: [
+              { text: '◆  SELO DIGITAL OMNILICIT', fontSize: 8, bold: true,
+                alignment: 'center', color: OL.petroleoD, margin: [0, 0, 0, 3] },
+              { text: 'Documento íntegro · Não adulterado · Rastreável', fontSize: 7,
+                alignment: 'center', color: OL.muted, margin: [0, 3, 0, 0] },
+              { text: tag, fontSize: 7, alignment: 'center',
+                color: OL.muted, font: 'Courier', margin: [0, 4, 0, 0] },
+            ],
+            fillColor: '#E6F7F5', margin: [14, 10, 14, 10],
+          }]]},
           layout: 'noBorders',
-          margin: [0, 0, 0, 0]
-        }
-      ]
-    }]
+        },
+      ],
+    }],
   };
 }
 
 function linhaMeta(chave, valor) {
   return [
     { text: chave + ':', fontSize: 8, bold: true, color: '#334155',
-      fillColor: '#f1f5f9', margin: [8, 5, 8, 5] },
-    { text: valor || '—', fontSize: 8, color: '#0f172a',
-      margin: [8, 5, 8, 5] }
+      fillColor: '#F1F5F9', margin: [8, 5, 8, 5] },
+    { text: valor || '—', fontSize: 8, color: OL.ink,
+      font: /^[A-F0-9]{64}$/.test(valor || '') ? 'Courier' : undefined,
+      margin: [8, 5, 8, 5] },
   ];
 }
-
-function layoutTabelaMeta() {
+function layoutMeta() {
   return {
-    hLineColor: function () { return '#cbd5e1'; },
-    vLineColor: function () { return '#cbd5e1'; },
-    hLineWidth: function () { return 0.4; },
-    vLineWidth: function () { return 0.4; },
-    paddingLeft:   function () { return 0; },
-    paddingRight:  function () { return 0; },
-    paddingTop:    function () { return 0; },
-    paddingBottom: function () { return 0; }
+    hLineColor: () => '#CBD5E1', vLineColor: () => '#CBD5E1',
+    hLineWidth: () => 0.4, vLineWidth: () => 0.4,
+    paddingLeft: () => 0, paddingRight: () => 0, paddingTop: () => 0, paddingBottom: () => 0,
   };
-}
-
-/* ==============================================================
-   HELPERS DE FORMATAÇÃO
-   ============================================================== */
-function formatarData(iso) {
-  if (!iso) return '—';
-  const p = String(iso).split('-');
-  return p[2] && p[1] && p[0] ? (p[2] + '/' + p[1] + '/' + p[0]) : iso;
-}
-
-function formatarDataHora(d) {
-  const dt = d instanceof Date ? d : new Date(d);
-  if (isNaN(dt)) return '—';
-  const pad = function (n) { return String(n).padStart(2, '0'); };
-  return pad(dt.getDate()) + '/' + pad(dt.getMonth() + 1) + '/' + dt.getFullYear() + ' ' +
-         pad(dt.getHours()) + ':' + pad(dt.getMinutes()) + ':' + pad(dt.getSeconds());
-}
-
-function gerarTagAutenticacao(dfd, org) {
-  const base = [
-    (org && (org.cnpj || org.nome)) || '',
-    dfd && dfd.numero || '',
-    dfd && dfd.data   || '',
-    dfd && dfd.objeto || '',
-    dfd && dfd.valor  || ''
-  ].join('|');
-  const h = hash32(base).toString(36).toUpperCase().padStart(8, '0');
-  return 'LICITAREQ::DFD::' + h + '::' + new Date().getFullYear();
-}
-
-function gerarHashDocumento(dfd, org) {
-  return hash32(JSON.stringify({ dfd: dfd, org: org }))
-    .toString(16).toUpperCase().padStart(16, '0');
-}
-
-function hash32(str) {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < str.length; i++) {
-    h ^= str.charCodeAt(i);
-    h = Math.imul(h, 0x01000193);
-  }
-  return h >>> 0;
 }
 
 /* ==============================================================
    EXPORTAÇÃO GLOBAL
    ============================================================== */
 window.LicitaReqPDF = {
-  buildDfdPdfDefinition: buildDfdPdfDefinition,
-  montarTituloCabecalho: montarTituloCabecalho,
-  ROTULOS: ROTULOS,
-  rotulo: rotulo,
-  normalizarValorMonetario: normalizarValorMonetario,
-  formatarData: formatarData,
-  formatarDataHora: formatarDataHora
+  buildDfdPdfDefinition,
+  montarTituloCabecalho,
+  ROTULOS,
+  rotulo,
+  normalizarValorMonetario,
+  formatarData,
+  formatarDataHora,
 };
